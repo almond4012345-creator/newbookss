@@ -5,366 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XX中学图书馆 | 每周新书速递</title>
     <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyCP9snpj1ot0dwfUaNxQV26LDjFTpLwMcc",
-    authDomain: "newbookf-a73de.firebaseapp.com",
-    projectId: "newbookf-a73de",
-    storageBucket: "newbookf-a73de.firebasestorage.app",
-    messagingSenderId: "170910643508",
-    appId: "1:170910643508:web:0f69a51175386e2e9fa161"
-  };
+        // 初始化Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCP9snpj1ot0dwfUaNxQV26LDjFTpLwMcc",
+            authDomain: "newbookf-a73de.firebaseapp.com",
+            projectId: "newbookf-a73de",
+            storageBucket: "newbookf-a73de.firebasestorage.app",
+            messagingSenderId: "170910643508",
+            appId: "1:170910643508:web:0f69a51175386e2e9fa161"
+        };
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-</script>
-    <style>
-        /* 基础样式 */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "PingFang SC", "Helvetica Neue", sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
-        .hidden { display: none !important; }
-        button, input, select, textarea { padding: 8px 12px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background: #4CAF50; color: white; cursor: pointer; border: none; }
-        button:hover { background: #45a049; }
-        .delete-btn { background: #f44336; }
-        .delete-btn:hover { background: #d32f2f; }
-        .primary-btn { background: #2196F3; }
-        .primary-btn:hover { background: #1976D2; }
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-        /* 顶部区域 */
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { color: #333; margin: 10px 0; }
-        .issue-selector { margin: 15px 0; }
-
-        /* 导航栏（检索+分类区） */
-        .nav-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }
-        .nav-item { white-space: nowrap; }
-        .keyword-search { margin-left: auto; }
-
-        /* 分类下拉菜单 */
-        .category-dropdown { position: relative; display: inline-block; }
-        .category-trigger { cursor: pointer; }
-        .category-menu { 
-            position: absolute; 
-            top: 100%; 
-            left: 0; 
-            background: rgba(255,255,255,0.95); 
-            border: 1px solid #ddd; 
-            border-radius: 4px; 
-            padding: 10px; 
-            width: 200px; 
-            z-index: 10; 
-            display: none; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .category-menu.visible { display: block; }
-        .category-item { padding: 8px; cursor: pointer; border-radius: 2px; }
-        .category-item:hover { background: #f0f0f0; }
-
-        /* 海报区 */
-        .poster-section { margin: 30px 0; }
-        .poster-thumbnails { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
-        .poster-thumb { width: 200px; height: 280px; object-fit: contain; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: #f9f9f9; padding: 10px; }
-        .poster-thumb:hover { border-color: #2196F3; }
-        .poster-thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.9em; }
-        .poster-large { max-width: 100%; margin: 20px 0; border: 1px solid #ddd; }
-
-        /* 书籍资料格 */
-        .books-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
-        .book-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; transition: transform 0.2s; }
-        .book-card:hover { transform: translateY(-3px); }
-        .book-cover { width: 100px; height: 150px; object-fit: cover; margin: 0 auto 10px; display: block; }
-        .book-status { margin: 10px 0; font-weight: bold; }
-        .status-in { color: #4CAF50; }
-        .status-out { color: #f44336; }
-
-        /* 推荐购书区（用户可见） */
-        .user-recommends { margin: 30px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
-        .user-recommends h3 { margin-bottom: 10px; }
-        .recommend-list { display: flex; flex-wrap: wrap; gap: 15px; }
-        .recommend-item { padding: 10px; border: 1px solid #eee; border-radius: 4px; background: white; }
-        .recommend-status { font-size: 0.8em; margin-left: 10px; }
-        .status-recorded { color: #4CAF50; }
-        .status-invalid { color: #f44336; }
-
-        /* 弹窗样式 */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; position: relative; }
-        .close-modal { position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5em; }
-        .close-modal:hover { color: #f44336; }
-
-        /* 编辑后台 */
-        .admin-login { position: fixed; bottom: 10px; right: 10px; font-size: 0.8em; color: #666; cursor: pointer; }
-        .admin-panel { margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px; }
-        .form-group { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; }
-        .form-group h3 { margin-bottom: 15px; color: #333; }
-        .book-editor { margin: 10px 0; padding: 10px; border: 1px dashed #ccc; }
-        .warning { color: #f44336; font-size: 0.9em; margin: 5px 0; }
-        .record-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .record-status { min-width: 100px; }
-    </style>
-</head>
-<body>
-    <!-- 顶部区域 -->
-    <div class="header">
-        <h1>XX中学图书馆 | 每周新书速递</h1>
-        <div class="issue-selector">
-            <label>选择期数: </label>
-            <select id="issueSelect" onchange="switchIssue(this.value)">
-                <option value="1">第一期</option>
-            </select>
-        </div>
-    </div>
-
-    <!-- 导航栏（检索+分类+推荐） -->
-    <div class="nav-bar">
-        <div class="nav-item">
-            <button class="primary-btn" onclick="showLatestIssue()">最新一期</button>
-        </div>
-        <div class="nav-item category-dropdown">
-            <span class="category-trigger">分类 ▼</span>
-            <div class="category-menu" id="categoryMenu">
-                <div class="category-item" data-category="all">全部</div>
-                <div class="category-item" data-category="000">000 总类</div>
-                <div class="category-item" data-category="100">100 哲学</div>
-                <div class="category-item" data-category="200">200 宗教</div>
-                <div class="category-item" data-category="300">300 科学</div>
-                <div class="category-item" data-category="400">400 应用科学</div>
-                <div class="category-item" data-category="500">500 社科</div>
-                <div class="category-item" data-category="600">600 历史</div>
-                <div class="category-item" data-category="700">700 世界史</div>
-                <div class="category-item" data-category="800">800 语文</div>
-                <div class="category-item" data-category="900">900 艺术</div>
-            </div>
-        </div>
-        <div class="nav-item">
-            <button onclick="showUserRecommends()">查看大家的推荐</button>
-        </div>
-        <div class="nav-item keyword-search">
-            <label>关键词检索: </label>
-            <input type="text" id="keywordInput" placeholder="输入书名/作者/索书号...">
-            <button onclick="searchBooks()">搜索</button>
-        </div>
-    </div>
-
-    <!-- 推荐购书展示区（用户可见） -->
-    <div class="user-recommends hidden" id="userRecommendsSection">
-        <h3>大家推荐的书籍</h3>
-        <div class="recommend-list" id="userRecommendList">
-            <!-- 动态生成 -->
-        </div>
-    </div>
-
-    <!-- 海报区 -->
-    <div class="poster-section" id="posterSection">
-        <h2 id="currentIssueTitle">第一期海报</h2>
-        <div class="poster-thumbnails" id="posterThumbContainer">
-            <div class="poster-thumb placeholder" data-poster="1">
-                海报1<br>[暂未上传]
-            </div>
-            <div class="poster-thumb placeholder" data-poster="2">
-                海报2<br>[暂未上传]
-            </div>
-        </div>
-        <div id="posterLargeContainer">
-            <img src="" class="poster-large hidden" id="posterLarge">
-        </div>
-        <div id="booksContainer" class="books-grid">
-            <!-- 书籍卡片将动态生成 -->
-        </div>
-    </div>
-
-    <!-- 预约弹窗 -->
-    <div class="modal hidden" id="reserveModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>预约书籍</h3>
-            <div id="bookReserveInfo"></div>
-            <form id="reserveForm">
-                <input type="hidden" id="reserveBookId">
-                <div class="form-group">
-                    <label>班级: </label>
-                    <input type="text" id="className" required>
-                </div>
-                <div class="form-group">
-                    <label>姓名: </label>
-                    <input type="text" id="studentName" required>
-                </div>
-                <button type="submit">提交预约</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 推荐购书弹窗（用户） -->
-    <div class="modal hidden" id="recommendModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>推荐购买书籍</h3>
-            <form id="recommendForm">
-                <div class="form-group">
-                    <label>书名: </label>
-                    <input type="text" id="recommendBookName" required>
-                </div>
-                <div class="form-group">
-                    <label>推荐理由: </label>
-                    <textarea id="recommendReason" required></textarea>
-                </div>
-                <button type="submit">提交推荐</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 管理员登录弹窗 -->
-    <div class="modal hidden" id="adminLoginModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>管理员登录</h3>
-            <form id="adminLoginForm">
-                <div class="form-group">
-                    <label>账号: </label>
-                    <input type="text" id="adminUser" required>
-                </div>
-                <div class="form-group">
-                    <label>密码: </label>
-                    <input type="password" id="adminPass" required>
-                </div>
-                <button type="submit">登录</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 管理员后台 -->
-    <div class="admin-panel hidden" id="adminPanel">
-        <h2>管理员后台</h2>
-        <button onclick="logoutAdmin()">退出登录</button>
-
-        <!-- 1. 期数管理 -->
-        <div class="form-group">
-            <h3>1. 期数管理</h3>
-            <button class="primary-btn" onclick="addNewIssue()">新增期数</button>
-            <div class="warning" id="issueWarning"></div>
-        </div>
-
-        <!-- 2. 海报管理 -->
-        <div class="form-group">
-            <h3>2. 海报管理</h3>
-            <label>选择期数: </label>
-            <select id="posterIssueSelect" onchange="updatePosterNumSelect()">
-                <option value="1">第一期</option>
-            </select>
-            <label>选择序号: </label>
-            <select id="posterNumSelect">
-                <option value="1">海报1</option>
-                <option value="2">海报2</option>
-            </select>
-            <input type="file" id="posterUpload" accept="image/*">
-            <button onclick="uploadPoster()">重新上传海报</button>
-            <button class="delete-btn" onclick="deleteSinglePoster()">删除此海报</button>
-            <button class="delete-btn" onclick="deleteWholeIssue()">删除整期海报</button>
-            <div class="warning" id="posterWarning"></div>
-        </div>
-
-        <!-- 3. 书籍信息编辑 -->
-        <div class="form-group">
-            <h3>3. 书籍信息管理</h3>
-            <div>
-                <label>选择期数: </label>
-                <select id="bookIssueSelect" onchange="updateBookPosterSelect()">
-                    <option value="1">第一期</option>
-                </select>
-                <label>选择海报序号: </label>
-                <select id="bookPosterSelect" onchange="updateBookNumSelect()">
-                    <option value="1">海报1</option>
-                    <option value="2">海报2</option>
-                </select>
-                <label>选择书籍序号: </label>
-                <select id="bookNumSelect">
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8</option>
-                    <option value="9">9</option>
-                </select>
-            </div>
-            
-            <div class="book-editor">
-                <input type="text" id="bookCallNo" placeholder="索书号">
-                <input type="text" id="bookTitle" placeholder="书名" onblur="checkDuplicateTitle()">
-                <div class="warning" id="titleWarning"></div>
-                <label>分类代码: </label>
-                <select id="bookClassCode">
-                    <option value="000">000 总类</option>
-                    <option value="100">100 哲学</option>
-                    <option value="200">200 宗教</option>
-                    <option value="300">300 科学</option>
-                    <option value="400">400 应用科学</option>
-                    <option value="500">500 社科</option>
-                    <option value="600">600 历史</option>
-                    <option value="700">700 世界史</option>
-                    <option value="800">800 语文</option>
-                    <option value="900">900 艺术</option>
-                </select>
-                <input type="text" id="bookAuthor" placeholder="作者">
-                <textarea id="bookIntro" placeholder="简介"></textarea>
-                <input type="text" id="bookSuitable" placeholder="适合人群">
-                <select id="bookCategory">
-                    <option value="冒险类">冒险类</option>
-                    <option value="推理类">推理类</option>
-                    <option value="小说类">小说类</option>
-                </select>
-                <select id="bookStatus">
-                    <option value="in">在架（可预约）</option>
-                    <option value="out">不在架</option>
-                </select>
-                <input type="file" id="bookCoverUpload" accept="image/*">
-                <button onclick="saveBookInfo()">保存/修改书籍</button>
-                <button class="delete-btn" onclick="deleteBookInfo()">删除书籍</button>
-            </div>
-        </div>
-
-        <!-- 4. 数据查看 -->
-        <div class="form-group">
-            <h3>4. 预约记录管理</h3>
-            <div id="reserveRecordsContainer">
-                <!-- 动态生成 -->
-            </div>
-        </div>
-
-        <div class="form-group">
-            <h3>5. 推荐购书记录管理</h3>
-            <div id="recommendRecordsContainer">
-                <!-- 动态生成 -->
-            </div>
-        </div>
-    </div>
-
-    <!-- 编辑者入口 -->
-    <div class="admin-login" onclick="showAdminLogin()">编辑者入口</div>
-
-    <script>
         // 全局数据存储
-        const STORAGE_KEY = 'libraryNewBooks';
-        let libraryData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
-            issues: { 
-                1: { 
-                    posters: {1: '', 2: ''}, 
-                    books: {1: {}, 2: {}} 
-                } 
-            },
+        let libraryData = {
+            issues: {},
             categories: ['冒险类', '推理类', '小说类'],
             reserveRecords: [],
             recommendRecords: [],
-            latestIssue: 1 // 最新期数
+            latestIssue: 1
         };
+
+        // 从Firebase加载数据
+        async function loadData() {
+            // 加载期数数据
+            const issuesCol = collection(db, "issues");
+            const issuesSnapshot = await getDocs(issuesCol);
+            issuesSnapshot.forEach(doc => {
+                libraryData.issues[doc.id] = doc.data();
+            });
+
+            // 加载预约记录
+            const reservesCol = collection(db, "reserves");
+            const reservesSnapshot = await getDocs(reservesCol);
+            libraryData.reserveRecords = [];
+            reservesSnapshot.forEach(doc => {
+                let data = doc.data();
+                data.id = doc.id; // 保存文档ID用于后续更新
+                libraryData.reserveRecords.push(data);
+            });
+
+            // 加载推荐记录
+            const recommendsCol = collection(db, "recommends");
+            const recommendsSnapshot = await getDocs(recommendsCol);
+            libraryData.recommendRecords = [];
+            recommendsSnapshot.forEach(doc => {
+                let data = doc.data();
+                data.id = doc.id; // 保存文档ID用于后续更新
+                libraryData.recommendRecords.push(data);
+            });
+
+            // 加载系统设置（最新期数）
+            const settingsDoc = doc(db, "settings", "system");
+            try {
+                const settingsSnapshot = await getDocs(collection(db, "settings"));
+                if (!settingsSnapshot.empty) {
+                    libraryData.latestIssue = settingsSnapshot.docs[0].data().latestIssue || 1;
+                } else {
+                    // 初始化设置
+                    await setDoc(doc(db, "settings", "system"), {
+                        latestIssue: 1
+                    });
+                }
+            } catch (e) {
+                console.log("初始化设置:", e);
+                libraryData.latestIssue = 1;
+            }
+
+            // 初始化页面
+            init();
+        }
+
+        // 保存数据到Firebase
+        async function saveData() {
+            // 保存所有期数数据
+            for (const issueId in libraryData.issues) {
+                await setDoc(doc(db, "issues", issueId), libraryData.issues[issueId]);
+            }
+
+            // 保存系统设置（最新期数）
+            await setDoc(doc(db, "settings", "system"), {
+                latestIssue: libraryData.latestIssue
+            });
+        }
+
+        // 保存单条预约记录
+        async function saveReserveRecord(record) {
+            const newDoc = doc(collection(db, "reserves"));
+            record.id = newDoc.id;
+            await setDoc(newDoc, record);
+            libraryData.reserveRecords.push(record);
+            renderReserveRecords();
+        }
+
+        // 更新预约记录状态
+        async function updateReserveStatus(index, status) {
+            const record = libraryData.reserveRecords[index];
+            record.status = status;
+            await updateDoc(doc(db, "reserves", record.id), {
+                status: status
+            });
+        }
+
+        // 保存单条推荐记录
+        async function saveRecommendRecord(record) {
+            const newDoc = doc(collection(db, "recommends"));
+            record.id = newDoc.id;
+            await setDoc(newDoc, record);
+            libraryData.recommendRecords.push(record);
+            renderRecommendRecords();
+        }
+
+        // 更新推荐记录状态
+        async function updateRecommendStatus(index, status) {
+            const record = libraryData.recommendRecords[index];
+            record.status = status;
+            await updateDoc(doc(db, "recommends", record.id), {
+                status: status
+            });
+        }
+
+        // 删除整期数据
+        async function deleteWholeIssue(issue) {
+            await deleteDoc(doc(db, "issues", issue.toString()));
+            delete libraryData.issues[issue];
+        }
 
         // 初始化页面
         function init() {
@@ -580,7 +350,7 @@
         }
 
         // 删除整期海报
-        function deleteWholeIssue() {
+        async function deleteWholeIssueHandler() {
             const issue = document.getElementById('posterIssueSelect').value;
             if (!libraryData.issues[issue]) {
                 showWarning('posterWarning', '该期不存在');
@@ -588,11 +358,11 @@
             }
             
             if (confirm(`确定要删除第${issue}期所有海报和书籍吗？此操作不可恢复！`)) {
-                delete libraryData.issues[issue];
+                await deleteWholeIssue(issue);
                 // 更新最新期数（如果删除的是最新期）
                 const issues = Object.keys(libraryData.issues).map(Number).sort((a, b) => b - a);
                 libraryData.latestIssue = issues.length > 0 ? issues[0] : 0;
-                saveData();
+                await saveData();
                 renderIssueSelectors();
                 showLatestIssue();
                 showWarning('posterWarning', `第${issue}期已全部删除`, 'green');
@@ -600,14 +370,14 @@
         }
 
         // 新增期数
-        function addNewIssue() {
+        async function addNewIssue() {
             const newIssue = libraryData.latestIssue + 1;
             libraryData.issues[newIssue] = {
                 posters: {1: '', 2: ''},
                 books: {1: {}, 2: {}}
             };
             libraryData.latestIssue = newIssue;
-            saveData();
+            await saveData();
             renderIssueSelectors();
             showWarning('issueWarning', `已新增第${newIssue}期`, 'green');
             // 自动切换到新期
@@ -665,7 +435,7 @@
         }
 
         // 保存/修改书籍
-        function saveBookInfo() {
+        async function saveBookInfo() {
             const title = document.getElementById('bookTitle').value.trim();
             if (!title) {
                 alert('请输入书名');
@@ -694,9 +464,9 @@
             
             if (coverFile) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = async function(e) {
                     coverUrl = e.target.result;
-                    saveBookData();
+                    await saveBookData();
                     coverInput.value = '';
                 };
                 reader.readAsDataURL(coverFile);
@@ -706,14 +476,14 @@
                 if (existingBook && existingBook.cover) {
                     coverUrl = existingBook.cover;
                 }
-                saveBookData();
+                await saveBookData();
             }
 
-            function saveBookData() {
+            async function saveBookData() {
                 libraryData.issues[issue].books[posterNum][bookNum] = {
                     callNo: document.getElementById('bookCallNo').value,
                     title: title,
-                    classCode: document.getElementById('bookClassCode').value, // 000-900分类（仅管理员可见）
+                    classCode: document.getElementById('bookClassCode').value,
                     author: document.getElementById('bookAuthor').value,
                     intro: document.getElementById('bookIntro').value,
                     suitable: document.getElementById('bookSuitable').value,
@@ -721,7 +491,7 @@
                     status: document.getElementById('bookStatus').value,
                     cover: coverUrl
                 };
-                saveData();
+                await saveData();
                 alert('书籍信息已保存');
                 renderBooks(issue, posterNum);
                 // 刷新记录中的书籍名称（如果有）
@@ -730,7 +500,7 @@
         }
 
         // 删除书籍
-        function deleteBookInfo() {
+        async function deleteBookInfo() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
@@ -743,7 +513,7 @@
             
             if (confirm(`确定要删除第${issue}期第${posterNum}张海报的第${bookNum}本书吗？`)) {
                 delete books[bookNum];
-                saveData();
+                await saveData();
                 renderBooks(issue, posterNum);
                 alert('书籍已删除');
             }
@@ -771,7 +541,7 @@
                 const card = document.createElement('div');
                 card.className = 'book-card';
                 card.dataset.category = book.category;
-                card.dataset.classCode = book.classCode; // 用于分类筛选
+                card.dataset.classCode = book.classCode;
                 card.innerHTML = `
                     <img src="${book.cover}" class="book-cover">
                     <p>索书号: ${book.callNo}</p>
@@ -818,11 +588,6 @@
             });
         }
 
-        function updateReserveStatus(index, status) {
-            libraryData.reserveRecords[index].status = status;
-            saveData();
-        }
-
         // 推荐购书记录管理
         function renderRecommendRecords() {
             const container = document.getElementById('recommendRecordsContainer');
@@ -850,20 +615,18 @@
             });
         }
 
-        function updateRecommendStatus(index, status) {
-            libraryData.recommendRecords[index].status = status;
-            saveData();
-        }
-
         // 辅助函数：更新记录中的书籍名称（当书籍改名时）
         function updateRecordsBookTitle(issue, posterNum, bookNum, newTitle) {
             const bookId = `${issue}-${posterNum}-${bookNum}`;
             libraryData.reserveRecords.forEach(r => {
                 if (r.bookId === bookId) {
                     r.bookTitle = newTitle;
+                    // 更新到Firebase
+                    updateDoc(doc(db, "reserves", r.id), {
+                        bookTitle: newTitle
+                    });
                 }
             });
-            saveData();
         }
 
         // 预约和推荐功能
@@ -875,44 +638,44 @@
             document.getElementById('reserveModal').classList.remove('hidden');
         }
 
-        document.getElementById('reserveForm').addEventListener('submit', function(e) {
+        document.getElementById('reserveForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const bookId = document.getElementById('reserveBookId').value;
             const [issue, posterNum, bookNum] = bookId.split('-');
             const book = libraryData.issues[issue].books[posterNum][bookNum];
             
-            libraryData.reserveRecords.push({
+            const newReserve = {
                 bookId,
                 bookTitle: book.title,
                 className: document.getElementById('className').value,
                 studentName: document.getElementById('studentName').value,
                 time: new Date().toLocaleString(),
-                status: '已预约' // 默认状态
-            });
+                status: '已预约'
+            };
             
-            saveData();
+            await saveReserveRecord(newReserve);
             closeAllModals();
             alert('预约成功！请1小时内到图书馆确认，书籍保留2天');
-            renderReserveRecords(); // 刷新记录
+            this.reset();
         });
 
         function showRecommendForm() {
             document.getElementById('recommendModal').classList.remove('hidden');
         }
 
-        document.getElementById('recommendForm').addEventListener('submit', function(e) {
+        document.getElementById('recommendForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            libraryData.recommendRecords.push({
+            const newRecommend = {
                 bookName: document.getElementById('recommendBookName').value,
                 reason: document.getElementById('recommendReason').value,
                 time: new Date().toLocaleString(),
-                status: '已推荐' // 默认状态
-            });
+                status: '已推荐'
+            };
             
-            saveData();
+            await saveRecommendRecord(newRecommend);
             closeAllModals();
             alert('推荐成功，感谢你的建议！');
-            renderRecommendRecords(); // 刷新记录
+            this.reset();
         });
 
         // 关键词搜索
@@ -953,10 +716,6 @@
             });
         }
 
-        function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(libraryData));
-        }
-
         function showWarning(elementId, text, color = '#f44336') {
             const warning = document.getElementById(elementId);
             warning.textContent = text;
@@ -964,8 +723,356 @@
             setTimeout(() => { warning.textContent = ''; }, 3000);
         }
 
-        // 初始化
-        window.onload = init;
+        // 全局函数声明（供HTML调用）
+        window.switchIssue = switchIssue;
+        window.showLatestIssue = showLatestIssue;
+        window.showUserRecommends = showUserRecommends;
+        window.searchBooks = searchBooks;
+        window.uploadPoster = uploadPoster;
+        window.deleteSinglePoster = deleteSinglePoster;
+        window.deleteWholeIssue = deleteWholeIssueHandler;
+        window.addNewIssue = addNewIssue;
+        window.updateBookPosterSelect = updateBookPosterSelect;
+        window.updateBookNumSelect = updateBookNumSelect;
+        window.checkDuplicateTitle = checkDuplicateTitle;
+        window.saveBookInfo = saveBookInfo;
+        window.deleteBookInfo = deleteBookInfo;
+        window.showReserveModal = showReserveModal;
+        window.showRecommendForm = showRecommendForm;
+        window.showAdminLogin = showAdminLogin;
+        window.logoutAdmin = logoutAdmin;
+        window.closeAllModals = closeAllModals;
+        window.updateReserveStatus = updateReserveStatus;
+        window.updateRecommendStatus = updateRecommendStatus;
+
+        // 页面加载时从Firebase加载数据
+        window.onload = loadData;
     </script>
+    <style>
+        /* 基础样式 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "PingFang SC", "Helvetica Neue", sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .hidden { display: none !important; }
+        button, input, select, textarea { padding: 8px 12px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #4CAF50; color: white; cursor: pointer; border: none; }
+        button:hover { background: #45a049; }
+        .delete-btn { background: #f44336; }
+        .delete-btn:hover { background: #d32f2f; }
+        .primary-btn { background: #2196F3; }
+        .primary-btn:hover { background: #1976D2; }
+
+        /* 顶部区域 */
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: #333; margin: 10px 0; }
+        .issue-selector { margin: 15px 0; }
+
+        /* 导航栏（检索+分类区） */
+        .nav-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }
+        .nav-item { white-space: nowrap; }
+        .keyword-search { margin-left: auto; }
+
+        /* 分类下拉菜单 */
+        .category-dropdown { position: relative; display: inline-block; }
+        .category-trigger { cursor: pointer; }
+        .category-menu { 
+            position: absolute; 
+            top: 100%; 
+            left: 0; 
+            background: rgba(255,255,255,0.95); 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            padding: 10px; 
+            width: 200px; 
+            z-index: 10; 
+            display: none; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .category-menu.visible { display: block; }
+        .category-item { padding: 8px; cursor: pointer; border-radius: 2px; }
+        .category-item:hover { background: #f0f0f0; }
+
+        /* 海报区 */
+        .poster-section { margin: 30px 0; }
+        .poster-thumbnails { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
+        .poster-thumb { width: 200px; height: 280px; object-fit: contain; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: #f9f9f9; padding: 10px; }
+        .poster-thumb:hover { border-color: #2196F3; }
+        .poster-thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.9em; }
+        .poster-large { max-width: 100%; margin: 20px 0; border: 1px solid #ddd; }
+
+        /* 书籍资料格 */
+        .books-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .book-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; transition: transform 0.2s; }
+        .book-card:hover { transform: translateY(-3px); }
+        .book-cover { width: 100px; height: 150px; object-fit: cover; margin: 0 auto 10px; display: block; }
+        .book-status { margin: 10px 0; font-weight: bold; }
+        .status-in { color: #4CAF50; }
+        .status-out { color: #f44336; }
+
+        /* 推荐购书区（用户可见） */
+        .user-recommends { margin: 30px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
+        .user-recommends h3 { margin-bottom: 10px; }
+        .recommend-list { display: flex; flex-wrap: wrap; gap: 15px; }
+        .recommend-item { padding: 10px; border: 1px solid #eee; border-radius: 4px; background: white; }
+        .recommend-status { font-size: 0.8em; margin-left: 10px; }
+        .status-recorded { color: #4CAF50; }
+        .status-invalid { color: #f44336; }
+
+        /* 弹窗样式 */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; position: relative; }
+        .close-modal { position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5em; }
+        .close-modal:hover { color: #f44336; }
+
+        /* 编辑后台 */
+        .admin-login { position: fixed; bottom: 10px; right: 10px; font-size: 0.8em; color: #666; cursor: pointer; }
+        .admin-panel { margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px; }
+        .form-group { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; }
+        .form-group h3 { margin-bottom: 15px; color: #333; }
+        .book-editor { margin: 10px 0; padding: 10px; border: 1px dashed #ccc; }
+        .warning { color: #f44336; font-size: 0.9em; margin: 5px 0; }
+        .record-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .record-status { min-width: 100px; }
+    </style>
+</head>
+<body>
+    <!-- 顶部区域 -->
+    <div class="header">
+        <h1>XX中学图书馆 | 每周新书速递</h1>
+        <div class="issue-selector">
+            <label>选择期数: </label>
+            <select id="issueSelect" onchange="switchIssue(this.value)">
+                <option value="1">第一期</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 导航栏（检索+分类+推荐） -->
+    <div class="nav-bar">
+        <div class="nav-item">
+            <button class="primary-btn" onclick="showLatestIssue()">最新一期</button>
+        </div>
+        <div class="nav-item category-dropdown">
+            <span class="category-trigger">分类 ▼</span>
+            <div class="category-menu" id="categoryMenu">
+                <div class="category-item" data-category="all">全部</div>
+                <div class="category-item" data-category="000">000 总类</div>
+                <div class="category-item" data-category="100">100 哲学</div>
+                <div class="category-item" data-category="200">200 宗教</div>
+                <div class="category-item" data-category="300">300 科学</div>
+                <div class="category-item" data-category="400">400 应用科学</div>
+                <div class="category-item" data-category="500">500 社科</div>
+                <div class="category-item" data-category="600">600 历史</div>
+                <div class="category-item" data-category="700">700 世界史</div>
+                <div class="category-item" data-category="800">800 语文</div>
+                <div class="category-item" data-category="900">900 艺术</div>
+            </div>
+        </div>
+        <div class="nav-item">
+            <button onclick="showRecommendForm()">推荐购书</button>
+        </div>
+        <div class="nav-item keyword-search">
+            <label>关键词检索: </label>
+            <input type="text" id="keywordInput" placeholder="输入书名/作者/索书号...">
+            <button onclick="searchBooks()">搜索</button>
+        </div>
+    </div>
+
+    <!-- 推荐购书展示区（用户可见） -->
+    <div class="user-recommends hidden" id="userRecommendsSection">
+        <h3>大家推荐的书籍</h3>
+        <div class="recommend-list" id="userRecommendList">
+            <!-- 动态生成 -->
+        </div>
+    </div>
+
+    <!-- 海报区 -->
+    <div class="poster-section" id="posterSection">
+        <h2 id="currentIssueTitle">第一期海报</h2>
+        <div class="poster-thumbnails" id="posterThumbContainer">
+            <div class="poster-thumb placeholder" data-poster="1">
+                海报1<br>[暂未上传]
+            </div>
+            <div class="poster-thumb placeholder" data-poster="2">
+                海报2<br>[暂未上传]
+            </div>
+        </div>
+        <div id="posterLargeContainer">
+            <img src="" class="poster-large hidden" id="posterLarge">
+        </div>
+        <div id="booksContainer" class="books-grid">
+            <!-- 书籍卡片将动态生成 -->
+        </div>
+    </div>
+
+    <!-- 预约弹窗 -->
+    <div class="modal hidden" id="reserveModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>预约书籍</h3>
+            <div id="bookReserveInfo"></div>
+            <form id="reserveForm">
+                <input type="hidden" id="reserveBookId">
+                <div class="form-group">
+                    <label>班级: </label>
+                    <input type="text" id="className" required>
+                </div>
+                <div class="form-group">
+                    <label>姓名: </label>
+                    <input type="text" id="studentName" required>
+                </div>
+                <button type="submit">提交预约</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 推荐购书弹窗（用户） -->
+    <div class="modal hidden" id="recommendModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>推荐购买书籍</h3>
+            <form id="recommendForm">
+                <div class="form-group">
+                    <label>书名: </label>
+                    <input type="text" id="recommendBookName" required>
+                </div>
+                <div class="form-group">
+                    <label>推荐理由: </label>
+                    <textarea id="recommendReason" required></textarea>
+                </div>
+                <button type="submit">提交推荐</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 管理员登录弹窗 -->
+    <div class="modal hidden" id="adminLoginModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>管理员登录</h3>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label>账号: </label>
+                    <input type="text" id="adminUser" required>
+                </div>
+                <div class="form-group">
+                    <label>密码: </label>
+                    <input type="password" id="adminPass" required>
+                </div>
+                <button type="submit">登录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 管理员后台 -->
+    <div class="admin-panel hidden" id="adminPanel">
+        <h2>管理员后台</h2>
+        <button onclick="logoutAdmin()">退出登录</button>
+
+        <!-- 1. 期数管理 -->
+        <div class="form-group">
+            <h3>1. 期数管理</h3>
+            <button class="primary-btn" onclick="addNewIssue()">新增期数</button>
+            <div class="warning" id="issueWarning"></div>
+        </div>
+
+        <!-- 2. 海报管理 -->
+        <div class="form-group">
+            <h3>2. 海报管理</h3>
+            <label>选择期数: </label>
+            <select id="posterIssueSelect" onchange="updatePosterNumSelect()">
+                <option value="1">第一期</option>
+            </select>
+            <label>选择序号: </label>
+            <select id="posterNumSelect">
+                <option value="1">海报1</option>
+                <option value="2">海报2</option>
+            </select>
+            <input type="file" id="posterUpload" accept="image/*">
+            <button onclick="uploadPoster()">重新上传海报</button>
+            <button class="delete-btn" onclick="deleteSinglePoster()">删除此海报</button>
+            <button class="delete-btn" onclick="deleteWholeIssue()">删除整期海报</button>
+            <div class="warning" id="posterWarning"></div>
+        </div>
+
+        <!-- 3. 书籍信息编辑 -->
+        <div class="form-group">
+            <h3>3. 书籍信息管理</h3>
+            <div>
+                <label>选择期数: </label>
+                <select id="bookIssueSelect" onchange="updateBookPosterSelect()">
+                    <option value="1">第一期</option>
+                </select>
+                <label>选择海报序号: </label>
+                <select id="bookPosterSelect" onchange="updateBookNumSelect()">
+                    <option value="1">海报1</option>
+                    <option value="2">海报2</option>
+                </select>
+                <label>选择书籍序号: </label>
+                <select id="bookNumSelect">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                </select>
+            </div>
+            
+            <div class="book-editor">
+                <input type="text" id="bookCallNo" placeholder="索书号">
+                <input type="text" id="bookTitle" placeholder="书名" onblur="checkDuplicateTitle()">
+                <div class="warning" id="titleWarning"></div>
+                <label>分类代码: </label>
+                <select id="bookClassCode">
+                    <option value="000">000 总类</option>
+                    <option value="100">100 哲学</option>
+                    <option value="200">200 宗教</option>
+                    <option value="300">300 科学</option>
+                    <option value="400">400 应用科学</option>
+                    <option value="500">500 社科</option>
+                    <option value="600">600 历史</option>
+                    <option value="700">700 世界史</option>
+                    <option value="800">800 语文</option>
+                    <option value="900">900 艺术</option>
+                </select>
+                <input type="text" id="bookAuthor" placeholder="作者">
+                <textarea id="bookIntro" placeholder="简介"></textarea>
+                <input type="text" id="bookSuitable" placeholder="适合人群">
+                <select id="bookCategory">
+                    <option value="冒险类">冒险类</option>
+                    <option value="推理类">推理类</option>
+                    <option value="小说类">小说类</option>
+                </select>
+                <select id="bookStatus">
+                    <option value="in">在架（可预约）</option>
+                    <option value="out">不在架</option>
+                </select>
+                <input type="file" id="bookCoverUpload" accept="image/*">
+                <button onclick="saveBookInfo()">保存/修改书籍</button>
+                <button class="delete-btn" onclick="deleteBookInfo()">删除书籍</button>
+            </div>
+        </div>
+
+        <!-- 4. 数据查看 -->
+        <div class="form-group">
+            <h3>4. 预约记录管理</h3>
+            <div id="reserveRecordsContainer">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+
+        <div class="form-group">
+            <h3>5. 推荐购书记录管理</h3>
+            <div id="recommendRecordsContainer">
+                <!-- 动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑者入口 -->
+    <div class="admin-login" onclick="showAdminLogin()">编辑者入口</div>
 </body>
 </html>
