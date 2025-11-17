@@ -25,10 +25,11 @@
         // 全局数据存储
         let libraryData = {
             issues: {},
-            categories: ['冒险类', '推理类', '小说类'],
+            categories: [], // 移除原有分类
             reserveRecords: [],
             recommendRecords: [],
-            latestIssue: 1
+            latestIssue: 1,
+            allBooks: [] // 存储所有书籍用于全局检索
         };
 
         // 从Firebase加载数据
@@ -36,6 +37,7 @@
             // 加载期数数据
             const issuesCol = collection(db, "issues");
             const issuesSnapshot = await getDocs(issuesCol);
+            libraryData.issues = {};
             issuesSnapshot.forEach(doc => {
                 libraryData.issues[doc.id] = doc.data();
             });
@@ -46,7 +48,7 @@
             libraryData.reserveRecords = [];
             reservesSnapshot.forEach(doc => {
                 let data = doc.data();
-                data.id = doc.id; // 保存文档ID用于后续更新
+                data.id = doc.id;
                 libraryData.reserveRecords.push(data);
             });
 
@@ -56,42 +58,59 @@
             libraryData.recommendRecords = [];
             recommendsSnapshot.forEach(doc => {
                 let data = doc.data();
-                data.id = doc.id; // 保存文档ID用于后续更新
+                data.id = doc.id;
                 libraryData.recommendRecords.push(data);
             });
 
-            // 加载系统设置（最新期数）
-            const settingsDoc = doc(db, "settings", "system");
-            try {
-                const settingsSnapshot = await getDocs(collection(db, "settings"));
-                if (!settingsSnapshot.empty) {
-                    libraryData.latestIssue = settingsSnapshot.docs[0].data().latestIssue || 1;
-                } else {
-                    // 初始化设置
-                    await setDoc(doc(db, "settings", "system"), {
-                        latestIssue: 1
-                    });
-                }
-            } catch (e) {
-                console.log("初始化设置:", e);
-                libraryData.latestIssue = 1;
+            // 加载系统设置
+            const settingsCol = collection(db, "settings");
+            const settingsSnapshot = await getDocs(settingsCol);
+            if (!settingsSnapshot.empty) {
+                libraryData.latestIssue = settingsSnapshot.docs[0].data().latestIssue || 1;
+            } else {
+                await setDoc(doc(db, "settings", "system"), {
+                    latestIssue: 1
+                });
             }
 
+            // 收集所有书籍用于全局检索
+            collectAllBooks();
+            
             // 初始化页面
             init();
         }
 
+        // 收集所有书籍
+        function collectAllBooks() {
+            libraryData.allBooks = [];
+            for (const issue in libraryData.issues) {
+                const issueData = libraryData.issues[issue];
+                for (const posterNum in issueData.books) {
+                    const books = issueData.books[posterNum];
+                    for (const bookNum in books) {
+                        const book = { ...books[bookNum] };
+                        book.issue = issue;
+                        book.posterNum = posterNum;
+                        book.bookNum = bookNum;
+                        book.id = `${issue}-${posterNum}-${bookNum}`;
+                        libraryData.allBooks.push(book);
+                    }
+                }
+            }
+        }
+
         // 保存数据到Firebase
         async function saveData() {
-            // 保存所有期数数据
             for (const issueId in libraryData.issues) {
                 await setDoc(doc(db, "issues", issueId), libraryData.issues[issueId]);
             }
 
-            // 保存系统设置（最新期数）
             await setDoc(doc(db, "settings", "system"), {
                 latestIssue: libraryData.latestIssue
             });
+            
+            // 更新所有书籍列表
+            collectAllBooks();
         }
 
         // 保存单条预约记录
@@ -101,6 +120,14 @@
             await setDoc(newDoc, record);
             libraryData.reserveRecords.push(record);
             renderReserveRecords();
+            
+            // 更新书籍状态为"已被预约"
+            const [issue, posterNum, bookNum] = record.bookId.split('-');
+            if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+                libraryData.issues[issue].books[posterNum][bookNum].status = 'reserved';
+                await saveData();
+                renderCurrentView(); // 刷新当前视图
+            }
         }
 
         // 更新预约记录状态
@@ -110,6 +137,16 @@
             await updateDoc(doc(db, "reserves", record.id), {
                 status: status
             });
+            
+            // 如果状态变为"已还书"，恢复书籍可预约状态
+            if (status === '已还书') {
+                const [issue, posterNum, bookNum] = record.bookId.split('-');
+                if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+                    libraryData.issues[issue].books[posterNum][bookNum].status = 'in';
+                    await saveData();
+                    renderCurrentView();
+                }
+            }
         }
 
         // 保存单条推荐记录
@@ -128,12 +165,14 @@
             await updateDoc(doc(db, "recommends", record.id), {
                 status: status
             });
+            renderUserRecommendList(); // 刷新用户端推荐列表
         }
 
         // 删除整期数据
         async function deleteWholeIssue(issue) {
             await deleteDoc(doc(db, "issues", issue.toString()));
             delete libraryData.issues[issue];
+            collectAllBooks();
         }
 
         // 初始化页面
@@ -141,21 +180,20 @@
             renderIssueSelectors();
             showLatestIssue();
             initCategoryDropdown();
+            renderUserRecommendList();
         }
 
-        // 初始化期数选择器（前后台同步）
+        // 初始化期数选择器
         function renderIssueSelectors() {
             const issueNumbers = Object.keys(libraryData.issues).map(Number).sort((a, b) => a - b);
             const userSelector = document.getElementById('issueSelect');
             const posterSelector = document.getElementById('posterIssueSelect');
             const bookSelector = document.getElementById('bookIssueSelect');
             
-            // 清空现有选项
             userSelector.innerHTML = '';
             posterSelector.innerHTML = '';
             bookSelector.innerHTML = '';
             
-            // 添加所有期数选项
             issueNumbers.forEach(issue => {
                 const option = `<option value="${issue}">第${issue}期</option>`;
                 userSelector.innerHTML += option;
@@ -163,18 +201,18 @@
                 bookSelector.innerHTML += option;
             });
             
-            // 设置最新期为默认选中
             userSelector.value = libraryData.latestIssue;
             posterSelector.value = libraryData.latestIssue;
             bookSelector.value = libraryData.latestIssue;
         }
 
-        // 切换期数（用户前台）
+        // 切换期数
         function switchIssue(issue) {
             const issueNum = Number(issue);
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海报`;
             renderPosterThumbs(issueNum);
-            renderBooks(issueNum, 1); // 默认显示第一张海报的书籍
+            renderBooks(issueNum, 1);
+            showSection('posterSection');
         }
 
         // 显示最新一期
@@ -189,24 +227,20 @@
             const menu = document.getElementById('categoryMenu');
             let isFixed = false;
 
-            // 鼠标移过显示
             trigger.addEventListener('mouseenter', () => {
                 if (!isFixed) menu.classList.add('visible');
             });
 
-            // 鼠标离开隐藏（未固定时）
             menu.addEventListener('mouseleave', () => {
                 if (!isFixed) menu.classList.remove('visible');
             });
 
-            // 点击固定/取消固定
             trigger.addEventListener('click', (e) => {
                 e.stopPropagation();
                 isFixed = !isFixed;
                 menu.classList.toggle('visible', isFixed);
             });
 
-            // 点击分类项筛选
             document.querySelectorAll('.category-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const category = item.dataset.category;
@@ -214,7 +248,6 @@
                 });
             });
 
-            // 点击页面其他地方取消固定
             document.addEventListener('click', (e) => {
                 if (!menu.contains(e.target) && e.target !== trigger) {
                     isFixed = false;
@@ -223,43 +256,80 @@
             });
         }
 
-        // 分类筛选
+        // 分类筛选（全局所有书籍）
         function filterByCategory(category) {
-            document.querySelectorAll('.book-card').forEach(card => {
-                if (category === 'all' || card.dataset.classCode === category) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
+            const allBooks = libraryData.allBooks;
+            const booksContainer = document.getElementById('booksContainer');
+            booksContainer.innerHTML = '';
+            
+            // 按类别筛选
+            const filteredBooks = category === 'all' 
+                ? allBooks 
+                : allBooks.filter(book => book.classCode === category);
+            
+            // 按3个一组显示
+            let groupIndex = 0;
+            filteredBooks.forEach((book, index) => {
+                if (index % 3 === 0) {
+                    groupIndex++;
                 }
+                
+                const card = createBookCard(book);
+                card.dataset.group = groupIndex;
+                booksContainer.appendChild(card);
             });
+            
+            showSection('posterSection');
+            document.getElementById('currentIssueTitle').textContent = 
+                category === 'all' ? '全部书籍' : `${category} 分类书籍`;
         }
 
         // 显示用户推荐区
         function showUserRecommends() {
-            const section = document.getElementById('userRecommendsSection');
+            renderUserRecommendList();
+            showSection('userRecommendsSection');
+        }
+
+        // 渲染用户推荐列表
+        function renderUserRecommendList() {
             const list = document.getElementById('userRecommendList');
             list.innerHTML = '';
 
-            // 只显示已处理的推荐
-            const visibleRecommends = libraryData.recommendRecords.filter(r => 
-                r.status === '已记录' || r.status === '不合規定'
-            );
+            // 按时间倒序排列
+            const sortedRecommends = [...libraryData.recommendRecords]
+                .sort((a, b) => new Date(b.time) - new Date(a.time));
 
-            if (visibleRecommends.length === 0) {
+            if (sortedRecommends.length === 0) {
                 list.innerHTML = '<p>暂无推荐记录</p>';
             } else {
-                visibleRecommends.forEach(r => {
-                    const statusClass = r.status === '已记录' ? 'status-recorded' : 'status-invalid';
+                sortedRecommends.forEach((r, index) => {
+                    let statusText = '';
+                    let statusClass = '';
+                    
+                    switch(r.status) {
+                        case '已推荐':
+                            statusText = '推荐中';
+                            statusClass = 'status-pending';
+                            break;
+                        case '已记录':
+                            statusText = '已记录';
+                            statusClass = 'status-recorded';
+                            break;
+                        case '不合規定':
+                            statusText = '不合规定';
+                            statusClass = 'status-invalid';
+                            break;
+                    }
+                    
                     list.innerHTML += `
                         <div class="recommend-item">
-                            ${r.bookName}
-                            <span class="recommend-status ${statusClass}">${r.status}</span>
+                            <span class="recommend-index">${index + 1}</span>
+                            <span class="recommend-name">${r.bookName}</span>
+                            <span class="recommend-status ${statusClass}">${statusText}</span>
                         </div>
                     `;
                 });
             }
-
-            section.classList.toggle('hidden', false);
         }
 
         // 海报管理相关
@@ -268,7 +338,7 @@
             renderPosterThumbs(issue);
         }
 
-        // 渲染海报缩略图
+        // 渲染海报缩略图（自动适应窗口）
         function renderPosterThumbs(issue) {
             const container = document.getElementById('posterThumbContainer');
             container.innerHTML = '';
@@ -288,13 +358,10 @@
                 }
             }
 
-            // 绑定海报点击事件
+            // 点击海报显示对应书籍
             document.querySelectorAll('.poster-thumb').forEach(thumb => {
                 thumb.addEventListener('click', function() {
                     const posterNum = this.dataset.poster;
-                    const largeImg = document.getElementById('posterLarge');
-                    largeImg.src = libraryData.issues[issue]?.posters[posterNum] || '';
-                    largeImg.classList.toggle('hidden', !largeImg.src);
                     renderBooks(issue, posterNum);
                 });
             });
@@ -342,7 +409,7 @@
             }
             
             if (confirm(`确定要删除第${issue}期第${num}张海报吗？`)) {
-                libraryData.issues[issue].posters[num] = ''; // 设为空，显示[暂未上传]
+                libraryData.issues[issue].posters[num] = '';
                 saveData();
                 renderPosterThumbs(issue);
                 showWarning('posterWarning', '海报已删除', 'green');
@@ -359,7 +426,6 @@
             
             if (confirm(`确定要删除第${issue}期所有海报和书籍吗？此操作不可恢复！`)) {
                 await deleteWholeIssue(issue);
-                // 更新最新期数（如果删除的是最新期）
                 const issues = Object.keys(libraryData.issues).map(Number).sort((a, b) => b - a);
                 libraryData.latestIssue = issues.length > 0 ? issues[0] : 0;
                 await saveData();
@@ -380,7 +446,6 @@
             await saveData();
             renderIssueSelectors();
             showWarning('issueWarning', `已新增第${newIssue}期`, 'green');
-            // 自动切换到新期
             document.getElementById('posterIssueSelect').value = newIssue;
             renderPosterThumbs(newIssue);
         }
@@ -398,7 +463,7 @@
         }
 
         function updateBookNumSelect() {
-            // 书籍序号固定1-9，无需动态更新
+            // 书籍序号固定1-9
         }
 
         // 检测书名重复
@@ -471,7 +536,6 @@
                 };
                 reader.readAsDataURL(coverFile);
             } else {
-                // 如果是修改现有书籍，保留原封面
                 const existingBook = libraryData.issues[issue].books[posterNum][bookNum];
                 if (existingBook && existingBook.cover) {
                     coverUrl = existingBook.cover;
@@ -487,14 +551,12 @@
                     author: document.getElementById('bookAuthor').value,
                     intro: document.getElementById('bookIntro').value,
                     suitable: document.getElementById('bookSuitable').value,
-                    category: document.getElementById('bookCategory').value,
                     status: document.getElementById('bookStatus').value,
                     cover: coverUrl
                 };
                 await saveData();
                 alert('书籍信息已保存');
                 renderBooks(issue, posterNum);
-                // 刷新记录中的书籍名称（如果有）
                 updateRecordsBookTitle(issue, posterNum, bookNum, title);
             }
         }
@@ -519,13 +581,62 @@
             }
         }
 
+        // 创建书籍卡片
+        function createBookCard(book) {
+            const card = document.createElement('div');
+            card.className = 'book-card';
+            card.dataset.classCode = book.classCode;
+            card.dataset.id = book.id || `${book.issue}-${book.posterNum}-${book.bookNum}`;
+            
+            let statusText = '';
+            let statusClass = '';
+            let reserveButton = '';
+            
+            switch(book.status) {
+                case 'in':
+                    statusText = '在架';
+                    statusClass = 'status-in';
+                    reserveButton = `<button class="reserve-btn" onclick="showReserveModal('${card.dataset.id}')">预约</button>`;
+                    break;
+                case 'out':
+                    statusText = '不在架';
+                    statusClass = 'status-out';
+                    break;
+                case 'reserved':
+                    statusText = '已被预约';
+                    statusClass = 'status-reserved';
+                    break;
+            }
+            
+            card.innerHTML = `
+                <img src="${book.cover}" class="book-cover">
+                <h3 class="book-title">${book.title}</h3>
+                <p>作者: ${book.author}</p>
+                <p>简介: ${book.intro}</p>
+                <p>适合: ${book.suitable}</p>
+                <div class="book-status-bar">
+                    <span class="book-status ${statusClass}">${statusText}${statusText === '在架' ? '（可预约）' : ''}</span>
+                    ${reserveButton}
+                </div>
+                <p class="book-callno">索书号: ${book.callNo}</p>
+            `;
+            
+            return card;
+        }
+
         // 渲染书籍列表
         function renderBooks(issue, posterNum) {
             const container = document.getElementById('booksContainer');
             container.innerHTML = '';
             const books = libraryData.issues[issue]?.books[posterNum] || {};
             
+            // 按3个一组显示，每组相同背景色
+            let groupIndex = 0;
             for (let i = 1; i <= 9; i++) {
+                if (i % 3 === 1) {
+                    groupIndex++;
+                }
+                
                 const book = books[i] || {
                     callNo: '待编辑',
                     title: '新书' + i,
@@ -533,29 +644,28 @@
                     author: '待编辑',
                     intro: '待编辑',
                     suitable: '待编辑',
-                    category: '未分类',
                     status: 'out',
-                    cover: 'https://via.placeholder.com/100x150?text=新书' + i
+                    cover: 'https://via.placeholder.com/100x150?text=新书' + i,
+                    issue,
+                    posterNum,
+                    bookNum: i
                 };
                 
-                const card = document.createElement('div');
-                card.className = 'book-card';
-                card.dataset.category = book.category;
-                card.dataset.classCode = book.classCode;
-                card.innerHTML = `
-                    <img src="${book.cover}" class="book-cover">
-                    <p>索书号: ${book.callNo}</p>
-                    <h3>${book.title}</h3>
-                    <p>作者: ${book.author}</p>
-                    <p>简介: ${book.intro}</p>
-                    <p>适合: ${book.suitable}</p>
-                    <div class="book-status ${book.status === 'in' ? 'status-in' : 'status-out'}">
-                        ${book.status === 'in' ? '✅ 在架（可预约）' : '❌ 不在架'}
-                    </div>
-                    ${book.status === 'in' ? 
-                        `<button onclick="showReserveModal('${issue}-${posterNum}-${i}')">预约</button>` : ''}
-                `;
+                const card = createBookCard(book);
+                card.dataset.group = groupIndex;
                 container.appendChild(card);
+            }
+        }
+
+        // 渲染当前视图（用于状态更新后刷新）
+        function renderCurrentView() {
+            const activeSection = document.querySelector('.content-section:not(.hidden)');
+            if (activeSection.id === 'posterSection') {
+                const currentIssue = document.getElementById('issueSelect').value;
+                const activePoster = document.querySelector('.poster-thumb:hover')?.dataset.poster || '1';
+                renderBooks(currentIssue, activePoster);
+            } else if (activeSection.id === 'userRecommendsSection') {
+                renderUserRecommendList();
             }
         }
 
@@ -569,7 +679,11 @@
                 return;
             }
             
-            libraryData.reserveRecords.forEach((r, i) => {
+            // 按时间倒序排列
+            const sortedReserves = [...libraryData.reserveRecords]
+                .sort((a, b) => new Date(b.time) - new Date(a.time));
+                
+            sortedReserves.forEach((r, i) => {
                 const recordId = `reserve-${i}`;
                 container.innerHTML += `
                     <div class="record-item">
@@ -598,7 +712,10 @@
                 return;
             }
             
-            libraryData.recommendRecords.forEach((r, i) => {
+            const sortedRecommends = [...libraryData.recommendRecords]
+                .sort((a, b) => new Date(b.time) - new Date(a.time));
+                
+            sortedRecommends.forEach((r, i) => {
                 const recordId = `recommend-${i}`;
                 container.innerHTML += `
                     <div class="record-item">
@@ -606,22 +723,21 @@
                             ${r.time} | 书名: ${r.bookName} | 理由: ${r.reason}
                         </div>
                         <select class="record-status" id="${recordId}" onchange="updateRecommendStatus(${i}, this.value)">
-                            <option value="已推荐" ${r.status === '已推荐' ? 'selected' : ''}>已推荐</option>
+                            <option value="已推荐" ${r.status === '已推荐' ? 'selected' : ''}>推荐中</option>
                             <option value="已记录" ${r.status === '已记录' ? 'selected' : ''}>已记录</option>
-                            <option value="不合規定" ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
+                            <option value="不合規定" ${r.status === '不合規定' ? 'selected' : ''}>不合规定</option>
                         </select>
                     </div>
                 `;
             });
         }
 
-        // 辅助函数：更新记录中的书籍名称（当书籍改名时）
+        // 更新记录中的书籍名称
         function updateRecordsBookTitle(issue, posterNum, bookNum, newTitle) {
             const bookId = `${issue}-${posterNum}-${bookNum}`;
             libraryData.reserveRecords.forEach(r => {
                 if (r.bookId === bookId) {
                     r.bookTitle = newTitle;
-                    // 更新到Firebase
                     updateDoc(doc(db, "reserves", r.id), {
                         bookTitle: newTitle
                     });
@@ -676,14 +792,55 @@
             closeAllModals();
             alert('推荐成功，感谢你的建议！');
             this.reset();
+            showUserRecommends(); // 刷新推荐列表
         });
 
-        // 关键词搜索
+        // 关键词搜索（全局所有书籍）
         function searchBooks() {
             const keyword = document.getElementById('keywordInput').value.toLowerCase();
-            document.querySelectorAll('.book-card').forEach(card => {
-                card.style.display = card.innerText.toLowerCase().includes(keyword) ? 'block' : 'none';
+            if (!keyword) {
+                showLatestIssue();
+                return;
+            }
+            
+            const allBooks = libraryData.allBooks;
+            const booksContainer = document.getElementById('booksContainer');
+            booksContainer.innerHTML = '';
+            
+            // 搜索所有匹配的书籍
+            const matchedBooks = allBooks.filter(book => 
+                book.title.toLowerCase().includes(keyword) ||
+                book.author.toLowerCase().includes(keyword) ||
+                book.callNo.toLowerCase().includes(keyword) ||
+                book.intro.toLowerCase().includes(keyword)
+            );
+            
+            // 按3个一组显示
+            let groupIndex = 0;
+            matchedBooks.forEach((book, index) => {
+                if (index % 3 === 0) {
+                    groupIndex++;
+                }
+                
+                const card = createBookCard(book);
+                card.dataset.group = groupIndex;
+                booksContainer.appendChild(card);
             });
+            
+            if (matchedBooks.length === 0) {
+                booksContainer.innerHTML = '<p>没有找到匹配的书籍</p>';
+            }
+            
+            showSection('posterSection');
+            document.getElementById('currentIssueTitle').textContent = `搜索结果: "${keyword}"`;
+        }
+
+        // 显示指定区域，隐藏其他区域
+        function showSection(sectionId) {
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
         }
 
         // 管理员登录/退出
@@ -723,7 +880,7 @@
             setTimeout(() => { warning.textContent = ''; }, 3000);
         }
 
-        // 全局函数声明（供HTML调用）
+        // 全局函数声明
         window.switchIssue = switchIssue;
         window.showLatestIssue = showLatestIssue;
         window.showUserRecommends = showUserRecommends;
@@ -754,31 +911,45 @@
         body { font-family: "PingFang SC", "Helvetica Neue", sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
         .hidden { display: none !important; }
         button, input, select, textarea { padding: 8px 12px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background: #4CAF50; color: white; cursor: pointer; border: none; }
+        button { background: #4CAF50; color: white; cursor: pointer; border: none; transition: background 0.3s; }
         button:hover { background: #45a049; }
         .delete-btn { background: #f44336; }
         .delete-btn:hover { background: #d32f2f; }
         .primary-btn { background: #2196F3; }
         .primary-btn:hover { background: #1976D2; }
+        .content-section { margin: 20px 0; }
 
         /* 顶部区域 */
         .header { text-align: center; margin-bottom: 20px; }
         .header h1 { color: #333; margin: 10px 0; }
         .issue-selector { margin: 15px 0; }
 
-        /* 导航栏（检索+分类区） */
-        .nav-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }
-        .nav-item { white-space: nowrap; }
+        /* 导航栏 */
+        .nav-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 20px 0; padding: 10px; border-radius: 8px; }
+        .nav-item { 
+            background: #e0e0e0; 
+            padding: 8px 15px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+        }
+        .nav-item:hover { background: #d0d0d0; }
         .keyword-search { margin-left: auto; }
 
         /* 分类下拉菜单 */
-        .category-dropdown { position: relative; display: inline-block; }
-        .category-trigger { cursor: pointer; }
+        .category-dropdown { position: relative; }
+        .category-trigger { display: flex; align-items: center; gap: 5px; }
+        .category-trigger::after {
+            content: "▼";
+            font-size: 0.8em;
+        }
         .category-menu { 
             position: absolute; 
             top: 100%; 
             left: 0; 
-            background: rgba(255,255,255,0.95); 
+            background: white; 
             border: 1px solid #ddd; 
             border-radius: 4px; 
             padding: 10px; 
@@ -786,6 +957,7 @@
             z-index: 10; 
             display: none; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 5px;
         }
         .category-menu.visible { display: block; }
         .category-item { padding: 8px; cursor: pointer; border-radius: 2px; }
@@ -793,45 +965,212 @@
 
         /* 海报区 */
         .poster-section { margin: 30px 0; }
-        .poster-thumbnails { display: flex; gap: 20px; margin: 20px 0; flex-wrap: wrap; }
-        .poster-thumb { width: 200px; height: 280px; object-fit: contain; cursor: pointer; border: 2px solid #ddd; border-radius: 4px; background: #f9f9f9; padding: 10px; }
+        .poster-thumbnails { 
+            display: flex; 
+            gap: 20px; 
+            margin: 20px 0; 
+            justify-content: center;
+            width: 100%;
+        }
+        .poster-thumb { 
+            flex: 1;
+            max-width: 500px;
+            height: auto; 
+            min-height: 300px;
+            object-fit: contain; 
+            cursor: pointer; 
+            border: 2px solid #ddd; 
+            border-radius: 4px; 
+            background: #f9f9f9; 
+            padding: 10px;
+            transition: border-color 0.3s;
+        }
         .poster-thumb:hover { border-color: #2196F3; }
-        .poster-thumb.placeholder { display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.9em; }
-        .poster-large { max-width: 100%; margin: 20px 0; border: 1px solid #ddd; }
+        .poster-thumb.placeholder { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: #999; 
+            font-size: 1.2em;
+        }
 
         /* 书籍资料格 */
-        .books-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
-        .book-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; transition: transform 0.2s; }
+        .books-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            gap: 20px; 
+            margin: 20px 0; 
+        }
+        .book-card { 
+            border: 1px solid #ddd; 
+            padding: 15px; 
+            border-radius: 8px; 
+            transition: transform 0.2s; 
+        }
+        .book-card[data-group="1"],
+        .book-card[data-group="3"],
+        .book-card[data-group="5"] { background: #f9f9f9; }
+        .book-card[data-group="2"],
+        .book-card[data-group="4"],
+        .book-card[data-group="6"] { background: #f0f9f0; }
         .book-card:hover { transform: translateY(-3px); }
         .book-cover { width: 100px; height: 150px; object-fit: cover; margin: 0 auto 10px; display: block; }
-        .book-status { margin: 10px 0; font-weight: bold; }
+        .book-title { text-align: center; margin: 10px 0; color: #333; }
+        .book-status-bar { 
+            margin: 10px 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        .book-status { font-weight: bold; }
         .status-in { color: #4CAF50; }
         .status-out { color: #f44336; }
+        .status-reserved { color: #ff9800; }
+        .reserve-btn { background: #2196F3; }
+        .reserve-btn:hover { background: #1976D2; }
+        .book-callno { color: #666; font-size: 0.9em; margin-top: 5px; }
 
-        /* 推荐购书区（用户可见） */
-        .user-recommends { margin: 30px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
+        /* 推荐购书区 */
+        .user-recommends { 
+            margin: 30px 0; 
+            padding: 15px; 
+            background: #f9f9f9; 
+            border-radius: 8px; 
+        }
         .user-recommends h3 { margin-bottom: 10px; }
-        .recommend-list { display: flex; flex-wrap: wrap; gap: 15px; }
-        .recommend-item { padding: 10px; border: 1px solid #eee; border-radius: 4px; background: white; }
-        .recommend-status { font-size: 0.8em; margin-left: 10px; }
-        .status-recorded { color: #4CAF50; }
-        .status-invalid { color: #f44336; }
+        .recommend-list { 
+            display: flex; 
+            flex-direction: column;
+            gap: 10px; 
+            margin-top: 20px;
+        }
+        .recommend-item { 
+            padding: 10px; 
+            border: 1px solid #eee; 
+            border-radius: 4px; 
+            background: white;
+            display: flex;
+            align-items: center;
+        }
+        .recommend-index { 
+            width: 30px; 
+            text-align: center; 
+            margin-right: 10px; 
+            color: #666;
+        }
+        .recommend-name { 
+            flex: 1;
+        }
+        .recommend-status { 
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em; 
+            margin-left: 10px; 
+        }
+        .status-recorded { 
+            background: #e8f5e9;
+            color: #2e7d32; 
+        }
+        .status-invalid { 
+            background: #ffebee;
+            color: #c62828; 
+        }
+        .status-pending {
+            background: #fff8e1;
+            color: #f57c00;
+        }
+        .recommend-add-btn {
+            margin-bottom: 15px;
+        }
 
         /* 弹窗样式 */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; position: relative; }
-        .close-modal { position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5em; }
+        .modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 100; 
+        }
+        .modal-content { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            width: 90%; 
+            max-width: 400px; 
+            position: relative; 
+        }
+        .close-modal { 
+            position: absolute; 
+            top: 10px; 
+            right: 15px; 
+            cursor: pointer; 
+            font-size: 1.5em; 
+        }
         .close-modal:hover { color: #f44336; }
 
         /* 编辑后台 */
-        .admin-login { position: fixed; bottom: 10px; right: 10px; font-size: 0.8em; color: #666; cursor: pointer; }
-        .admin-panel { margin: 20px 0; padding: 20px; background: #f0f0f0; border-radius: 8px; }
-        .form-group { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; }
+        .admin-login { 
+            position: fixed; 
+            bottom: 10px; 
+            right: 10px; 
+            font-size: 0.8em; 
+            color: #666; 
+            cursor: pointer; 
+            background: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        .admin-panel { 
+            margin: 20px 0; 
+            padding: 20px; 
+            background: #f0f0f0; 
+            border-radius: 8px; 
+        }
+        .form-group { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            background: white; 
+        }
         .form-group h3 { margin-bottom: 15px; color: #333; }
-        .book-editor { margin: 10px 0; padding: 10px; border: 1px dashed #ccc; }
+        .book-editor { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border: 1px dashed #ccc; 
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
         .warning { color: #f44336; font-size: 0.9em; margin: 5px 0; }
-        .record-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .record-item { 
+            padding: 8px; 
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
         .record-status { min-width: 100px; }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .books-grid { grid-template-columns: 1fr 1fr; }
+            .poster-thumbnails { flex-direction: column; }
+            .poster-thumb { max-width: 100%; }
+            .nav-bar { flex-direction: column; align-items: stretch; }
+            .keyword-search { margin-left: 0; width: 100%; }
+            .keyword-search input { width: 70%; }
+        }
+
+        @media (max-width: 480px) {
+            .books-grid { grid-template-columns: 1fr; }
+            .keyword-search input { width: 60%; }
+        }
     </style>
 </head>
 <body>
@@ -846,13 +1185,11 @@
         </div>
     </div>
 
-    <!-- 导航栏（检索+分类+推荐） -->
+    <!-- 导航栏 -->
     <div class="nav-bar">
-        <div class="nav-item">
-            <button class="primary-btn" onclick="showLatestIssue()">最新一期</button>
-        </div>
+        <div class="nav-item" onclick="showLatestIssue()">最新一期</div>
         <div class="nav-item category-dropdown">
-            <span class="category-trigger">分类 ▼</span>
+            <span class="category-trigger">分类</span>
             <div class="category-menu" id="categoryMenu">
                 <div class="category-item" data-category="all">全部</div>
                 <div class="category-item" data-category="000">000 总类</div>
@@ -867,9 +1204,7 @@
                 <div class="category-item" data-category="900">900 艺术</div>
             </div>
         </div>
-        <div class="nav-item">
-            <button onclick="showRecommendForm()">推荐购书</button>
-        </div>
+        <div class="nav-item" onclick="showUserRecommends()">推荐购书</div>
         <div class="nav-item keyword-search">
             <label>关键词检索: </label>
             <input type="text" id="keywordInput" placeholder="输入书名/作者/索书号...">
@@ -877,16 +1212,17 @@
         </div>
     </div>
 
-    <!-- 推荐购书展示区（用户可见） -->
-    <div class="user-recommends hidden" id="userRecommendsSection">
+    <!-- 推荐购书展示区 -->
+    <div class="user-recommends content-section hidden" id="userRecommendsSection">
         <h3>大家推荐的书籍</h3>
+        <button class="recommend-add-btn primary-btn" onclick="showRecommendForm()">点击为图书馆推荐书籍</button>
         <div class="recommend-list" id="userRecommendList">
             <!-- 动态生成 -->
         </div>
     </div>
 
     <!-- 海报区 -->
-    <div class="poster-section" id="posterSection">
+    <div class="poster-section content-section" id="posterSection">
         <h2 id="currentIssueTitle">第一期海报</h2>
         <div class="poster-thumbnails" id="posterThumbContainer">
             <div class="poster-thumb placeholder" data-poster="1">
@@ -895,9 +1231,6 @@
             <div class="poster-thumb placeholder" data-poster="2">
                 海报2<br>[暂未上传]
             </div>
-        </div>
-        <div id="posterLargeContainer">
-            <img src="" class="poster-large hidden" id="posterLarge">
         </div>
         <div id="booksContainer" class="books-grid">
             <!-- 书籍卡片将动态生成 -->
@@ -925,7 +1258,7 @@
         </div>
     </div>
 
-    <!-- 推荐购书弹窗（用户） -->
+    <!-- 推荐购书弹窗 -->
     <div class="modal hidden" id="recommendModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
@@ -1041,11 +1374,6 @@
                 <input type="text" id="bookAuthor" placeholder="作者">
                 <textarea id="bookIntro" placeholder="简介"></textarea>
                 <input type="text" id="bookSuitable" placeholder="适合人群">
-                <select id="bookCategory">
-                    <option value="冒险类">冒险类</option>
-                    <option value="推理类">推理类</option>
-                    <option value="小说类">小说类</option>
-                </select>
                 <select id="bookStatus">
                     <option value="in">在架（可预约）</option>
                     <option value="out">不在架</option>
