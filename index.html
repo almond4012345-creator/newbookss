@@ -5,79 +5,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>XX中学图书馆 | 每周新书速递</title>
     <script type="module">
-        // Import Firebase modules
+        // 引入 Firebase 模块（带版本号的 CDN 链接，已修复）
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        import { getDatabase, ref, set, get, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
-        // 初始化Firebase
+        // 你的 Firebase 配置（使用你提供的最新配置）
         const firebaseConfig = {
-            apiKey: "AIzaSyCP9snpj1ot0dwfUaNxQV26LDjFTpLwMcc",
-            authDomain: "newbookf-a73de.firebaseapp.com",
-            projectId: "newbookf-a73de",
-            storageBucket: "newbookf-a73de.firebasestorage.app",
-            messagingSenderId: "170910643508",
-            appId: "1:170910643508:web:0f69a51175386e2e9fa161"
+            apiKey: "AIzaSyAJhvIuZh_Fo96OTpil-7aAu1k7H61A3GQ",
+            authDomain: "newbookf-a73de-5a312.firebaseapp.com",
+            databaseURL: "https://newbookf-a73de-5a312-default-rtdb.firebaseio.com",
+            projectId: "newbookf-a73de-5a312",
+            storageBucket: "newbookf-a73de-5a312.firebasestorage.app",
+            messagingSenderId: "1006721196866",
+            appId: "1:1006721196866:web:134b572dd122bf221bdedb"
         };
 
+        // 初始化 Firebase（已修复：先初始化应用，再初始化数据库）
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const db = getDatabase(app); // 初始化实时数据库实例（关键修复）
 
         // 全局数据存储
         let libraryData = {
             issues: {},
-            categories: [], // 移除原有分类
+            categories: [],
             reserveRecords: [],
             recommendRecords: [],
             latestIssue: 1,
-            allBooks: [] // 存储所有书籍用于全局检索
+            allBooks: []
         };
 
-        // 从Firebase加载数据
+        // 从 Firebase 加载数据（已改用实时数据库 API）
         async function loadData() {
-            // 加载期数数据
-            const issuesCol = collection(db, "issues");
-            const issuesSnapshot = await getDocs(issuesCol);
-            libraryData.issues = {};
-            issuesSnapshot.forEach(doc => {
-                libraryData.issues[doc.id] = doc.data();
-            });
+            try {
+                // 加载期数数据
+                const issuesRef = ref(db, "issues");
+                const issuesSnapshot = await get(issuesRef);
+                if (issuesSnapshot.exists()) {
+                    libraryData.issues = issuesSnapshot.val();
+                }
 
-            // 加载预约记录
-            const reservesCol = collection(db, "reserves");
-            const reservesSnapshot = await getDocs(reservesCol);
-            libraryData.reserveRecords = [];
-            reservesSnapshot.forEach(doc => {
-                let data = doc.data();
-                data.id = doc.id;
-                libraryData.reserveRecords.push(data);
-            });
+                // 加载预约记录
+                const reservesRef = ref(db, "reserves");
+                const reservesSnapshot = await get(reservesRef);
+                if (reservesSnapshot.exists()) {
+                    libraryData.reserveRecords = Object.values(reservesSnapshot.val()).map((data, index) => {
+                        return { ...data, id: Object.keys(reservesSnapshot.val())[index] };
+                    });
+                }
 
-            // 加载推荐记录
-            const recommendsCol = collection(db, "recommends");
-            const recommendsSnapshot = await getDocs(recommendsCol);
-            libraryData.recommendRecords = [];
-            recommendsSnapshot.forEach(doc => {
-                let data = doc.data();
-                data.id = doc.id;
-                libraryData.recommendRecords.push(data);
-            });
+                // 加载推荐记录
+                const recommendsRef = ref(db, "recommends");
+                const recommendsSnapshot = await get(recommendsRef);
+                if (recommendsSnapshot.exists()) {
+                    libraryData.recommendRecords = Object.values(recommendsSnapshot.val()).map((data, index) => {
+                        return { ...data, id: Object.keys(recommendsSnapshot.val())[index] };
+                    });
+                }
 
-            // 加载系统设置
-            const settingsCol = collection(db, "settings");
-            const settingsSnapshot = await getDocs(settingsCol);
-            if (!settingsSnapshot.empty) {
-                libraryData.latestIssue = settingsSnapshot.docs[0].data().latestIssue || 1;
-            } else {
-                await setDoc(doc(db, "settings", "system"), {
-                    latestIssue: 1
-                });
+                // 加载系统设置
+                const settingsRef = ref(db, "settings/system");
+                const settingsSnapshot = await get(settingsRef);
+                if (settingsSnapshot.exists()) {
+                    libraryData.latestIssue = settingsSnapshot.val().latestIssue || 1;
+                } else {
+                    await set(settingsRef, { latestIssue: 1 });
+                }
+
+                // 收集所有书籍
+                collectAllBooks();
+                // 初始化页面
+                init();
+            } catch (error) {
+                console.error("加载数据失败：", error);
+                alert("数据加载失败，请刷新页面重试");
             }
-
-            // 收集所有书籍用于全局检索
-            collectAllBooks();
-            
-            // 初始化页面
-            init();
         }
 
         // 收集所有书籍
@@ -99,80 +100,104 @@
             }
         }
 
-        // 保存数据到Firebase
+        // 保存数据到 Firebase（已改用实时数据库 API）
         async function saveData() {
-            for (const issueId in libraryData.issues) {
-                await setDoc(doc(db, "issues", issueId), libraryData.issues[issueId]);
+            try {
+                // 保存期数数据
+                await set(ref(db, "issues"), libraryData.issues);
+                // 保存系统设置
+                await set(ref(db, "settings/system"), {
+                    latestIssue: libraryData.latestIssue
+                });
+                // 更新所有书籍列表
+                collectAllBooks();
+            } catch (error) {
+                console.error("保存数据失败：", error);
+                alert("保存失败，请重试");
             }
-
-            await setDoc(doc(db, "settings", "system"), {
-                latestIssue: libraryData.latestIssue
-            });
-            
-            // 更新所有书籍列表
-            collectAllBooks();
         }
 
         // 保存单条预约记录
         async function saveReserveRecord(record) {
-            const newDoc = doc(collection(db, "reserves"));
-            record.id = newDoc.id;
-            await setDoc(newDoc, record);
-            libraryData.reserveRecords.push(record);
-            renderReserveRecords();
-            
-            // 更新书籍状态为"已被预约"
-            const [issue, posterNum, bookNum] = record.bookId.split('-');
-            if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
-                libraryData.issues[issue].books[posterNum][bookNum].status = 'reserved';
-                await saveData();
-                renderCurrentView(); // 刷新当前视图
+            try {
+                const newRef = ref(db, `reserves/${Date.now()}`); // 用时间戳作为唯一ID
+                await set(newRef, record);
+                record.id = Date.now().toString();
+                libraryData.reserveRecords.push(record);
+                renderReserveRecords();
+                
+                // 更新书籍状态为"已被预约"
+                const [issue, posterNum, bookNum] = record.bookId.split('-');
+                if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+                    libraryData.issues[issue].books[posterNum][bookNum].status = 'reserved';
+                    await saveData();
+                    renderCurrentView();
+                }
+            } catch (error) {
+                console.error("保存预约记录失败：", error);
+                alert("预约失败，请重试");
             }
         }
 
         // 更新预约记录状态
         async function updateReserveStatus(index, status) {
-            const record = libraryData.reserveRecords[index];
-            record.status = status;
-            await updateDoc(doc(db, "reserves", record.id), {
-                status: status
-            });
-            
-            // 如果状态变为"已还书"，恢复书籍可预约状态
-            if (status === '已还书') {
-                const [issue, posterNum, bookNum] = record.bookId.split('-');
-                if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
-                    libraryData.issues[issue].books[posterNum][bookNum].status = 'in';
-                    await saveData();
-                    renderCurrentView();
+            try {
+                const record = libraryData.reserveRecords[index];
+                record.status = status;
+                await update(ref(db, `reserves/${record.id}`), { status: status });
+                
+                // 如果状态变为"已还书"，恢复书籍可预约状态
+                if (status === '已还书') {
+                    const [issue, posterNum, bookNum] = record.bookId.split('-');
+                    if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+                        libraryData.issues[issue].books[posterNum][bookNum].status = 'in';
+                        await saveData();
+                        renderCurrentView();
+                    }
                 }
+            } catch (error) {
+                console.error("更新预约状态失败：", error);
+                alert("更新失败，请重试");
             }
         }
 
         // 保存单条推荐记录
         async function saveRecommendRecord(record) {
-            const newDoc = doc(collection(db, "recommends"));
-            record.id = newDoc.id;
-            await setDoc(newDoc, record);
-            libraryData.recommendRecords.push(record);
-            renderRecommendRecords();
+            try {
+                const newRef = ref(db, `recommends/${Date.now()}`); // 用时间戳作为唯一ID
+                await set(newRef, record);
+                record.id = Date.now().toString();
+                libraryData.recommendRecords.push(record);
+                renderRecommendRecords();
+            } catch (error) {
+                console.error("保存推荐记录失败：", error);
+                alert("推荐失败，请重试");
+            }
         }
 
         // 更新推荐记录状态
         async function updateRecommendStatus(index, status) {
-            const record = libraryData.recommendRecords[index];
-            record.status = status;
-            await updateDoc(doc(db, "recommends", record.id), {
-                status: status
-            });
-            renderUserRecommendList(); // 刷新用户端推荐列表
+            try {
+                const record = libraryData.recommendRecords[index];
+                record.status = status;
+                await update(ref(db, `recommends/${record.id}`), { status: status });
+                renderUserRecommendList();
+            } catch (error) {
+                console.error("更新推荐状态失败：", error);
+                alert("更新失败，请重试");
+            }
         }
 
         // 删除整期数据
         async function deleteWholeIssue(issue) {
-            await deleteDoc(doc(db, "issues", issue.toString()));
-            delete libraryData.issues[issue];
-            collectAllBooks();
+            try {
+                await remove(ref(db, `issues/${issue}`));
+                delete libraryData.issues[issue];
+                collectAllBooks();
+            } catch (error) {
+                console.error("删除期数失败：", error);
+                alert("删除失败，请重试");
+            }
         }
 
         // 初始化页面
@@ -738,7 +763,7 @@
             libraryData.reserveRecords.forEach(r => {
                 if (r.bookId === bookId) {
                     r.bookTitle = newTitle;
-                    updateDoc(doc(db, "reserves", r.id), {
+                    update(ref(db, `reserves/${r.id}`), {
                         bookTitle: newTitle
                     });
                 }
