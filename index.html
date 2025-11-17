@@ -333,18 +333,25 @@ function filterByCategory(category) {
             }
         }
 
-// 创建书籍卡片（修复预约按钮ID绑定）
+// 创建书籍卡片（添加编辑点击事件）
 function createBookCard(book) {
     const card = document.createElement('div');
     card.className = 'book-card';
     card.dataset.classCode = book.classCode;
-    card.dataset.id = book.id; // 绑定标准ID
+    card.dataset.id = book.id;
+
+    // 解析书籍ID获取期数/海報/序号信息（用于编辑）
+    const idParts = book.id.split('-'); // 格式：issue-x-poster-y-book-z
+    const issue = idParts[1];
+    const poster = idParts[3];
+    const bookNum = idParts[5];
+    // 生成编辑点击事件（仅管理员可见，普通用户点击无反应）
+    const editOnClick = `onclick="fillBookEditor('${issue}', '${poster}', '${bookNum}')"`;
 
     let statusText, statusClass, reserveBtn;
     if (book.status === 'in') {
         statusText = '在架（可預約）';
         statusClass = 'status-in';
-        // 确保预约按钮使用正确的ID
         reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
     } else if (book.status === 'out') {
         statusText = '不在架';
@@ -356,21 +363,25 @@ function createBookCard(book) {
         reserveBtn = '';
     }
 
+    // 卡片内容（添加编辑点击事件）
     card.innerHTML = `
-        <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
-        <h3 class="book-title">${book.title}</h3>
-        <p>作者: ${book.author || '待編輯'}</p>
-        <p>簡介: ${book.intro || '待編輯'}</p>
-        <p>適合: ${book.suitable || '待編輯'}</p>
-        <div class="book-status-bar">
-            <span class="book-status ${statusClass}">${statusText}</span>
-            ${reserveBtn}
+        <div ${editOnClick} style="cursor: pointer;">
+            <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
+            <h3 class="book-title">${book.title}</h3>
+            <p>作者: ${book.author || '待編輯'}</p>
+            <p>簡介: ${book.intro || '待編輯'}</p>
+            <p>適合: ${book.suitable || '待編輯'}</p>
+            <div class="book-status-bar">
+                <span class="book-status ${statusClass}">${statusText}</span>
+                ${reserveBtn}
+            </div>
+            <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
         </div>
-        <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
     `;
 
     return card;
 }
+
 // 渲染書籍列表（统一ID格式）
 window.renderBooks = function(issue, posterNum) {
     const container = document.getElementById('booksContainer');
@@ -654,6 +665,35 @@ window.setActiveNav = function(element) {
     // 给当前点击的导航项添加活跃状态
     element.classList.add('active');
 }
+
+// 填充书籍编辑表单
+window.fillBookEditor = function(issue, posterNum, bookNum) {
+    // 检查是否为管理员状态（未登录则提示）
+    if (document.getElementById('adminPanel').classList.contains('hidden')) {
+        // 普通用户点击不执行任何操作（或提示需要登录）
+        return;
+    }
+
+    // 跳转到管理后台的书籍编辑区域
+    document.getElementById('adminPanel').scrollIntoView({ behavior: 'smooth' });
+    
+    // 选中对应的期数/海報/序号下拉框
+    document.getElementById('bookIssueSelect').value = issue;
+    document.getElementById('bookPosterSelect').value = posterNum;
+    document.getElementById('bookNumSelect').value = bookNum;
+
+    // 获取书籍数据并填充表单
+    const book = window.libraryData.issues[issue]?.books[posterNum]?.[bookNum];
+    if (book) {
+        document.getElementById('bookCallNo').value = book.callNo || '';
+        document.getElementById('bookTitle').value = book.title || '';
+        document.getElementById('bookClassCode').value = book.classCode || '000';
+        document.getElementById('bookAuthor').value = book.author || '';
+        document.getElementById('bookIntro').value = book.intro || '';
+        document.getElementById('bookSuitable').value = book.suitable || '';
+        document.getElementById('bookStatus').value = book.status || 'in';
+    }
+} 
 // 生成隨機柔和顏色（用於推薦書籍序號）
 window.getRandomSoftColor = function() {
     // 預定柔和色譜，避免刺眼顏色
