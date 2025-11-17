@@ -1278,18 +1278,20 @@ window.getRandomSoftColor = function() {
 
     <!-- 頂部區域 -->
 <div class="header-divider" style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;"></div>
-    <div class="header">
-        <h1>中學圖書館 | 每週新書速遞</h1>
-<div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
-        建議使用電腦瀏覽，體驗更流暢
-
-        <div class="issue-selector">
-            <label>選擇期數: </label>
-            <select id="issueSelect" onchange="switchIssue(this.value)">
-                <option value="1">第1期</option>
-            </select>
-        </div>
+<div class="header">
+    <h1>中學圖書館 | 每週新書速遞</h1>
+    <!-- 新增的小字 -->
+    <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
+        建議使用電腦瀏覽
     </div>
+    <!-- 原有的期数选择器 -->
+    <div class="issue-selector">
+        <label>選擇期數: </label>
+        <select id="issueSelect" onchange="switchIssue(this.value)">
+            <option value="1">第1期</option>
+        </select>
+    </div>
+</div>
 
     <!-- 導航欄 -->
     <div class="nav-bar">
