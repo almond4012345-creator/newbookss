@@ -221,6 +221,17 @@
                 document.getElementById('categoryClose').addEventListener('click', closeCategorySidebar);
                 document.getElementById('searchToggle').addEventListener('click', toggleSearchPanel);
             }
+// 点击空白处收起分类侧边栏（手机版）
+document.addEventListener('click', function(e) {
+    const sidebar = document.getElementById('categorySidebar');
+    const toggleBtn = document.getElementById('categoryToggle');
+    // 点击空白且侧边栏已展开时收起
+    if (sidebar.classList.contains('open') && 
+        !sidebar.contains(e.target) && 
+        e.target !== toggleBtn) {
+        sidebar.classList.remove('open');
+    }
+});
         }
 
         // 渲染期數選擇器
@@ -1008,20 +1019,49 @@
                     statusText = '已被預約';
                 }
 
-                // 创建手机版书籍卡片
-                const card = document.createElement('div');
-                card.className = 'book-card-mobile';
-                card.innerHTML = `
-                    <img src="${book.cover || 'https://via.placeholder.com/80x120?text=封面'}" class="book-cover-mobile">
-                    <div class="book-title-mobile">${book.title || '未知書名'}</div>
-                    <div class="book-meta-mobile">作者: ${book.author || '待編輯'}</div>
-                    <div class="book-status-mobile ${statusClass}">${statusText}</div>
-                    ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="showReserveModal('${book.id}')">預約</button>` : ''}
-                `;
+// 创建手机版书籍卡片
+const card = document.createElement('div');
+card.className = 'book-card-mobile';
+// 简介最多显示2行，超出省略
+const intro = book.intro || '無簡介';
+const shortIntro = intro.length > 30 ? intro.slice(0, 30) + '...' : intro;
+
+card.innerHTML = `
+    <img src="${book.cover || 'https://via.placeholder.com/80x120?text=封面'}" class="book-cover-mobile">
+    <div class="book-title-mobile" style="text-align: center; font-weight: 600;">${book.title || '未知書名'}</div>
+    <div class="book-meta-mobile">作者: ${book.author || '待編輯'}</div>
+    <div class="book-meta-mobile" style="font-size: 0.75em; margin-bottom: 6px;">索書號: ${book.callNo || '待編輯'}</div>
+    <div class="book-meta-mobile" style="font-size: 0.75em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px;">簡介: ${shortIntro}</div>
+    <div class="book-status-mobile ${statusClass}">${statusText}</div>
+    ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="showReserveModal('${book.id}')">預約</button>` : ''}
+`;
                 container.appendChild(card);
             }
             collectAllBooks();
         }
+// 海報放大
+window.enlargePoster = function(posterNum) {
+    const overlay = document.getElementById('posterOverlay');
+    const issue = window.libraryData.latestIssue;
+    const posterUrl = window.libraryData.issues[issue]?.posters[posterNum];
+    
+    if (posterUrl) {
+        overlay.innerHTML = `<img src="${posterUrl}" class="poster-large">`;
+    } else {
+        overlay.innerHTML = `<div style="color: white; font-size: 1.2em;">海報${posterNum}<br>[暫未上傳]</div>`;
+    }
+    
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden'; // 禁止背景滚动
+}
+
+// 关闭海報放大
+window.closeEnlargePoster = function() {
+    const overlay = document.getElementById('posterOverlay');
+    overlay.classList.remove('show');
+    overlay.innerHTML = '';
+    document.body.style.overflow = 'auto'; // 恢复滚动
+}
 
         // 手机版搜索函数
         window.mobileSearch = function() {
@@ -1642,6 +1682,29 @@ window.onload = function() {
             --border-radius: 12px;
             --shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
+/* 海報放大样式 */
+.device-mobile .poster-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.device-mobile .poster-overlay.show {
+    display: flex;
+}
+.device-mobile .poster-large {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+}
 
         /* 手机版顶部固定导航栏 */
         .device-mobile .mobile-top-nav {
@@ -1978,14 +2041,13 @@ window.onload = function() {
 
     <!-- 手机版专属元素（mobile-only） -->
     <div class="mobile-only">
-        <!-- 顶部固定导航栏 -->
-        <div class="mobile-top-nav">
-            <div class="nav-icon" id="categoryToggle">☰</div>
-            <div class="nav-latest" onclick="showLatestIssue(); setActiveNav(document.querySelector('.nav-item'))">最新一期</div>
-            <div class="nav-title" onclick="scrollToTop()">新書速遞</div>
-            <div class="nav-recommend" onclick="showSection('userRecommendsSection'); setActiveNav(document.querySelectorAll('.nav-item')[2])">推薦書籍</div>
-            <div class="nav-icon nav-search" id="searchToggle">🔍</div>
-        </div>
+<!-- 手机版顶部固定导航栏 -->
+<div class="mobile-top-nav">
+    <div class="nav-icon" id="categoryToggle">☰</div>
+    <div class="nav-title" onclick="scrollToTop()">新書速遞</div>
+    <div class="nav-recommend" onclick="showSection('userRecommendsSection'); setActiveNav(document.querySelectorAll('.nav-item')[2])">推薦書籍</div>
+    <div class="nav-icon nav-search" id="searchToggle">🔍</div>
+</div>
 
         <!-- 分类侧边栏 -->
         <div class="category-sidebar" id="categorySidebar">
@@ -2028,15 +2090,17 @@ window.onload = function() {
             </div>
 
             <!-- 海報横向滑动 -->
-            <div class="poster-slider" id="mobilePosterSlider">
-                <div class="poster-slide" data-poster="1" onclick="renderMobileBooks(window.libraryData.latestIssue, 1)">
-                    <div class="poster-placeholder" id="mobilePoster1">海報1<br>[暫未上傳]</div>
-                </div>
-                <div class="poster-slide" data-poster="2" onclick="renderMobileBooks(window.libraryData.latestIssue, 2)">
-                    <div class="poster-placeholder" id="mobilePoster2">海報2<br>[暫未上傳]</div>
-                </div>
-            </div>
-
+          <!-- 海報横向滑动 -->
+<div class="poster-slider" id="mobilePosterSlider">
+    <div class="poster-slide" data-poster="1" onclick="renderMobileBooks(window.libraryData.latestIssue, 1)">
+        <div class="poster-placeholder" id="mobilePoster1" onclick="event.stopPropagation(); enlargePoster(1)">海報1<br>[暫未上傳]</div>
+    </div>
+    <div class="poster-slide" data-poster="2" onclick="renderMobileBooks(window.libraryData.latestIssue, 2)">
+        <div class="poster-placeholder" id="mobilePoster2" onclick="event.stopPropagation(); enlargePoster(2)">海報2<br>[暫未上傳]</div>
+    </div>
+</div>
+<!-- 海報放大弹窗容器 -->
+<div class="poster-overlay mobile-only" id="posterOverlay" onclick="closeEnlargePoster()"></div>
             <!-- 手机版书籍卡片区 -->
             <div class="books-grid-mobile" id="mobileBooksGrid">
                 <!-- 手机版书籍卡片动态生成 -->
