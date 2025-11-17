@@ -941,20 +941,31 @@ window.getRandomSoftColor = function() {
         .issue-selector { margin: 15px 0; }
 
         /* 導航欄 */
-        .nav-bar { 
-            display: flex; 
-            flex-wrap: wrap; 
-            align-items: center; 
-            gap: 10px; 
-            padding: 15px 20px; 
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(20px);
-            box-shadow: var(--shadow);
-            position: sticky;
-            top: 0;
-            z-index: 5;
-            margin-bottom: 30px;
-        }
+.nav-bar { 
+    display: flex; 
+    flex-wrap: wrap; 
+    align-items: center; 
+    gap: 8px; 
+    padding: 12px 15px; /* 减少内边距 */
+    background: rgba(255, 255, 255, 0.9); /* 更实的背景，增强可读性 */
+    backdrop-filter: blur(20px);
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin-bottom: 20px;
+}
+
+/* 手机端导航项优化 */
+@media (max-width: 768px) {
+    .nav-item {
+        padding: 8px 14px; /* 减小点击区域但保证可触摸 */
+        font-size: 0.9em; /* 缩小字体 */
+    }
+    .category-trigger {
+        font-size: 0.9em;
+    }
+}
         .nav-item { 
             padding: 10px 18px; 
             border-radius: 20px; 
@@ -1203,6 +1214,37 @@ window.getRandomSoftColor = function() {
             position: relative; 
             box-shadow: 0 15px 50px rgba(0,0,0,0.15);
         }
+.modal-content { 
+    background: white; 
+    padding: 30px; 
+    border-radius: var(--radius); 
+    width: 90%; 
+    max-width: 400px; 
+    position: relative; 
+    box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+}
+
+/* 手机端弹窗适配（新添加的代码） */
+@media (max-width: 576px) {
+    .modal-content {
+        padding: 20px 15px; /* 减少弹窗内边距 */
+        max-width: 92%; /* 更宽的弹窗占比 */
+    }
+    .modal-content h3 {
+        font-size: 1.1em; /* 缩小弹窗标题 */
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+    }
+    button, input, select, textarea {
+        padding: 7px 12px; /* 缩小表单元素 */
+        margin: 4px 0; /* 减少间距 */
+        font-size: 0.9em;
+    }
+    .form-group {
+        margin: 15px 0; /* 减少表单组间距 */
+        padding: 15px;
+    }
+}
         .close-modal { 
             position: absolute; 
             top: 20px; 
@@ -1293,21 +1335,74 @@ window.getRandomSoftColor = function() {
             z-index: 4;
         }
 
-        /* 響應式調整 */
-        @media (max-width: 768px) {
-            .books-grid { grid-template-columns: 1fr 1fr; }
-            .poster-thumbnails { flex-direction: column; }
-            .poster-thumb { max-width: 100%; }
-            .nav-bar { flex-direction: column; align-items: stretch; }
-            .keyword-search { margin-left: 0; width: 100%; }
-            .keyword-search input { width: 70%; }
-        }
+/* 平板/大屏手机 (576px-768px) */
+@media (max-width: 768px) {
+    .books-grid { grid-template-columns: 1fr 1fr; } /* 两列布局 */
+    .poster-thumbnails { flex-direction: column; gap: 15px; }
+    .poster-thumb { 
+        max-width: 100%; 
+        min-height: 200px; /* 减小高度，避免滚动过长 */
+        padding: 10px;
+    }
+    .nav-bar { flex-direction: row; align-items: center; } /* 保持横向排列更紧凑 */
+    .keyword-search { margin-left: auto; width: auto; }
+    .keyword-search input { 
+        width: 160px; /* 固定宽度，避免挤压导航项 */
+        font-size: 0.9em;
+    }
+    .book-card {
+        padding: 15px; /* 减少内边距 */
+    }
+    .book-title {
+        font-size: 1em; /* 缩小标题字体 */
+        min-height: auto; /* 取消固定高度，避免空出太多空间 */
+    }
+    .book-card p {
+        font-size: 0.9em; /* 缩小内容字体 */
+        margin: 6px 0;
+    }
+}
 
-        @media (max-width: 480px) {
-            .books-grid { grid-template-columns: 1fr; }
-            .keyword-search input { width: 60%; }
-            .header h1 { font-size: 1.5rem; }
-        }
+/* 手机端 (<=576px) */
+@media (max-width: 576px) {
+    .books-grid { grid-template-columns: 1fr; } /* 单列布局，更适合触摸 */
+    .keyword-search { 
+        width: 100%; 
+        margin-left: 0; 
+        margin-top: 10px; /* 搜索框换行显示，避免拥挤 */
+    }
+    .keyword-search input { 
+        width: calc(100% - 80px); /* 占满剩余宽度 */
+    }
+    .header {
+        padding: 40px 15px 20px; /* 减少顶部空间 */
+    }
+    .header h1 { 
+        font-size: clamp(1.4rem, 5vw, 2rem); /* 更小的标题 */
+    }
+    .poster-section, .user-recommends {
+        padding: 20px 15px; /* 减少内容区内边距 */
+        margin: 0 10px 20px; /* 减少外边距 */
+    }
+    .book-cover {
+        width: 80px; /* 缩小封面，节省空间 */
+        height: 120px;
+    }
+    .reserve-btn {
+        padding: 5px 12px; /* 按钮缩小但保持可点击 */
+        font-size: 0.9em;
+    }
+}
+/* 触摸反馈优化（手机端重要） */
+.nav-item, .category-item, .poster-thumb, .book-card, button {
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1); /* 去除默认点击高亮 */
+}
+.nav-item:active, button:active {
+    transform: translateY(1px); /* 点击时轻微下沉，增强反馈 */
+}
+.book-card:active {
+    transform: translateY(-3px); /* 书籍卡片点击反馈 */
+}
     </style>
 </head>
 <body>
