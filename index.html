@@ -529,7 +529,7 @@ window.showReserveModal = function(bookId) {
 
             window.saveReserveRecord(newReserve);
             window.closeAllModals();
-            alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
+            alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
             
             // 清空表單
             document.getElementById('className').value = '';
@@ -551,7 +551,7 @@ window.showReserveModal = function(bookId) {
                 return;
             }
             if (!reason) {
-                alert('請填寫推薦理由');
+                alert('請填寫推薦理由，可填'無'');
                 return;
             }
 
