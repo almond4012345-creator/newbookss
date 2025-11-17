@@ -351,7 +351,10 @@ document.addEventListener('click', function(e) {
                             <div class="book-title-mobile">${book.title || '未知書名'}</div>
                             <div class="book-meta-mobile">作者: ${book.author || '待編輯'}</div>
                             <div class="book-status-mobile ${statusClass}">${statusText}</div>
-                            ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="showReserveModal('${book.id}')">預約</button>` : ''}
+                            ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="
+    showReserveModal('${book.id}');
+    event.stopPropagation();
+">預約</button>` : ''}
                         `;
                         container.appendChild(card);
                     });
@@ -573,7 +576,7 @@ document.addEventListener('click', function(e) {
             }
             document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
             document.getElementById('reserveBookId').value = bookId;
-            document.getElementById('reserveModal').classList.remove('hidden');
+            document.getElementById('reserveModal').style.display = 'flex';
         }
 
         // 提交預約
@@ -607,7 +610,7 @@ document.addEventListener('click', function(e) {
             };
 
             window.saveReserveRecord(newReserve);
-            window.closeAllModals();
+            document.getElementById('reserveModal').style.display = 'none';
             alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
             
             // 清空表單
@@ -617,7 +620,7 @@ document.addEventListener('click', function(e) {
 
         // 顯示推薦表單
         window.showRecommendForm = function() {
-            document.getElementById('recommendModal').classList.remove('hidden');
+            document.getElementById('recommendModal').style.display = 'flex';
         }
 
         // 提交推薦
@@ -642,7 +645,7 @@ document.addEventListener('click', function(e) {
             };
 
             window.saveRecommendRecord(newRecommend);
-            window.closeAllModals();
+            document.getElementById('recommendModal').style.display = 'none';
             alert('推薦成功，感謝你的建議！');
             
             // 清空表單
@@ -751,7 +754,7 @@ document.addEventListener('click', function(e) {
         // 關閉所有彈窗
         window.closeAllModals = function() {
             document.querySelectorAll('.modal').forEach(modal => {
-                modal.classList.add('hidden');
+                modal.style.display = 'none';
             });
         }
 
@@ -1022,18 +1025,16 @@ document.addEventListener('click', function(e) {
 // 创建手机版书籍卡片
 const card = document.createElement('div');
 card.className = 'book-card-mobile';
-// 简介最多显示2行，超出省略
-const intro = book.intro || '無簡介';
-const shortIntro = intro.length > 30 ? intro.slice(0, 30) + '...' : intro;
-
+card.setAttribute('onclick', `showBookDetail('${book.id}')`);
 card.innerHTML = `
-    <img src="${book.cover || 'https://via.placeholder.com/80x120?text=封面'}" class="book-cover-mobile">
+    <img src="${book.cover || 'https://via.placeholder.com/80x120?text=封面'}" class="book-cover-mobile" style="margin: 0 auto; display: block;">
     <div class="book-title-mobile" style="text-align: center; font-weight: 600;">${book.title || '未知書名'}</div>
     <div class="book-meta-mobile">作者: ${book.author || '待編輯'}</div>
-    <div class="book-meta-mobile" style="font-size: 0.75em; margin-bottom: 6px;">索書號: ${book.callNo || '待編輯'}</div>
-    <div class="book-meta-mobile" style="font-size: 0.75em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px;">簡介: ${shortIntro}</div>
     <div class="book-status-mobile ${statusClass}">${statusText}</div>
-    ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="showReserveModal('${book.id}')">預約</button>` : ''}
+    ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="
+    showReserveModal('${book.id}');
+    event.stopPropagation();
+">預約</button>` : ''}
 `;
                 container.appendChild(card);
             }
@@ -1061,6 +1062,39 @@ window.closeEnlargePoster = function() {
     overlay.classList.remove('show');
     overlay.innerHTML = '';
     document.body.style.overflow = 'auto'; // 恢复滚动
+}
+
+// 显示书籍详情
+window.showBookDetail = function(bookId) {
+    const book = window.libraryData.allBooks.find(b => b.id === bookId);
+    if (!book) return;
+    
+    const content = `
+        <img src="${book.cover || 'https://via.placeholder.com/150x220?text=封面'}" class="detail-cover">
+        <div class="detail-title">${book.title || '未知書名'}</div>
+        <div class="detail-info"><strong>作者：</strong>${book.author || '待編輯'}</div>
+        <div class="detail-info"><strong>索書號：</strong>${book.callNo || '待編輯'}</div>
+        <div class="detail-info"><strong>分類：</strong>${book.classCode || '000'}</div>
+        <div class="detail-info"><strong>簡介：</strong>${book.intro || '無簡介'}</div>
+        <div class="detail-info"><strong>適合對象：</strong>${book.suitable || '待編輯'}</div>
+        <div class="detail-info"><strong>狀態：</strong>${book.status === 'in' ? '在架（可預約）' : book.status === 'out' ? '不在架' : '已被預約'}</div>
+        ${book.status === 'in' ? `<button class="reserve-btn-mobile" style="width: 100%; margin-top: 20px;" onclick="
+    document.getElementById('reserveModal').style.display = 'flex';
+    showReserveModal('${book.id}');
+    closeBookDetail();
+    event.stopPropagation();
+">預約這本書</button>` : ''}
+    `;
+    
+    document.getElementById('bookDetailContent').innerHTML = content;
+    document.getElementById('bookDetailOverlay').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+// 关闭书籍详情
+window.closeBookDetail = function() {
+    document.getElementById('bookDetailOverlay').classList.remove('show');
+    document.body.style.overflow = 'auto';
 }
 
         // 手机版搜索函数
@@ -1105,7 +1139,10 @@ window.closeEnlargePoster = function() {
                         <div class="book-title-mobile">${book.title || '未知書名'}</div>
                         <div class="book-meta-mobile">作者: ${book.author || '待編輯'}</div>
                         <div class="book-status-mobile ${statusClass}">${statusText}</div>
-                        ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="showReserveModal('${book.id}')">預約</button>` : ''}
+                       ${book.status === 'in' ? `<button class="reserve-btn-mobile" onclick="
+    showReserveModal('${book.id}');
+    event.stopPropagation();
+">預約</button>` : ''}
                     `;
                     container.appendChild(card);
                 });
@@ -1705,6 +1742,45 @@ window.onload = function() {
     object-fit: contain;
     border-radius: 8px;
 }
+/* 书籍详情弹窗样式 */
+.device-mobile .book-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    z-index: 9999;
+    padding: 20px;
+    overflow-y: auto;
+    display: none;
+}
+.device-mobile .book-detail-overlay.show {
+    display: block;
+}
+.device-mobile .detail-close {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 1.5em;
+    z-index: 10000;
+}
+.device-mobile .detail-cover {
+    width: 150px;
+    height: 220px;
+    margin: 0 auto 20px;
+    display: block;
+}
+.device-mobile .detail-title {
+    text-align: center;
+    font-size: 1.3em;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+.device-mobile .detail-info {
+    margin: 10px 0;
+    line-height: 1.8;
+}
 
         /* 手机版顶部固定导航栏 */
         .device-mobile .mobile-top-nav {
@@ -2009,6 +2085,63 @@ window.onload = function() {
             display: block;
         }
 
+/* 修復手機版彈窗顯示問題 */
+.device-mobile .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    padding: 20px;
+}
+
+.device-mobile .modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 350px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.device-mobile .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    cursor: pointer;
+    font-size: 1.3em;
+    color: #8e8e93;
+}
+
+.device-mobile .close-modal:hover {
+    color: #ff3b30;
+}
+
+/* 確保預約彈窗表單元素可見 */
+.device-mobile .modal-content input,
+.device-mobile .modal-content button {
+    width: 100%;
+    margin: 8px 0;
+    padding: 12px;
+    font-size: 1em;
+}
+
+.device-mobile .reserve-submit-btn {
+    background: #0071e3;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-top: 15px;
+}
+
+
         /* 电脑/平板端隐藏手机版元素 */
         .device-desktop .mobile-only {
             display: none !important;
@@ -2106,8 +2239,16 @@ window.onload = function() {
                 <!-- 手机版书籍卡片动态生成 -->
             </div>
 
-            <!-- 推荐新书按钮 -->
-            <button class="recommend-new-btn" onclick="showRecommendForm()">推薦新書</button>
+<!-- 推荐新书按钮 -->
+<button class="recommend-new-btn" onclick="
+    document.getElementById('recommendModal').style.display = 'flex';
+">推薦新書</button>
+
+<!-- 书籍详情弹窗 -->
+<div class="book-detail-overlay mobile-only" id="bookDetailOverlay">
+    <div class="detail-close" onclick="closeBookDetail()">✕</div>
+    <div id="bookDetailContent"></div>
+</div>
         </div>
     </div>
 
@@ -2278,58 +2419,118 @@ window.onload = function() {
         <!-- 隱藏的管理員入口 -->
         <div class="hidden-admin-entry" onclick="showAdminLogin()">管理員入口</div>
 
-        <!-- 預約彈窗 -->
-        <div class="modal hidden" id="reserveModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">✕</span>
-                <h3>預約圖書</h3>
-                <div id="bookReserveInfo"></div>
-                <input type="hidden" id="reserveBookId">
-                <div>
-                    <label for="className">班級：</label>
-                    <input type="text" id="className" placeholder="例如：七年一班">
-                </div>
-                <div>
-                    <label for="studentName">姓名：</label>
-                    <input type="text" id="studentName" placeholder="請輸入姓名">
-                </div>
-                <button class="btn-primary reserve-submit-btn" onclick="submitReserve()">確認預約</button>
-            </div>
-        </div>
-
-        <!-- 推薦彈窗 -->
-        <div class="modal hidden" id="recommendModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">✕</span>
-                <h3>推薦購書</h3>
-                <div>
-                    <label for="recommendBookName">書名：</label>
-                    <input type="text" id="recommendBookName" placeholder="請輸入書名">
-                </div>
-                <div>
-                    <label for="recommendReason">推薦理由：</label>
-                    <textarea id="recommendReason" rows="3" placeholder="請說明推薦理由"></textarea>
-                </div>
-                <button class="btn-primary reserve-submit-btn" onclick="submitRecommend()">確認推薦</button>
-            </div>
-        </div>
-
-        <!-- 管理員登錄彈窗 -->
-        <div class="modal hidden" id="adminLoginModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">✕</span>
-                <h3>管理員登錄</h3>
-                <div>
-                    <label for="adminUser">用戶名：</label>
-                    <input type="text" id="adminUser" placeholder="請輸入用戶名">
-                </div>
-                <div>
-                    <label for="adminPass">密碼：</label>
-                    <input type="password" id="adminPass" placeholder="請輸入密碼">
-                </div>
-                <button class="btn-primary reserve-submit-btn" onclick="adminLogin()">登錄</button>
-            </div>
-        </div>
+<!-- 终极修复版预约弹窗 -->
+<div id="reserveModal" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    padding: 20px;
+">
+    <div style="
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 350px;
+    ">
+        <span onclick="document.getElementById('reserveModal').style.display='none'" style="
+            position: absolute;
+            top:            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.5em;
+            color: #8e8e93;
+        ">×</span>
+        <h3>預約書籍</h3>
+        <div id="bookReserveInfo" style="margin-bottom: 15px;"></div>
+        <input type="text" id="className" placeholder="班級" style="width: 100%; margin: 8px 0; padding: 12px;">
+        <input type="text" id="studentName" placeholder="姓名" style="width: 100%; margin: 8px 0; padding: 12px;">
+        <input type="hidden" id="reserveBookId">
+        <button class="reserve-submit-btn" onclick="submitReserve()" style="width: 100%; background: #0071e3; color: white; border: none; padding: 12px; border-radius: 8px; margin-top: 15px;">確認預約</button>
     </div>
+</div>
+
+<!-- 推薦書籍彈窗 -->
+<div id="recommendModal" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    padding: 20px;
+">
+    <div style="
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 350px;
+        position: relative;
+    ">
+        <span onclick="document.getElementById('recommendModal').style.display='none'" style="
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.5em;
+            color: #8e8e93;
+        ">×</span>
+        <h3>推薦新書</h3>
+        <input type="text" id="recommendBookName" placeholder="書名" style="width: 100%; margin: 8px 0; padding: 12px;">
+        <textarea id="recommendReason" placeholder="推薦理由" rows="4" style="width: 100%; margin: 8px 0; padding: 12px;"></textarea>
+        <button onclick="submitRecommend()" style="width: 100%; background: #0071e3; color: white; border: none; padding: 12px; border-radius: 8px; margin-top: 15px;">提交推薦</button>
+    </div>
+</div>
+
+<!-- 管理員登錄彈窗 -->
+<div id="adminLoginModal" class="modal hidden">
+    <div class="modal-content">
+        <span class="close-modal" onclick="document.getElementById('adminLoginModal').classList.add('hidden')">×</span>
+        <h3>管理員登錄</h3>
+        <input type="text" id="adminUser" placeholder="賬號">
+        <input type="password" id="adminPass" placeholder="密碼">
+        <button class="btn-primary" onclick="adminLogin()">登錄</button>
+    </div>
+</div>
+
+    </div> <!-- 結束 desktop-only div -->
+
+<!-- 推薦書籍彈窗 -->
+<div id="recommendModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-modal" onclick="document.getElementById('recommendModal').style.display='none'">×</span>
+        <h3>推薦新書</h3>
+        <input type="text" id="recommendBookName" placeholder="書名">
+        <textarea id="recommendReason" placeholder="推薦理由" rows="4"></textarea>
+        <button class="reserve-submit-btn" onclick="submitRecommend()">提交推薦</button>
+    </div>
+</div>
+
+<!-- 預約彈窗 -->
+<div id="reserveModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close-modal" onclick="document.getElementById('reserveModal').style.display='none'">×</span>
+        <h3>預約書籍</h3>
+        <div id="bookReserveInfo" style="margin-bottom: 15px;"></div>
+        <input type="text" id="className" placeholder="班級">
+        <input type="text" id="studentName" placeholder="姓名">
+        <input type="hidden" id="reserveBookId">
+        <button class="reserve-submit-btn" onclick="submitReserve()">確認預約</button>
+    </div>
+</div>
+
 </body>
 </html>
