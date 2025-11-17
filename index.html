@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XX中学图书馆 | 每周新书速递</title>
+    <title>XX中學圖書館 | 每週新書速遞</title>
     <script type="module">
-        // 引入 Firebase 模块（带版本号的 CDN 链接，已修复）
+        // 引入 Firebase 模組
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getDatabase, ref, set, get, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
-        // 你的 Firebase 配置（使用你提供的最新配置）
+        // Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyAJhvIuZh_Fo96OTpil-7aAu1k7H61A3GQ",
             authDomain: "newbookf-a73de-5a312.firebaseapp.com",
@@ -20,11 +20,11 @@
             appId: "1:1006721196866:web:134b572dd122bf221bdedb"
         };
 
-        // 初始化 Firebase（已修复：先初始化应用，再初始化数据库）
+        // 初始化 Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app); // 初始化实时数据库实例（关键修复）
+        const db = getDatabase(app);
 
-        // 全局数据存储
+        // 全域資料儲存
         let libraryData = {
             issues: {},
             categories: [],
@@ -34,17 +34,17 @@
             allBooks: []
         };
 
-        // 从 Firebase 加载数据（已改用实时数据库 API）
+        // 從 Firebase 載入資料
         async function loadData() {
             try {
-                // 加载期数数据
+                // 載入期數資料
                 const issuesRef = ref(db, "issues");
                 const issuesSnapshot = await get(issuesRef);
                 if (issuesSnapshot.exists()) {
                     libraryData.issues = issuesSnapshot.val();
                 }
 
-                // 加载预约记录
+                // 載入預約記錄
                 const reservesRef = ref(db, "reserves");
                 const reservesSnapshot = await get(reservesRef);
                 if (reservesSnapshot.exists()) {
@@ -53,7 +53,7 @@
                     });
                 }
 
-                // 加载推荐记录
+                // 載入推薦記錄
                 const recommendsRef = ref(db, "recommends");
                 const recommendsSnapshot = await get(recommendsRef);
                 if (recommendsSnapshot.exists()) {
@@ -62,7 +62,7 @@
                     });
                 }
 
-                // 加载系统设置
+                // 載入系統設定
                 const settingsRef = ref(db, "settings/system");
                 const settingsSnapshot = await get(settingsRef);
                 if (settingsSnapshot.exists()) {
@@ -71,17 +71,17 @@
                     await set(settingsRef, { latestIssue: 1 });
                 }
 
-                // 收集所有书籍
+                // 收集所有書籍
                 collectAllBooks();
-                // 初始化页面
+                // 初始化頁面
                 init();
             } catch (error) {
-                console.error("加载数据失败：", error);
-                alert("数据加载失败，请刷新页面重试");
+                console.error("載入資料失敗：", error);
+                alert("資料載入失敗，請重新整理頁面重試");
             }
         }
 
-        // 收集所有书籍
+        // 收集所有書籍
         function collectAllBooks() {
             libraryData.allBooks = [];
             for (const issue in libraryData.issues) {
@@ -100,33 +100,33 @@
             }
         }
 
-        // 保存数据到 Firebase（已改用实时数据库 API）
+        // 儲存資料到 Firebase
         async function saveData() {
             try {
-                // 保存期数数据
+                // 儲存期數資料
                 await set(ref(db, "issues"), libraryData.issues);
-                // 保存系统设置
+                // 儲存系統設定
                 await set(ref(db, "settings/system"), {
                     latestIssue: libraryData.latestIssue
                 });
-                // 更新所有书籍列表
+                // 更新所有書籍列表
                 collectAllBooks();
             } catch (error) {
-                console.error("保存数据失败：", error);
-                alert("保存失败，请重试");
+                console.error("儲存資料失敗：", error);
+                alert("儲存失敗，請重試");
             }
         }
 
-        // 保存单条预约记录
+        // 儲存單條預約記錄
         async function saveReserveRecord(record) {
             try {
-                const newRef = ref(db, `reserves/${Date.now()}`); // 用时间戳作为唯一ID
+                const newRef = ref(db, `reserves/${Date.now()}`);
                 await set(newRef, record);
                 record.id = Date.now().toString();
                 libraryData.reserveRecords.push(record);
                 renderReserveRecords();
                 
-                // 更新书籍状态为"已被预约"
+                // 更新書籍狀態為"已被預約"
                 const [issue, posterNum, bookNum] = record.bookId.split('-');
                 if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
                     libraryData.issues[issue].books[posterNum][bookNum].status = 'reserved';
@@ -134,20 +134,20 @@
                     renderCurrentView();
                 }
             } catch (error) {
-                console.error("保存预约记录失败：", error);
-                alert("预约失败，请重试");
+                console.error("儲存預約記錄失敗：", error);
+                alert("預約失敗，請重試");
             }
         }
 
-        // 更新预约记录状态
+        // 更新預約記錄狀態
         async function updateReserveStatus(index, status) {
             try {
                 const record = libraryData.reserveRecords[index];
                 record.status = status;
                 await update(ref(db, `reserves/${record.id}`), { status: status });
                 
-                // 如果状态变为"已还书"，恢复书籍可预约状态
-                if (status === '已还书') {
+                // 如果狀態變為"已還書"，恢復書籍可預約狀態
+                if (status === '已還書') {
                     const [issue, posterNum, bookNum] = record.bookId.split('-');
                     if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
                         libraryData.issues[issue].books[posterNum][bookNum].status = 'in';
@@ -156,26 +156,26 @@
                     }
                 }
             } catch (error) {
-                console.error("更新预约状态失败：", error);
-                alert("更新失败，请重试");
+                console.error("更新預約狀態失敗：", error);
+                alert("更新失敗，請重試");
             }
         }
 
-        // 保存单条推荐记录
+        // 儲存單條推薦記錄
         async function saveRecommendRecord(record) {
             try {
-                const newRef = ref(db, `recommends/${Date.now()}`); // 用时间戳作为唯一ID
+                const newRef = ref(db, `recommends/${Date.now()}`);
                 await set(newRef, record);
                 record.id = Date.now().toString();
                 libraryData.recommendRecords.push(record);
                 renderRecommendRecords();
             } catch (error) {
-                console.error("保存推荐记录失败：", error);
-                alert("推荐失败，请重试");
+                console.error("儲存推薦記錄失敗：", error);
+                alert("推薦失敗，請重試");
             }
         }
 
-        // 更新推荐记录状态
+        // 更新推薦記錄狀態
         async function updateRecommendStatus(index, status) {
             try {
                 const record = libraryData.recommendRecords[index];
@@ -183,32 +183,35 @@
                 await update(ref(db, `recommends/${record.id}`), { status: status });
                 renderUserRecommendList();
             } catch (error) {
-                console.error("更新推荐状态失败：", error);
-                alert("更新失败，请重试");
+                console.error("更新推薦狀態失敗：", error);
+                alert("更新失敗，請重試");
             }
         }
 
-        // 删除整期数据
+        // 刪除整期資料
         async function deleteWholeIssue(issue) {
             try {
                 await remove(ref(db, `issues/${issue}`));
                 delete libraryData.issues[issue];
                 collectAllBooks();
             } catch (error) {
-                console.error("删除期数失败：", error);
-                alert("删除失败，请重试");
+                console.error("刪除期數失敗：", error);
+                alert("刪除失敗，請重試");
             }
         }
 
-        // 初始化页面
+        // 初始化頁面
         function init() {
             renderIssueSelectors();
+            // 顯示最新一期時強制顯示海報
+            const posterContainer = document.getElementById('posterThumbContainer');
+            posterContainer.style.display = 'flex';
             showLatestIssue();
             initCategoryDropdown();
             renderUserRecommendList();
         }
 
-        // 初始化期数选择器
+        // 初始化期數選擇器
         function renderIssueSelectors() {
             const issueNumbers = Object.keys(libraryData.issues).map(Number).sort((a, b) => a - b);
             const userSelector = document.getElementById('issueSelect');
@@ -231,68 +234,42 @@
             bookSelector.value = libraryData.latestIssue;
         }
 
-        // 切换期数
+        // 切換期數
         function switchIssue(issue) {
             const issueNum = Number(issue);
-            document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海报`;
+            const posterContainer = document.getElementById('posterThumbContainer');
+            // 顯示海報
+            posterContainer.style.display = 'flex';
+            document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
             renderBooks(issueNum, 1);
             showSection('posterSection');
         }
 
-        // 显示最新一期
+        // 顯示最新一期
         function showLatestIssue() {
+            const posterContainer = document.getElementById('posterThumbContainer');
+            // 顯示海報
+            posterContainer.style.display = 'flex';
             switchIssue(libraryData.latestIssue);
             document.getElementById('issueSelect').value = libraryData.latestIssue;
         }
 
-        // 初始化分类下拉菜单
-        function initCategoryDropdown() {
-            const trigger = document.querySelector('.category-trigger');
-            const menu = document.getElementById('categoryMenu');
-            let isFixed = false;
-
-            trigger.addEventListener('mouseenter', () => {
-                if (!isFixed) menu.classList.add('visible');
-            });
-
-            menu.addEventListener('mouseleave', () => {
-                if (!isFixed) menu.classList.remove('visible');
-            });
-
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation();
-                isFixed = !isFixed;
-                menu.classList.toggle('visible', isFixed);
-            });
-
-            document.querySelectorAll('.category-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const category = item.dataset.category;
-                    filterByCategory(category);
-                });
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!menu.contains(e.target) && e.target !== trigger) {
-                    isFixed = false;
-                    menu.classList.remove('visible');
-                }
-            });
-        }
-
-        // 分类筛选（全局所有书籍）
+        // 分類篩選（全域所有書籍）
         function filterByCategory(category) {
             const allBooks = libraryData.allBooks;
             const booksContainer = document.getElementById('booksContainer');
+            const posterContainer = document.getElementById('posterThumbContainer');
+            // 隱藏海報
+            posterContainer.style.display = 'none';
             booksContainer.innerHTML = '';
             
-            // 按类别筛选
+            // 按類別篩選
             const filteredBooks = category === 'all' 
                 ? allBooks 
                 : allBooks.filter(book => book.classCode === category);
             
-            // 按3个一组显示
+            // 按3個一組顯示
             let groupIndex = 0;
             filteredBooks.forEach((book, index) => {
                 if (index % 3 === 0) {
@@ -306,42 +283,42 @@
             
             showSection('posterSection');
             document.getElementById('currentIssueTitle').textContent = 
-                category === 'all' ? '全部书籍' : `${category} 分类书籍`;
+                category === 'all' ? '全部書籍' : `${category} 分類書籍`;
         }
 
-        // 显示用户推荐区
+        // 顯示用戶推薦區
         function showUserRecommends() {
             renderUserRecommendList();
             showSection('userRecommendsSection');
         }
 
-        // 渲染用户推荐列表
+        // 渲染用戶推薦列表
         function renderUserRecommendList() {
             const list = document.getElementById('userRecommendList');
             list.innerHTML = '';
 
-            // 按时间倒序排列
+            // 按時間倒序排列
             const sortedRecommends = [...libraryData.recommendRecords]
                 .sort((a, b) => new Date(b.time) - new Date(a.time));
 
             if (sortedRecommends.length === 0) {
-                list.innerHTML = '<p>暂无推荐记录</p>';
+                list.innerHTML = '<p>暫無推薦記錄</p>';
             } else {
                 sortedRecommends.forEach((r, index) => {
                     let statusText = '';
                     let statusClass = '';
                     
                     switch(r.status) {
-                        case '已推荐':
-                            statusText = '推荐中';
+                        case '已推薦':
+                            statusText = '推薦中';
                             statusClass = 'status-pending';
                             break;
-                        case '已记录':
-                            statusText = '已记录';
+                        case '已記錄':
+                            statusText = '已記錄';
                             statusClass = 'status-recorded';
                             break;
                         case '不合規定':
-                            statusText = '不合规定';
+                            statusText = '不合規定';
                             statusClass = 'status-invalid';
                             break;
                     }
@@ -357,13 +334,13 @@
             }
         }
 
-        // 海报管理相关
+        // 海報管理相關
         function updatePosterNumSelect() {
             const issue = document.getElementById('posterIssueSelect').value;
             renderPosterThumbs(issue);
         }
 
-        // 渲染海报缩略图（自动适应窗口）
+        // 渲染海報縮略圖（自動適應窗口）
         function renderPosterThumbs(issue) {
             const container = document.getElementById('posterThumbContainer');
             container.innerHTML = '';
@@ -377,13 +354,13 @@
                 } else {
                     container.innerHTML += `
                         <div class="poster-thumb placeholder" data-poster="${i}">
-                            海报${i}<br>[暂未上传]
+                            海報${i}<br>[暫未上傳]
                         </div>
                     `;
                 }
             }
 
-            // 点击海报显示对应书籍
+            // 點擊海報顯示對應書籍
             document.querySelectorAll('.poster-thumb').forEach(thumb => {
                 thumb.addEventListener('click', function() {
                     const posterNum = this.dataset.poster;
@@ -392,7 +369,7 @@
             });
         }
 
-        // 上传/更新海报
+        // 上傳/更新海報
         function uploadPoster() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
@@ -400,12 +377,12 @@
             const file = fileInput.files[0];
             
             if (!file) {
-                showWarning('posterWarning', '请选择要上传的海报图片');
+                showWarning('posterWarning', '請選擇要上傳的海報圖片');
                 return;
             }
             
             if (!file.type.startsWith('image/')) {
-                showWarning('posterWarning', '请上传图片格式（PNG/JPG等）');
+                showWarning('posterWarning', '請上傳圖片格式（PNG/JPG等）');
                 return;
             }
             
@@ -416,51 +393,51 @@
                 }
                 libraryData.issues[issue].posters[num] = e.target.result;
                 saveData();
-                showWarning('posterWarning', '海报上传成功', 'green');
+                showWarning('posterWarning', '海報上傳成功', 'green');
                 renderPosterThumbs(issue);
                 fileInput.value = '';
             };
             reader.readAsDataURL(file);
         }
 
-        // 删除单张海报
+        // 刪除單張海報
         function deleteSinglePoster() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
             
             if (!libraryData.issues[issue] || !libraryData.issues[issue].posters[num]) {
-                showWarning('posterWarning', '该海报不存在');
+                showWarning('posterWarning', '該海報不存在');
                 return;
             }
             
-            if (confirm(`确定要删除第${issue}期第${num}张海报吗？`)) {
+            if (confirm(`確定要刪除第${issue}期第${num}張海報嗎？`)) {
                 libraryData.issues[issue].posters[num] = '';
                 saveData();
                 renderPosterThumbs(issue);
-                showWarning('posterWarning', '海报已删除', 'green');
+                showWarning('posterWarning', '海報已刪除', 'green');
             }
         }
 
-        // 删除整期海报
+        // 刪除整期海報
         async function deleteWholeIssueHandler() {
             const issue = document.getElementById('posterIssueSelect').value;
             if (!libraryData.issues[issue]) {
-                showWarning('posterWarning', '该期不存在');
+                showWarning('posterWarning', '該期不存在');
                 return;
             }
             
-            if (confirm(`确定要删除第${issue}期所有海报和书籍吗？此操作不可恢复！`)) {
+            if (confirm(`確定要刪除第${issue}期所有海報和書籍嗎？此操作不可恢復！`)) {
                 await deleteWholeIssue(issue);
                 const issues = Object.keys(libraryData.issues).map(Number).sort((a, b) => b - a);
                 libraryData.latestIssue = issues.length > 0 ? issues[0] : 0;
                 await saveData();
                 renderIssueSelectors();
                 showLatestIssue();
-                showWarning('posterWarning', `第${issue}期已全部删除`, 'green');
+                showWarning('posterWarning', `第${issue}期已全部刪除`, 'green');
             }
         }
 
-        // 新增期数
+        // 新增期數
         async function addNewIssue() {
             const newIssue = libraryData.latestIssue + 1;
             libraryData.issues[newIssue] = {
@@ -475,23 +452,23 @@
             renderPosterThumbs(newIssue);
         }
 
-        // 书籍管理相关
+        // 書籍管理相關
         function updateBookPosterSelect() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterSelect = document.getElementById('bookPosterSelect');
             posterSelect.innerHTML = '';
             posterSelect.innerHTML = `
-                <option value="1">海报1</option>
-                <option value="2">海报2</option>
+                <option value="1">海報1</option>
+                <option value="2">海報2</option>
             `;
             updateBookNumSelect();
         }
 
         function updateBookNumSelect() {
-            // 书籍序号固定1-9
+            // 書籍序號固定1-9
         }
 
-        // 检测书名重复
+        // 檢測書名重複
         function checkDuplicateTitle() {
             const newTitle = document.getElementById('bookTitle').value.trim();
             const titleWarning = document.getElementById('titleWarning');
@@ -513,7 +490,7 @@
                             continue;
                         }
                         if (books[poster][bookNum]?.title === newTitle) {
-                            titleWarning.textContent = `警告：往期已有同名书籍“${newTitle}”`;
+                            titleWarning.textContent = `警告：往期已有同名書籍“${newTitle}”`;
                             return true;
                         }
                     }
@@ -524,16 +501,16 @@
             return false;
         }
 
-        // 保存/修改书籍
+        // 儲存/修改書籍
         async function saveBookInfo() {
             const title = document.getElementById('bookTitle').value.trim();
             if (!title) {
-                alert('请输入书名');
+                alert('請輸入書名');
                 return;
             }
             
             const isDuplicate = checkDuplicateTitle();
-            if (isDuplicate && !confirm(`往期已有同名书籍“${title}”，确定要继续吗？`)) {
+            if (isDuplicate && !confirm(`往期已有同名書籍“${title}”，確定要繼續嗎？`)) {
                 return;
             }
             
@@ -580,13 +557,13 @@
                     cover: coverUrl
                 };
                 await saveData();
-                alert('书籍信息已保存');
+                alert('書籍資訊已儲存');
                 renderBooks(issue, posterNum);
                 updateRecordsBookTitle(issue, posterNum, bookNum, title);
             }
         }
 
-        // 删除书籍
+        // 刪除書籍
         async function deleteBookInfo() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
@@ -594,19 +571,19 @@
             const books = libraryData.issues[issue]?.books[posterNum];
             
             if (!books || !books[bookNum]) {
-                alert('该书籍不存在');
+                alert('該書籍不存在');
                 return;
             }
             
-            if (confirm(`确定要删除第${issue}期第${posterNum}张海报的第${bookNum}本书吗？`)) {
+            if (confirm(`確定要刪除第${issue}期第${posterNum}張海報的第${bookNum}本書嗎？`)) {
                 delete books[bookNum];
                 await saveData();
                 renderBooks(issue, posterNum);
-                alert('书籍已删除');
+                alert('書籍已刪除');
             }
         }
 
-        // 创建书籍卡片
+        // 創建書籍卡片（修復預約按鈕點擊事件）
         function createBookCard(book) {
             const card = document.createElement('div');
             card.className = 'book-card';
@@ -617,45 +594,50 @@
             let statusClass = '';
             let reserveButton = '';
             
-            switch(book.status) {
-                case 'in':
-                    statusText = '在架';
-                    statusClass = 'status-in';
-                    reserveButton = `<button class="reserve-btn" onclick="showReserveModal('${card.dataset.id}')">预约</button>`;
-                    break;
-                case 'out':
-                    statusText = '不在架';
-                    statusClass = 'status-out';
-                    break;
-                case 'reserved':
-                    statusText = '已被预约';
-                    statusClass = 'status-reserved';
-                    break;
+            // 僅在書籍可預約時顯示預約按鈕
+            if (book.status === 'in') {
+                statusText = '在架';
+                statusClass = 'status-in';
+                reserveButton = `<button class="reserve-btn">預約</button>`;
+            } else if (book.status === 'out') {
+                statusText = '不在架';
+                statusClass = 'status-out';
+            } else if (book.status === 'reserved') {
+                statusText = '已被預約';
+                statusClass = 'status-reserved';
             }
             
             card.innerHTML = `
                 <img src="${book.cover}" class="book-cover">
                 <h3 class="book-title">${book.title}</h3>
                 <p>作者: ${book.author}</p>
-                <p>简介: ${book.intro}</p>
-                <p>适合: ${book.suitable}</p>
+                <p>簡介: ${book.intro}</p>
+                <p>適合: ${book.suitable}</p>
                 <div class="book-status-bar">
-                    <span class="book-status ${statusClass}">${statusText}${statusText === '在架' ? '（可预约）' : ''}</span>
+                    <span class="book-status ${statusClass}">${statusText}${statusText === '在架' ? '（可預約）' : ''}</span>
                     ${reserveButton}
                 </div>
-                <p class="book-callno">索书号: ${book.callNo}</p>
+                <p class="book-callno">索書號: ${book.callNo}</p>
             `;
+            
+            // 單獨綁定預約按鈕點擊事件
+            if (book.status === 'in') {
+                const btn = card.querySelector('.reserve-btn');
+                btn.addEventListener('click', () => {
+                    showReserveModal(card.dataset.id);
+                });
+            }
             
             return card;
         }
 
-        // 渲染书籍列表
+        // 渲染書籍列表
         function renderBooks(issue, posterNum) {
             const container = document.getElementById('booksContainer');
             container.innerHTML = '';
             const books = libraryData.issues[issue]?.books[posterNum] || {};
             
-            // 按3个一组显示，每组相同背景色
+            // 按3個一組顯示，每組相同背景色
             let groupIndex = 0;
             for (let i = 1; i <= 9; i++) {
                 if (i % 3 === 1) {
@@ -663,14 +645,14 @@
                 }
                 
                 const book = books[i] || {
-                    callNo: '待编辑',
-                    title: '新书' + i,
+                    callNo: '待編輯',
+                    title: '新書' + i,
                     classCode: '000',
-                    author: '待编辑',
-                    intro: '待编辑',
-                    suitable: '待编辑',
+                    author: '待編輯',
+                    intro: '待編輯',
+                    suitable: '待編輯',
                     status: 'out',
-                    cover: 'https://via.placeholder.com/100x150?text=新书' + i,
+                    cover: 'https://via.placeholder.com/100x150?text=新書' + i,
                     issue,
                     posterNum,
                     bookNum: i
@@ -682,7 +664,7 @@
             }
         }
 
-        // 渲染当前视图（用于状态更新后刷新）
+        // 渲染當前視圖（用於狀態更新後刷新）
         function renderCurrentView() {
             const activeSection = document.querySelector('.content-section:not(.hidden)');
             if (activeSection.id === 'posterSection') {
@@ -694,17 +676,17 @@
             }
         }
 
-        // 预约记录管理
+        // 預約記錄管理
         function renderReserveRecords() {
             const container = document.getElementById('reserveRecordsContainer');
             container.innerHTML = '';
             
             if (libraryData.reserveRecords.length === 0) {
-                container.innerHTML = '<p>暂无预约记录</p>';
+                container.innerHTML = '<p>暫無預約記錄</p>';
                 return;
             }
             
-            // 按时间倒序排列
+            // 按時間倒序排列
             const sortedReserves = [...libraryData.reserveRecords]
                 .sort((a, b) => new Date(b.time) - new Date(a.time));
                 
@@ -716,24 +698,24 @@
                             ${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}
                         </div>
                         <select class="record-status" id="${recordId}" onchange="updateReserveStatus(${i}, this.value)">
-                            <option value="已预约" ${r.status === '已预约' ? 'selected' : ''}>已预约</option>
-                            <option value="处理中" ${r.status === '处理中' ? 'selected' : ''}>处理中</option>
+                            <option value="已預約" ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
+                            <option value="處理中" ${r.status === '處理中' ? 'selected' : ''}>處理中</option>
                             <option value="借走了" ${r.status === '借走了' ? 'selected' : ''}>借走了</option>
                             <option value="找不到" ${r.status === '找不到' ? 'selected' : ''}>找不到</option>
-                            <option value="已还书" ${r.status === '已还书' ? 'selected' : ''}>已还书</option>
+                            <option value="已還書" ${r.status === '已還書' ? 'selected' : ''}>已還書</option>
                         </select>
                     </div>
                 `;
             });
         }
 
-        // 推荐购书记录管理
+        // 推薦購書記錄管理
         function renderRecommendRecords() {
             const container = document.getElementById('recommendRecordsContainer');
             container.innerHTML = '';
             
             if (libraryData.recommendRecords.length === 0) {
-                container.innerHTML = '<p>暂无推荐记录</p>';
+                container.innerHTML = '<p>暫無推薦記錄</p>';
                 return;
             }
             
@@ -745,19 +727,19 @@
                 container.innerHTML += `
                     <div class="record-item">
                         <div>
-                            ${r.time} | 书名: ${r.bookName} | 理由: ${r.reason}
+                            ${r.time} | 書名: ${r.bookName} | 理由: ${r.reason}
                         </div>
                         <select class="record-status" id="${recordId}" onchange="updateRecommendStatus(${i}, this.value)">
-                            <option value="已推荐" ${r.status === '已推荐' ? 'selected' : ''}>推荐中</option>
-                            <option value="已记录" ${r.status === '已记录' ? 'selected' : ''}>已记录</option>
-                            <option value="不合規定" ${r.status === '不合規定' ? 'selected' : ''}>不合规定</option>
+                            <option value="已推薦" ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
+                            <option value="已記錄" ${r.status === '已記錄' ? 'selected' : ''}>已記錄</option>
+                            <option value="不合規定" ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
                         </select>
                     </div>
                 `;
             });
         }
 
-        // 更新记录中的书籍名称
+        // 更新記錄中的書籍名稱
         function updateRecordsBookTitle(issue, posterNum, bookNum, newTitle) {
             const bookId = `${issue}-${posterNum}-${bookNum}`;
             libraryData.reserveRecords.forEach(r => {
@@ -770,11 +752,11 @@
             });
         }
 
-        // 预约和推荐功能
+        // 預約和推薦功能
         function showReserveModal(bookId) {
             const [issue, posterNum, bookNum] = bookId.split('-');
             const book = libraryData.issues[issue].books[posterNum][bookNum];
-            document.getElementById('bookReserveInfo').innerText = `书名: ${book.title}`;
+            document.getElementById('bookReserveInfo').innerText = `書名: ${book.title}`;
             document.getElementById('reserveBookId').value = bookId;
             document.getElementById('reserveModal').classList.remove('hidden');
         }
@@ -791,12 +773,12 @@
                 className: document.getElementById('className').value,
                 studentName: document.getElementById('studentName').value,
                 time: new Date().toLocaleString(),
-                status: '已预约'
+                status: '已預約'
             };
             
             await saveReserveRecord(newReserve);
             closeAllModals();
-            alert('预约成功！请1小时内到图书馆确认，书籍保留2天');
+            alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
             this.reset();
         });
 
@@ -810,29 +792,36 @@
                 bookName: document.getElementById('recommendBookName').value,
                 reason: document.getElementById('recommendReason').value,
                 time: new Date().toLocaleString(),
-                status: '已推荐'
+                status: '已推薦'
             };
             
             await saveRecommendRecord(newRecommend);
             closeAllModals();
-            alert('推荐成功，感谢你的建议！');
+            alert('推薦成功，感謝你的建議！');
             this.reset();
-            showUserRecommends(); // 刷新推荐列表
+            showUserRecommends(); // 刷新推薦列表
         });
 
-        // 关键词搜索（全局所有书籍）
+        // 關鍵詞搜索（全域所有書籍）
         function searchBooks() {
             const keyword = document.getElementById('keywordInput').value.toLowerCase();
+            const posterContainer = document.getElementById('posterThumbContainer'); // 海報容器
+            const booksContainer = document.getElementById('booksContainer');
+            
             if (!keyword) {
+                // 無關鍵詞時顯示海報，恢復默認視圖
+                posterContainer.style.display = 'flex';
                 showLatestIssue();
                 return;
             }
             
+            // 有搜索關鍵詞時隱藏海報
+            posterContainer.style.display = 'none';
+            
             const allBooks = libraryData.allBooks;
-            const booksContainer = document.getElementById('booksContainer');
             booksContainer.innerHTML = '';
             
-            // 搜索所有匹配的书籍
+            // 搜索所有匹配的書籍
             const matchedBooks = allBooks.filter(book => 
                 book.title.toLowerCase().includes(keyword) ||
                 book.author.toLowerCase().includes(keyword) ||
@@ -840,7 +829,7 @@
                 book.intro.toLowerCase().includes(keyword)
             );
             
-            // 按3个一组显示
+            // 按3個一組顯示
             let groupIndex = 0;
             matchedBooks.forEach((book, index) => {
                 if (index % 3 === 0) {
@@ -853,14 +842,58 @@
             });
             
             if (matchedBooks.length === 0) {
-                booksContainer.innerHTML = '<p>没有找到匹配的书籍</p>';
+                booksContainer.innerHTML = '<p>沒有找到匹配的書籍</p>';
             }
             
             showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = `搜索结果: "${keyword}"`;
+            document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
         }
 
-        // 显示指定区域，隐藏其他区域
+        // 初始化分類下拉菜單（修復點擊無效問題）
+        function initCategoryDropdown() {
+            const trigger = document.querySelector('.category-trigger');
+            const menu = document.getElementById('categoryMenu');
+            let isFixed = false;
+
+            // 鼠標進入顯示菜單
+            trigger.addEventListener('mouseenter', () => {
+                if (!isFixed) menu.classList.add('visible');
+            });
+
+            // 鼠標離開隱藏菜單
+            menu.addEventListener('mouseleave', () => {
+                if (!isFixed) menu.classList.remove('visible');
+            });
+
+            // 點擊分類按鈕切換菜單狀態
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isFixed = !isFixed;
+                menu.classList.toggle('visible', isFixed);
+            });
+
+            // 為每個分類項綁定點擊事件
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 阻止事件冒泡
+                    const category = item.dataset.category;
+                    filterByCategory(category);
+                    // 點擊後隱藏菜單
+                    isFixed = false;
+                    menu.classList.remove('visible');
+                });
+            });
+
+            // 點擊頁面其他地方隱藏菜單
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && e.target !== trigger) {
+                    isFixed = false;
+                    menu.classList.remove('visible');
+                }
+            });
+        }
+
+        // 顯示指定區域，隱藏其他區域
         function showSection(sectionId) {
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.add('hidden');
@@ -868,7 +901,7 @@
             document.getElementById(sectionId).classList.remove('hidden');
         }
 
-        // 管理员登录/退出
+        // 管理員登錄/退出
         function showAdminLogin() {
             document.getElementById('adminLoginModal').classList.remove('hidden');
         }
@@ -883,7 +916,7 @@
                 renderReserveRecords();
                 renderRecommendRecords();
             } else {
-                alert('账号或密码错误');
+                alert('賬號或密碼錯誤');
             }
         });
 
@@ -891,7 +924,7 @@
             document.getElementById('adminPanel').classList.add('hidden');
         }
 
-        // 辅助函数
+        // 輔助函數
         function closeAllModals() {
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.classList.add('hidden');
@@ -905,7 +938,7 @@
             setTimeout(() => { warning.textContent = ''; }, 3000);
         }
 
-        // 全局函数声明
+        // 全域函數聲明
         window.switchIssue = switchIssue;
         window.showLatestIssue = showLatestIssue;
         window.showUserRecommends = showUserRecommends;
@@ -927,101 +960,105 @@
         window.updateReserveStatus = updateReserveStatus;
         window.updateRecommendStatus = updateRecommendStatus;
 
-        // 页面加载时从Firebase加载数据
+        // 頁面加載時從Firebase加載資料
         window.onload = loadData;
     </script>
     <style>
-        /* 基础样式与品牌色调定义 */
+        /* 基礎樣式與品牌色調定義 - 蘋果風格 */
         :root {
-            --primary: #396EB0; /* 主色调：图书馆蓝 */
-            --primary-light: #E6EEF7; /* 主色浅调 */
-            --secondary: #F4B350; /* 辅助色：温暖橙 */
-            --success: #4CAF50; /* 成功色 */
-            --warning: #FF9800; /* 警告色 */
-            --danger: #F44336; /* 危险色 */
-            --gray-light: #F5F7FA; /* 浅灰背景 */
-            --gray: #E0E5EB; /* 边框灰 */
-            --gray-dark: #6B7C93; /* 文字灰 */
-            --text: #2D3748; /* 主要文字 */
-            --shadow: 0 4px 12px rgba(0,0,0,0.08); /* 基础阴影 */
-            --radius: 8px; /* 统一圆角 */
+            --primary: #0071e3; /* 蘋果藍 */
+            --primary-light: #f0f7ff;
+            --secondary: #ff9500; /* 蘋果橙 */
+            --success: #34c759; /* 蘋果綠 */
+            --warning: #ff9500;
+            --danger: #ff3b30;
+            --gray-light: #f5f5f7; /* 蘋果淺灰 */
+            --gray: #e2e2e7;
+            --gray-dark: #8e8e93;
+            --text: #1d1d1f; /* 蘋果文字色 */
+            --text-light: #6e6e73;
+            --shadow: 0 4px 20px rgba(0,0,0,0.05);
+            --radius: 12px; /* 更大的圆角，苹果风格 */
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); /* 苹果动画曲线 */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: "PingFang SC", "Helvetica Neue", sans-serif; 
-            padding: 20px; 
-            max-width: 1200px; 
+            font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif; 
+            padding: 0; 
+            max-width: 1440px; 
             margin: 0 auto; 
             color: var(--text);
-            background-color: #FAFAFC;
+            background-color: var(--gray-light);
+            line-height: 1.6;
         }
         .hidden { display: none !important; }
         button, input, select, textarea { 
-            padding: 8px 12px; 
+            padding: 8px 16px; 
             margin: 5px; 
             border: 1px solid var(--gray); 
             border-radius: var(--radius); 
             font-family: inherit;
-            transition: all 0.2s;
+            transition: var(--transition);
+            background-color: white;
         }
         button { 
             cursor: pointer; 
             border: none; 
             font-weight: 500;
-            padding: 9px 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 10px 20px;
+            box-shadow: none;
         }
-        button:hover { transform: translateY(-1px); }
-        button:active { transform: translateY(0); }
+        button:hover { 
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        button:active { 
+            transform: translateY(0);
+        }
 
-        /* 按钮优先级样式 */
+        /* 按鈕樣式 - 蘋果風格扁平化 */
         .btn-primary { 
             background: var(--primary); 
             color: white; 
         }
         .btn-primary:hover { 
-            background: #2D5CA8; 
-            box-shadow: 0 2px 8px rgba(57, 110, 176, 0.3);
+            background: #0077ed; 
         }
         .btn-secondary { 
             background: var(--secondary); 
             color: white; 
         }
         .btn-secondary:hover { 
-            background: #E6A038;
-            box-shadow: 0 2px 8px rgba(244, 179, 80, 0.3);
+            background: #ff9f0a;
         }
         .btn-danger { 
             background: var(--danger); 
             color: white; 
         }
         .btn-danger:hover { 
-            background: #D32F2F;
-            box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+            background: #ff4d40;
         }
         .btn-text { 
             background: transparent; 
             color: var(--primary); 
-            box-shadow: none;
         }
         .btn-text:hover { 
             background: var(--primary-light); 
         }
 
-        /* 顶部区域 */
+        /* 頂部區域 - 蘋果風格簡潔頂欄 */
         .header { 
             text-align: center; 
-            margin-bottom: 30px; 
-            padding: 20px;
-            background: white;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
+            padding: 40px 20px 20px;
+            background: transparent;
         }
         .header h1 { 
-            color: var(--primary); 
+            color: var(--text); 
             margin: 10px 0 20px; 
             font-weight: 600;
+            font-size: 2.2rem;
+            letter-spacing: -0.02em;
         }
         .issue-selector { 
             margin: 15px 0; 
@@ -1034,31 +1071,36 @@
             appearance: none;
         }
 
-        /* 导航栏 - 强化层次 */
+        /* 導航欄 - 蘋果風格毛玻璃效果 */
         .nav-bar { 
             display: flex; 
             flex-wrap: wrap; 
             align-items: center; 
             gap: 10px; 
-            margin: 0 0 20px; 
-            padding: 15px; 
-            background: white;
-            border-radius: var(--radius);
+            padding: 15px 20px; 
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 0;
             box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            margin-bottom: 30px;
         }
         .nav-item { 
-            background: var(--gray-light); 
-            padding: 9px 16px; 
-            border-radius: var(--radius); 
+            background: transparent; 
+            padding: 10px 18px; 
+            border-radius: 20px; 
             cursor: pointer; 
             white-space: nowrap;
             display: inline-flex;
             align-items: center;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: var(--transition);
+            color: var(--text);
         }
         .nav-item:hover { 
-            background: var(--primary-light);
+            background: var(--gray-light);
             color: var(--primary);
         }
         .nav-item.active {
@@ -1071,10 +1113,18 @@
             align-items: center;
         }
         .keyword-search input {
-            min-width: 200px;
+            min-width: 250px;
+            background: var(--gray-light);
+            border: none;
+            padding: 10px 16px;
+        }
+        .keyword-search input:focus {
+            background: white;
+            outline: none;
+            box-shadow: 0 0 0 2px var(--primary);
         }
 
-        /* 分类下拉菜单 - 突出层级 */
+        /* 分類下拉菜單 - 蘋果風格浮出效果 */
         .category-dropdown { 
             position: relative; 
         }
@@ -1093,39 +1143,46 @@
             top: 100%; 
             left: 0; 
             background: white; 
-            border: 1px solid var(--gray); 
             border-radius: var(--radius); 
-            padding: 10px; 
+            padding: 10px 0; 
             width: 200px; 
             z-index: 10; 
             display: none; 
-            box-shadow: var(--shadow);
-            margin-top: 5px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-top: 8px;
+            border: none;
         }
-        .category-menu.visible { display: block; }
+        .category-menu.visible { 
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .category-item { 
-            padding: 8px 12px; 
+            padding: 10px 16px; 
             cursor: pointer; 
-            border-radius: 4px; 
-            transition: all 0.2s;
+            transition: var(--transition);
+            display: block;
         }
         .category-item:hover { 
-            background: var(--primary-light);
+            background: var(--gray-light);
             color: var(--primary);
         }
 
-        /* 海报区 - 强化展示 */
+        /* 海報區 - 蘋果風格大量留白 */
         .poster-section { 
-            margin: 30px 0; 
-            padding: 20px;
+            margin: 0 20px 40px; 
+            padding: 30px;
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
         }
         .poster-thumbnails { 
             display: flex; 
-            gap: 20px; 
-            margin: 20px 0; 
+            gap: 30px; 
+            margin: 30px 0; 
             justify-content: center;
             width: 100%;
         }
@@ -1136,15 +1193,14 @@
             min-height: 300px;
             object-fit: contain; 
             cursor: pointer; 
-            border: 1px solid var(--gray); 
             border-radius: var(--radius); 
             background: var(--gray-light); 
-            padding: 15px;
-            transition: all 0.3s;
+            padding: 20px;
+            transition: var(--transition);
         }
         .poster-thumb:hover { 
-            border-color: var(--primary); 
-            box-shadow: 0 4px 15px rgba(57, 110, 176, 0.1);
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         }
         .poster-thumb.placeholder { 
             display: flex; 
@@ -1152,22 +1208,22 @@
             justify-content: center; 
             color: var(--gray-dark); 
             font-size: 1.2em;
-            border-style: dashed;
         }
 
-        /* 书籍资料格 - 强化分组与层次 */
+        /* 書籍資料格 - 蘋果風格精緻卡片 */
         .books-grid { 
             display: grid; 
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
-            gap: 20px; 
-            margin: 20px 0; 
+            gap: 30px; 
+            margin: 30px 0; 
         }
         .book-card { 
-            border: 1px solid var(--gray); 
+            border: none; 
             padding: 20px; 
             border-radius: var(--radius); 
-            transition: all 0.3s; 
+            transition: var(--transition); 
             background: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         }
         .book-card[data-group="1"],
         .book-card[data-group="3"],
@@ -1180,24 +1236,29 @@
             border-top: 3px solid var(--secondary);
         }
         .book-card:hover { 
-            transform: translateY(-5px); 
-            box-shadow: var(--shadow);
+            transform: translateY(-8px); 
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08);
         }
         .book-cover { 
             width: 100px; 
             height: 150px; 
             object-fit: cover; 
-            margin: 0 auto 15px; 
+            margin: 0 auto 20px; 
             display: block; 
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: var(--transition);
+        }
+        .book-card:hover .book-cover {
+            transform: scale(1.05);
         }
         .book-title { 
             text-align: center; 
-            margin: 10px 0 15px; 
-            color: var(--primary); 
+            margin: 10px 0 20px; 
+            color: var(--text); 
             font-size: 1.1em;
             min-height: 40px;
+            font-weight: 600;
         }
         .book-card p {
             margin: 8px 0;
@@ -1205,50 +1266,52 @@
             color: var(--text);
         }
         .book-status-bar { 
-            margin: 15px 0 10px; 
+            margin: 20px 0 10px; 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
         }
         .book-status { 
             font-weight: 500; 
-            padding: 3px 8px;
-            border-radius: 4px;
+            padding: 4px 10px;
+            border-radius: 20px;
             font-size: 0.9em;
         }
         .status-in { 
             color: var(--success); 
-            background: rgba(76, 175, 80, 0.1);
+            background: rgba(52, 199, 89, 0.1);
         }
         .status-out { 
             color: var(--danger); 
-            background: rgba(244, 67, 54, 0.1);
+            background: rgba(255, 59, 48, 0.1);
         }
         .status-reserved { 
             color: var(--warning); 
-            background: rgba(255, 152, 0, 0.1);
+            background: rgba(255, 149, 0, 0.1);
         }
         .reserve-btn { 
             background: var(--primary); 
             color: white;
-            padding: 5px 12px;
+            padding: 6px 16px;
             font-size: 0.9em;
+            border-radius: 20px;
         }
         .reserve-btn:hover { 
-            background: #2D5CA8;
+            background: #0077ed;
+            transform: none;
         }
         .book-callno { 
-            color: var(--gray-dark); 
+            color: var(--text-light); 
             font-size: 0.9em; 
-            margin-top: 5px;
-            padding-top: 10px;
+            margin-top: 10px;
+            padding-top: 15px;
             border-top: 1px dashed var(--gray);
         }
 
-        /* 推荐购书区 - 突出内容 */
+        /* 推薦購書區 - 蘋果風格輕量感 */
         .user-recommends { 
-            margin: 30px 0; 
-            padding: 20px; 
+            margin: 0 20px 40px; 
+            padding: 30px; 
             background: white; 
             border-radius: var(--radius); 
             box-shadow: var(--shadow);
@@ -1256,43 +1319,47 @@
         .recommend-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
         .recommend-header h3 { 
             margin: 0;
-            color: var(--primary);
+            color: var(--text);
+            font-size: 1.5em;
+            font-weight: 600;
         }
         .recommend-add-btn {
             margin: 0;
+            border-radius: 20px;
         }
         .recommend-list { 
             display: flex; 
             flex-direction: column;
-            gap: 12px; 
-            margin-top: 10px;
+            gap: 15px; 
+            margin-top: 15px;
         }
         .recommend-item { 
-            padding: 12px 15px; 
+            padding: 15px 20px; 
             border: 1px solid var(--gray-light); 
             border-radius: var(--radius); 
             background: white;
             display: flex;
             align-items: center;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
         .recommend-item:hover {
             border-color: var(--primary-light);
             background: var(--gray-light);
+            transform: translateX(5px);
         }
         .recommend-index { 
             width: 30px; 
             height: 30px;
             text-align: center; 
             line-height: 30px;
-            margin-right: 10px; 
+            margin-right: 15px; 
             color: white;
             background: var(--primary);
             border-radius: 50%;
@@ -1303,74 +1370,82 @@
             font-weight: 500;
         }
         .recommend-status { 
-            padding: 4px 10px;
-            border-radius: 4px; 
+            padding: 4px 12px;
+            border-radius: 20px; 
             font-size: 0.85em; 
-            margin-left: 10px; 
+            margin-left: 15px; 
             font-weight: 500;
         }
         .status-recorded { 
-            background: rgba(76, 175, 80, 0.1);
+            background: rgba(52, 199, 89, 0.1);
             color: var(--success); 
         }
         .status-invalid { 
-            background: rgba(244, 67, 54, 0.1);
+            background: rgba(255, 59, 48, 0.1);
             color: var(--danger); 
         }
         .status-pending {
-            background: rgba(255, 152, 0, 0.1);
+            background: rgba(255, 149, 0, 0.1);
             color: var(--warning);
         }
 
-        /* 弹窗样式 - 强化层次 */
+        /* 彈窗樣式 - 蘋果風格半透明背景 */
         .modal { 
             position: fixed; 
             top: 0; 
             left: 0; 
             width: 100%; 
             height: 100%; 
-            background: rgba(0,0,0,0.5); 
+            background: rgba(0,0,0,0.3); 
             display: flex; 
             align-items: center; 
             justify-content: center; 
             z-index: 100; 
             backdrop-filter: blur(2px);
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+        .modal:not(.hidden) {
+            opacity: 1;
+            visibility: visible;
         }
         .modal-content { 
             background: white; 
-            padding: 25px; 
+            padding: 30px; 
             border-radius: var(--radius); 
             width: 90%; 
             max-width: 400px; 
             position: relative; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            transform: translateY(-10px);
-            animation: modalPop 0.3s forwards;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+            transform: translateY(20px);
+            transition: var(--transition);
         }
-        @keyframes modalPop {
-            to { transform: translateY(0); }
+        .modal:not(.hidden) .modal-content {
+            transform: translateY(0);
         }
         .close-modal { 
             position: absolute; 
-            top: 15px; 
-            right: 20px; 
+            top: 20px; 
+            right: 25px; 
             cursor: pointer; 
             font-size: 1.5em; 
             color: var(--gray-dark);
-            transition: all 0.2s;
+            transition: var(--transition);
         }
         .close-modal:hover { 
             color: var(--danger);
             transform: rotate(90deg);
         }
         .modal-content h3 {
-            color: var(--primary);
-            margin-bottom: 20px;
-            padding-bottom: 10px;
+            color: var(--text);
+            margin-bottom: 25px;
+            padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
+            font-size: 1.3em;
         }
 
-        /* 编辑后台 - 保持专业感 */
+        /* 編輯後台 - 保持專業感 */
         .admin-login { 
             position: fixed; 
             bottom: 20px; 
@@ -1379,73 +1454,76 @@
             color: var(--primary); 
             cursor: pointer; 
             background: white;
-            padding: 8px 15px;
-            border-radius: var(--radius);
+            padding: 10px 18px;
+            border-radius: 20px;
             box-shadow: var(--shadow);
-            transition: all 0.2s;
+            transition: var(--transition);
+            z-index: 4;
         }
         .admin-login:hover {
             background: var(--primary);
             color: white;
+            transform: translateY(-2px);
         }
         .admin-panel { 
-            margin: 20px 0; 
-            padding: 25px; 
+            margin: 20px; 
+            padding: 30px; 
             background: white; 
             border-radius: var(--radius); 
             box-shadow: var(--shadow);
         }
         .admin-panel h2 {
-            color: var(--primary);
-            margin-bottom: 20px;
-            padding-bottom: 10px;
+            color: var(--text);
+            margin-bottom: 30px;
+            padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
         .form-group { 
-            margin: 25px 0; 
-            padding: 20px; 
+            margin: 30px 0; 
+            padding: 25px; 
             border: 1px solid var(--gray-light); 
             border-radius: var(--radius); 
             background: var(--gray-light); 
         }
         .form-group h3 { 
-            margin-bottom: 15px; 
-            color: var(--primary); 
+            margin-bottom: 20px; 
+            color: var(--text); 
             font-size: 1.1em;
         }
         .book-editor { 
-            margin: 10px 0; 
-            padding: 15px; 
+            margin: 15px 0; 
+            padding: 20px; 
             border: 1px dashed var(--gray); 
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 12px;
+            gap: 15px;
             background: white;
-            border-radius: 6px;
+            border-radius: 8px;
         }
         .warning { 
             color: var(--danger); 
             font-size: 0.9em; 
-            margin: 5px 0; 
+            margin: 8px 0; 
             padding: 5px 0;
         }
         .record-item { 
-            padding: 12px; 
+            padding: 15px; 
             border-bottom: 1px solid var(--gray-light); 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
-            transition: all 0.2s;
+            transition: var(--transition);
         }
         .record-item:hover {
             background: var(--gray-light);
         }
         .record-status { 
             min-width: 120px;
-            padding: 6px 10px;
+            padding: 6px 12px;
+            border-radius: 20px;
         }
 
-        /* 响应式调整 */
+        /* 響應式調整 */
         @media (max-width: 768px) {
             .books-grid { grid-template-columns: 1fr 1fr; }
             .poster-thumbnails { flex-direction: column; }
@@ -1457,6 +1535,9 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+            .header h1 {
+                font-size: 1.8rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -1465,179 +1546,218 @@
             .header, .nav-bar, .poster-section, .user-recommends {
                 padding: 15px 10px;
             }
+            .header h1 {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- 顶部区域 -->
+    <!-- 頂部區域 -->
     <div class="header">
-        <h1>XX中学图书馆 | 每周新书速递</h1>
+        <h1>XX中學圖書館 | 每週新書速遞</h1>
         <div class="issue-selector">
-            <label>选择期数: </label>
+            <label>選擇期數: </label>
             <select id="issueSelect" onchange="switchIssue(this.value)">
                 <option value="1">第一期</option>
             </select>
         </div>
     </div>
 
-    <!-- 导航栏 -->
+    <!-- 導航欄 -->
     <div class="nav-bar">
         <div class="nav-item" onclick="showLatestIssue()">最新一期</div>
         <div class="nav-item category-dropdown">
-            <span class="category-trigger">分类</span>
+            <span class="category-trigger">分類</span>
             <div class="category-menu" id="categoryMenu">
                 <div class="category-item" data-category="all">全部</div>
-                <div class="category-item" data-category="000">000 总类</div>
-                <div class="category-item" data-category="100">100 哲学</div>
+                <div class="category-item" data-category="000">000 總類</div>
+                <div class="category-item" data-category="100">100 哲學</div>
                 <div class="category-item" data-category="200">200 宗教</div>
-                <div class="category-item" data-category="300">300 科学</div>
-                <div class="category-item" data-category="400">400 应用科学</div>
+                <div class="category-item" data-category="300">300 科學</div>
+                <div class="category-item" data-category="400">400 應用科學</div>
                 <div class="category-item" data-category="500">500 社科</div>
-                <div class="category-item" data-category="600">600 历史</div>
+                <div class="category-item" data-category="600">600 歷史</div>
                 <div class="category-item" data-category="700">700 世界史</div>
-                <div class="category-item" data-category="800">800 语文</div>
-                <div class="category-item" data-category="900">900 艺术</div>
+                <div class="category-item" data-category="800">800 語文</div>
+                <div class="category-item" data-category="900">900 藝術</div>
             </div>
         </div>
-        <div class="nav-item" onclick="showUserRecommends()">推荐购书</div>
+        <div class="nav-item" onclick="showUserRecommends()">推薦購書</div>
         <div class="nav-item keyword-search">
-            <label>关键词检索: </label>
-            <input type="text" id="keywordInput" placeholder="输入书名/作者/索书号...">
+            <label>關鍵詞檢索: </label>
+            <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
             <button onclick="searchBooks()">搜索</button>
         </div>
     </div>
 
-    <!-- 推荐购书展示区 -->
+    <!-- 推薦購書展示區 -->
     <div class="user-recommends content-section hidden" id="userRecommendsSection">
         <div class="recommend-header">
-            <h3>大家推荐的书籍</h3>
-            <button class="recommend-add-btn btn-primary" onclick="showRecommendForm()">点击为图书馆推荐书籍</button>
+            <h3>大家推薦的書籍</h3>
+            <button class="recommend-add-btn btn-primary" onclick="showRecommendForm()">點擊為圖書館推薦書籍</button>
         </div>
         <div class="recommend-list" id="userRecommendList">
-            <!-- 动态生成 -->
+            <!-- 動態生成 -->
         </div>
     </div>
 
-    <!-- 海报区 -->
+    <!-- 海報區 -->
     <div class="poster-section content-section" id="posterSection">
-        <h2 id="currentIssueTitle">第一期海报</h2>
+        <h2 id="currentIssueTitle">第一期海報</h2>
         <div class="poster-thumbnails" id="posterThumbContainer">
             <div class="poster-thumb placeholder" data-poster="1">
-                海报1<br>[暂未上传]
+                海報1<br>[暫未上傳]
             </div>
             <div class="poster-thumb placeholder" data-poster="2">
-                海报2<br>[暂未上传]
+                海報2<br>[暫未上傳]
             </div>
         </div>
         <div id="booksContainer" class="books-grid">
-            <!-- 书籍卡片将动态生成 -->
+            <!-- 書籍卡片將動態生成 -->
         </div>
     </div>
 
-    <!-- 预约弹窗 -->
+    <!-- 預約彈窗 -->
     <div class="modal hidden" id="reserveModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>预约书籍</h3>
+            <h3>預約書籍</h3>
             <div id="bookReserveInfo"></div>
             <form id="reserveForm">
                 <input type="hidden" id="reserveBookId">
                 <div class="form-group">
-                    <label>班级: </label>
+                    <label>班級: </label>
                     <input type="text" id="className" required>
                 </div>
                 <div class="form-group">
                     <label>姓名: </label>
                     <input type="text" id="studentName" required>
                 </div>
-                <button type="submit">提交预约</button>
+                <button type="button" onclick="submitReserve()">提交預約</button>
             </form>
         </div>
     </div>
 
-    <!-- 推荐购书弹窗 -->
+    <!-- 預約提交函數 -->
+    <script>
+    function submitReserve() {
+        const bookId = document.getElementById('reserveBookId').value;
+        const [issue, posterNum, bookNum] = bookId.split('-');
+        const book = libraryData.issues[issue]?.books[posterNum]?.[bookNum];
+        
+        if (!book) {
+            alert('書籍資訊不存在');
+            return;
+        }
+        
+        const className = document.getElementById('className').value.trim();
+        const studentName = document.getElementById('studentName').value.trim();
+        
+        if (!className || !studentName) {
+            alert('請填寫班級和姓名');
+            return;
+        }
+        
+        const newReserve = {
+            bookId,
+            bookTitle: book.title,
+            className,
+            studentName,
+            time: new Date().toLocaleString(),
+            status: '已預約'
+        };
+        
+        saveReserveRecord(newReserve);
+        closeAllModals();
+        alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
+        document.getElementById('reserveForm').reset();
+    }
+    </script>
+
+    <!-- 推薦購書彈窗 -->
     <div class="modal hidden" id="recommendModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>推荐购买书籍</h3>
+            <h3>推薦購買書籍</h3>
             <form id="recommendForm">
                 <div class="form-group">
-                    <label>书名: </label>
+                    <label>書名: </label>
                     <input type="text" id="recommendBookName" required>
                 </div>
                 <div class="form-group">
-                    <label>推荐理由: </label>
+                    <label>推薦理由: </label>
                     <textarea id="recommendReason" required></textarea>
                 </div>
-                <button type="submit">提交推荐</button>
+                <button type="submit">提交推薦</button>
             </form>
         </div>
     </div>
 
-    <!-- 管理员登录弹窗 -->
+    <!-- 管理員登錄彈窗 -->
     <div class="modal hidden" id="adminLoginModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
-            <h3>管理员登录</h3>
+            <h3>管理員登錄</h3>
             <form id="adminLoginForm">
                 <div class="form-group">
-                    <label>账号: </label>
+                    <label>賬號: </label>
                     <input type="text" id="adminUser" required>
                 </div>
                 <div class="form-group">
-                    <label>密码: </label>
+                    <label>密碼: </label>
                     <input type="password" id="adminPass" required>
                 </div>
-                <button type="submit">登录</button>
+                <button type="submit">登錄</button>
             </form>
         </div>
     </div>
 
-    <!-- 管理员后台 -->
+    <!-- 管理員後台 -->
     <div class="admin-panel hidden" id="adminPanel">
-        <h2>管理员后台</h2>
-        <button onclick="logoutAdmin()">退出登录</button>
+        <h2>管理員後台</h2>
+        <button onclick="logoutAdmin()">退出登錄</button>
 
-        <!-- 1. 期数管理 -->
+        <!-- 1. 期數管理 -->
         <div class="form-group">
-            <h3>1. 期数管理</h3>
-            <button class="btn-primary" onclick="addNewIssue()">新增期数</button>
+            <h3>1. 期數管理</h3>
+            <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
             <div class="warning" id="issueWarning"></div>
         </div>
 
-        <!-- 2. 海报管理 -->
+        <!-- 2. 海報管理 -->
         <div class="form-group">
-            <h3>2. 海报管理</h3>
-            <label>选择期数: </label>
+            <h3>2. 海報管理</h3>
+            <label>選擇期數: </label>
             <select id="posterIssueSelect" onchange="updatePosterNumSelect()">
                 <option value="1">第一期</option>
             </select>
-            <label>选择序号: </label>
+            <label>選擇序號: </label>
             <select id="posterNumSelect">
-                <option value="1">海报1</option>
-                <option value="2">海报2</option>
+                <option value="1">海報1</option>
+                <option value="2">海報2</option>
             </select>
             <input type="file" id="posterUpload" accept="image/*">
-            <button class="btn-primary" onclick="uploadPoster()">重新上传海报</button>
-            <button class="btn-danger" onclick="deleteSinglePoster()">删除此海报</button>
-            <button class="btn-danger" onclick="deleteWholeIssue()">删除整期海报</button>
+            <button class="btn-primary" onclick="uploadPoster()">重新上傳海報</button>
+            <button class="btn-danger" onclick="deleteSinglePoster()">刪除此海報</button>
+            <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期海報</button>
             <div class="warning" id="posterWarning"></div>
         </div>
 
-        <!-- 3. 书籍信息编辑 -->
+        <!-- 3. 書籍資訊編輯 -->
         <div class="form-group">
-            <h3>3. 书籍信息管理</h3>
+            <h3>3. 書籍資訊管理</h3>
             <div>
-                <label>选择期数: </label>
+                <label>選擇期數: </label>
                 <select id="bookIssueSelect" onchange="updateBookPosterSelect()">
                     <option value="1">第一期</option>
                 </select>
-                <label>选择海报序号: </label>
+                <label>選擇海報序號: </label>
                 <select id="bookPosterSelect" onchange="updateBookNumSelect()">
-                    <option value="1">海报1</option>
-                    <option value="2">海报2</option>
+                    <option value="1">海報1</option>
+                    <option value="2">海報2</option>
                 </select>
-                <label>选择书籍序号: </label>
+                <label>選擇書籍序號: </label>
                 <select id="bookNumSelect">
                     <option value="1">1</option>
                     <option value="2">2</option>
@@ -1652,52 +1772,52 @@
             </div>
             
             <div class="book-editor">
-                <input type="text" id="bookCallNo" placeholder="索书号">
-                <input type="text" id="bookTitle" placeholder="书名" onblur="checkDuplicateTitle()">
+                <input type="text" id="bookCallNo" placeholder="索書號">
+                <input type="text" id="bookTitle" placeholder="書名" onblur="checkDuplicateTitle()">
                 <div class="warning" id="titleWarning"></div>
-                <label>分类代码: </label>
+                <label>分類代碼: </label>
                 <select id="bookClassCode">
-                    <option value="000">000 总类</option>
-                    <option value="100">100 哲学</option>
+                    <option value="000">000 總類</option>
+                    <option value="100">100 哲學</option>
                     <option value="200">200 宗教</option>
-                    <option value="300">300 科学</option>
-                    <option value="400">400 应用科学</option>
+                    <option value="300">300 科學</option>
+                    <option value="400">400 應用科學</option>
                     <option value="500">500 社科</option>
-                    <option value="600">600 历史</option>
+                    <option value="600">600 歷史</option>
                     <option value="700">700 世界史</option>
-                    <option value="800">800 语文</option>
-                    <option value="900">900 艺术</option>
+                    <option value="800">800 語文</option>
+                    <option value="900">900 藝術</option>
                 </select>
                 <input type="text" id="bookAuthor" placeholder="作者">
-                <textarea id="bookIntro" placeholder="简介"></textarea>
-                <input type="text" id="bookSuitable" placeholder="适合人群">
+                <textarea id="bookIntro" placeholder="簡介"></textarea>
+                <input type="text" id="bookSuitable" placeholder="適合人群">
                 <select id="bookStatus">
-                    <option value="in">在架（可预约）</option>
+                    <option value="in">在架（可預約）</option>
                     <option value="out">不在架</option>
                 </select>
                 <input type="file" id="bookCoverUpload" accept="image/*">
-                <button class="btn-primary" onclick="saveBookInfo()">保存/修改书籍</button>
-                <button class="btn-danger" onclick="deleteBookInfo()">删除书籍</button>
+                <button class="btn-primary" onclick="saveBookInfo()">儲存/修改書籍</button>
+                <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
             </div>
         </div>
 
-        <!-- 4. 数据查看 -->
+        <!-- 4. 資料查看 -->
         <div class="form-group">
-            <h3>4. 预约记录管理</h3>
+            <h3>4. 預約記錄管理</h3>
             <div id="reserveRecordsContainer">
-                <!-- 动态生成 -->
+                <!-- 動態生成 -->
             </div>
         </div>
 
         <div class="form-group">
-            <h3>5. 推荐购书记录管理</h3>
+            <h3>5. 推薦購書記錄管理</h3>
             <div id="recommendRecordsContainer">
-                <!-- 动态生成 -->
+                <!-- 動態生成 -->
             </div>
         </div>
     </div>
 
-    <!-- 编辑者入口 -->
-    <div class="admin-login" onclick="showAdminLogin()">编辑者入口</div>
+    <!-- 編輯者入口 -->
+    <div class="admin-login" onclick="showAdminLogin()">編輯者入口</div>
 </body>
 </html>
