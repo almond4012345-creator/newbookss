@@ -7,7 +7,7 @@
     <script type="module">
         // 引入 Firebase 模組
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getDatabase, ref, set, get, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+        import { getDatabase, ref, set, get, update, remove } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
 
         // Firebase 配置
         const firebaseConfig = {
@@ -24,10 +24,9 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // 全域資料儲存
-        let libraryData = {
+        // 全域資料（掛載到window確保所有地方可訪問）
+        window.libraryData = {
             issues: {},
-            categories: [],
             reserveRecords: [],
             recommendRecords: [],
             latestIssue: 1,
@@ -37,516 +36,744 @@
         // 從 Firebase 載入資料
         async function loadData() {
             try {
+                // 顯示載入提示
+                document.getElementById('loadingIndicator').style.display = 'block';
+
                 // 載入期數資料
-                const issuesRef = ref(db, "issues");
-                const issuesSnapshot = await get(issuesRef);
-                if (issuesSnapshot.exists()) {
-                    libraryData.issues = issuesSnapshot.val();
-                }
+                const issuesSnapshot = await get(ref(db, "issues"));
+                window.libraryData.issues = issuesSnapshot.exists() ? issuesSnapshot.val() : {};
 
                 // 載入預約記錄
-                const reservesRef = ref(db, "reserves");
-                const reservesSnapshot = await get(reservesRef);
-                if (reservesSnapshot.exists()) {
-                    libraryData.reserveRecords = Object.values(reservesSnapshot.val()).map((data, index) => {
-                        return { ...data, id: Object.keys(reservesSnapshot.val())[index] };
-                    });
-                }
+                const reservesSnapshot = await get(ref(db, "reserves"));
+                window.libraryData.reserveRecords = reservesSnapshot.exists() 
+                    ? Object.values(reservesSnapshot.val()).map((r, i) => ({ ...r, id: Object.keys(reservesSnapshot.val())[i] }))
+                    : [];
 
                 // 載入推薦記錄
-                const recommendsRef = ref(db, "recommends");
-                const recommendsSnapshot = await get(recommendsRef);
-                if (recommendsSnapshot.exists()) {
-                    libraryData.recommendRecords = Object.values(recommendsSnapshot.val()).map((data, index) => {
-                        return { ...data, id: Object.keys(recommendsSnapshot.val())[index] };
-                    });
-                }
+                const recommendsSnapshot = await get(ref(db, "recommends"));
+                window.libraryData.recommendRecords = recommendsSnapshot.exists()
+                    ? Object.values(recommendsSnapshot.val()).map((r, i) => ({ ...r, id: Object.keys(recommendsSnapshot.val())[i] }))
+                    : [];
 
                 // 載入系統設定
-                const settingsRef = ref(db, "settings/system");
-                const settingsSnapshot = await get(settingsRef);
-                if (settingsSnapshot.exists()) {
-                    libraryData.latestIssue = settingsSnapshot.val().latestIssue || 1;
-                } else {
-                    await set(settingsRef, { latestIssue: 1 });
-                }
+                const settingsSnapshot = await get(ref(db, "settings/system"));
+                window.libraryData.latestIssue = settingsSnapshot.exists() ? settingsSnapshot.val().latestIssue : 1;
 
                 // 收集所有書籍
                 collectAllBooks();
                 // 初始化頁面
                 init();
-            } catch (error) {
-                console.error("載入資料失敗：", error);
-                alert("資料載入失敗，請重新整理頁面重試");
+
+                // 隱藏載入提示
+                document.getElementById('loadingIndicator').style.display = 'none';
+            } catch (err) {
+                console.error("載入失敗:", err);
+                alert("資料載入失敗，請重新整理頁面");
+                document.getElementById('loadingIndicator').style.display = 'none';
             }
         }
 
-        // 收集所有書籍
-        function collectAllBooks() {
-            libraryData.allBooks = [];
-            for (const issue in libraryData.issues) {
-                const issueData = libraryData.issues[issue];
-                for (const posterNum in issueData.books) {
-                    const books = issueData.books[posterNum];
-                    for (const bookNum in books) {
-                        const book = { ...books[bookNum] };
-                        book.issue = issue;
-                        book.posterNum = posterNum;
-                        book.bookNum = bookNum;
-                        book.id = `${issue}-${posterNum}-${bookNum}`;
-                        libraryData.allBooks.push(book);
-                    }
-                }
+// 收集所有書籍（确保海報书籍被正确收录）
+function collectAllBooks() {
+    window.libraryData.allBooks = [];
+    // 遍历所有期数
+    for (const issue in window.libraryData.issues) {
+        const issueData = window.libraryData.issues[issue];
+        // 遍历所有海報
+        for (const poster in issueData.books) {
+            const posterBooks = issueData.books[poster];
+            // 遍历所有书籍
+            for (const bookNum in posterBooks) {
+                const book = { ...posterBooks[bookNum] };
+                // 强制设置标准ID
+                book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
+                book.issue = issue;
+                book.posterNum = poster;
+                book.bookNum = bookNum;
+                window.libraryData.allBooks.push(book);
             }
         }
+    }
+}
 
         // 儲存資料到 Firebase
         async function saveData() {
             try {
-                // 儲存期數資料
-                await set(ref(db, "issues"), libraryData.issues);
-                // 儲存系統設定
-                await set(ref(db, "settings/system"), {
-                    latestIssue: libraryData.latestIssue
-                });
-                // 更新所有書籍列表
+                await set(ref(db, "issues"), window.libraryData.issues);
+                await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
                 collectAllBooks();
-            } catch (error) {
-                console.error("儲存資料失敗：", error);
+            } catch (err) {
                 alert("儲存失敗，請重試");
             }
         }
 
-        // 儲存單條預約記錄
-        async function saveReserveRecord(record) {
-            try {
-                const newRef = ref(db, `reserves/${Date.now()}`);
-                await set(newRef, record);
-                record.id = Date.now().toString();
-                libraryData.reserveRecords.push(record);
-                renderReserveRecords();
-                
-                // 更新書籍狀態為"已被預約"
-                const [issue, posterNum, bookNum] = record.bookId.split('-');
-                if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
-                    libraryData.issues[issue].books[posterNum][bookNum].status = 'reserved';
-                    await saveData();
-                    renderCurrentView();
-                }
-            } catch (error) {
-                console.error("儲存預約記錄失敗：", error);
-                alert("預約失敗，請重試");
-            }
-        }
+// 儲存預約記錄（修复状态同步）
+window.saveReserveRecord = async function(record) {
+    try {
+        const recordId = Date.now().toString();
+        await set(ref(db, `reserves/${recordId}`), record);
+        record.id = recordId;
+        window.libraryData.reserveRecords.push(record);
+        
+        // 解析标准化ID（适配新的ID格式）
+        const idParts = record.bookId.split('-'); // 格式：issue-x-poster-y-book-z
+        const issue = idParts[1];       // 提取期数
+        const poster = idParts[3];      // 提取海報号
+        const bookNum = idParts[5];     // 提取书籍号
 
-        // 更新預約記錄狀態
-        async function updateReserveStatus(index, status) {
-            try {
-                const record = libraryData.reserveRecords[index];
-                record.status = status;
-                await update(ref(db, `reserves/${record.id}`), { status: status });
-                
-                // 如果狀態變為"已還書"，恢復書籍可預約狀態
-                if (status === '已還書') {
-                    const [issue, posterNum, bookNum] = record.bookId.split('-');
-                    if (libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
-                        libraryData.issues[issue].books[posterNum][bookNum].status = 'in';
-                        await saveData();
-                        renderCurrentView();
-                    }
-                }
-            } catch (error) {
-                console.error("更新預約狀態失敗：", error);
-                alert("更新失敗，請重試");
-            }
+        // 更新书籍状态为"已被預約"
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
+            await saveData();
+            collectAllBooks();
+            renderCurrentView(); // 立即刷新当前页面的书籍卡片
         }
+        renderReserveRecords();
+    } catch (err) {
+        console.error("預約失敗:", err);
+        alert("預約失敗，請重試");
+    }
+}
+// 更新預約狀態（修复状态同步）
+window.updateReserveStatus = async function(index, status) {
+    try {
+        const record = window.libraryData.reserveRecords[index];
+        record.status = status;
+        await update(ref(db, `reserves/${record.id}`), { status });
+        
+        // 解析标准化ID
+        const idParts = record.bookId.split('-');
+        const issue = idParts[1];
+        const poster = idParts[3];
+        const bookNum = idParts[5];
 
-        // 儲存單條推薦記錄
-        async function saveRecommendRecord(record) {
+        // 根据不同状态更新书籍状态
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            let bookStatus;
+            if (status === '已還書' || status === '找不到') {
+                bookStatus = 'in'; // 已還書或找不到时，恢复可预约
+            } else if (status === '借走了') {
+                bookStatus = 'out'; // 借走了时，标记为不在架
+            } else {
+                bookStatus = 'reserved'; // 其他状态（已预约/处理中）保持已预约
+            }
+
+            window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
+            await saveData();
+            collectAllBooks();
+            renderCurrentView(); // 刷新当前页面显示
+        }
+        renderReserveRecords(); // 刷新预约记录列表
+    } catch (err) {
+        console.error("更新失敗:", err);
+        alert("更新失敗");
+    }
+}
+
+        // 儲存推薦記錄
+        window.saveRecommendRecord = async function(record) {
             try {
-                const newRef = ref(db, `recommends/${Date.now()}`);
-                await set(newRef, record);
-                record.id = Date.now().toString();
-                libraryData.recommendRecords.push(record);
+                const recordId = Date.now().toString();
+                await set(ref(db, `recommends/${recordId}`), record);
+                record.id = recordId;
+                window.libraryData.recommendRecords.push(record);
                 renderRecommendRecords();
-            } catch (error) {
-                console.error("儲存推薦記錄失敗：", error);
-                alert("推薦失敗，請重試");
-            }
-        }
-
-        // 更新推薦記錄狀態
-        async function updateRecommendStatus(index, status) {
-            try {
-                const record = libraryData.recommendRecords[index];
-                record.status = status;
-                await update(ref(db, `recommends/${record.id}`), { status: status });
                 renderUserRecommendList();
-            } catch (error) {
-                console.error("更新推薦狀態失敗：", error);
-                alert("更新失敗，請重試");
+            } catch (err) {
+                alert("推薦失敗");
             }
         }
 
-        // 刪除整期資料
-        async function deleteWholeIssue(issue) {
+        // 更新推薦狀態
+        window.updateRecommendStatus = async function(index, status) {
             try {
-                await remove(ref(db, `issues/${issue}`));
-                delete libraryData.issues[issue];
-                collectAllBooks();
-            } catch (error) {
-                console.error("刪除期數失敗：", error);
-                alert("刪除失敗，請重試");
+                const record = window.libraryData.recommendRecords[index];
+                record.status = status;
+                await update(ref(db, `recommends/${record.id}`), { status });
+                renderUserRecommendList();
+            } catch (err) {
+                alert("更新失敗");
             }
         }
 
         // 初始化頁面
         function init() {
             renderIssueSelectors();
-            // 顯示最新一期時強制顯示海報
-            const posterContainer = document.getElementById('posterThumbContainer');
-            posterContainer.style.display = 'flex';
             showLatestIssue();
             initCategoryDropdown();
             renderUserRecommendList();
+            // 顯示海報容器
+            document.getElementById('posterThumbContainer').style.display = 'flex';
+document.querySelector('.nav-item').classList.add('active');
         }
 
-        // 初始化期數選擇器
+        // 渲染期數選擇器
         function renderIssueSelectors() {
-            const issueNumbers = Object.keys(libraryData.issues).map(Number).sort((a, b) => a - b);
-            const userSelector = document.getElementById('issueSelect');
-            const posterSelector = document.getElementById('posterIssueSelect');
-            const bookSelector = document.getElementById('bookIssueSelect');
+            const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
+            const selectors = [
+                document.getElementById('issueSelect'),
+                document.getElementById('posterIssueSelect'),
+                document.getElementById('bookIssueSelect')
+            ];
             
-            userSelector.innerHTML = '';
-            posterSelector.innerHTML = '';
-            bookSelector.innerHTML = '';
-            
-            issueNumbers.forEach(issue => {
-                const option = `<option value="${issue}">第${issue}期</option>`;
-                userSelector.innerHTML += option;
-                posterSelector.innerHTML += option;
-                bookSelector.innerHTML += option;
+            selectors.forEach(sel => {
+                sel.innerHTML = '';
+                issues.forEach(issue => {
+                    sel.innerHTML += `<option value="${issue}">第${issue}期</option>`;
+                });
+                sel.value = window.libraryData.latestIssue;
             });
-            
-            userSelector.value = libraryData.latestIssue;
-            posterSelector.value = libraryData.latestIssue;
-            bookSelector.value = libraryData.latestIssue;
         }
 
         // 切換期數
-        function switchIssue(issue) {
+        window.switchIssue = function(issue) {
             const issueNum = Number(issue);
-            const posterContainer = document.getElementById('posterThumbContainer');
-            // 顯示海報
-            posterContainer.style.display = 'flex';
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
             renderBooks(issueNum, 1);
+            // 顯示海報
+            document.getElementById('posterThumbContainer').style.display = 'flex';
             showSection('posterSection');
         }
 
         // 顯示最新一期
-        function showLatestIssue() {
-            const posterContainer = document.getElementById('posterThumbContainer');
-            // 顯示海報
-            posterContainer.style.display = 'flex';
-            switchIssue(libraryData.latestIssue);
-            document.getElementById('issueSelect').value = libraryData.latestIssue;
+        window.showLatestIssue = function() {
+            window.switchIssue(window.libraryData.latestIssue);
+            document.getElementById('issueSelect').value = window.libraryData.latestIssue;
         }
 
-        // 分類篩選（全域所有書籍）
-        function filterByCategory(category) {
-            const allBooks = libraryData.allBooks;
-            const booksContainer = document.getElementById('booksContainer');
-            const posterContainer = document.getElementById('posterThumbContainer');
-            // 隱藏海報
-            posterContainer.style.display = 'none';
-            booksContainer.innerHTML = '';
-            
-            // 按類別篩選
-            const filteredBooks = category === 'all' 
-                ? allBooks 
-                : allBooks.filter(book => book.classCode === category);
-            
-            // 按3個一組顯示
-            let groupIndex = 0;
-            filteredBooks.forEach((book, index) => {
-                if (index % 3 === 0) {
-                    groupIndex++;
-                }
-                
-                const card = createBookCard(book);
-                card.dataset.group = groupIndex;
-                booksContainer.appendChild(card);
+        // 初始化分類下拉
+        function initCategoryDropdown() {
+            const trigger = document.querySelector('.category-trigger');
+            const menu = document.getElementById('categoryMenu');
+            let isShow = false;
+
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isShow = !isShow;
+                menu.classList.toggle('visible', isShow);
             });
-            
-            showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = 
-                category === 'all' ? '全部書籍' : `${category} 分類書籍`;
+
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const category = item.dataset.category;
+                    filterByCategory(category);
+                    isShow = false;
+                    menu.classList.remove('visible');
+                });
+            });
+
+            document.addEventListener('click', () => {
+                isShow = false;
+                menu.classList.remove('visible');
+            });
         }
 
-        // 顯示用戶推薦區
-        function showUserRecommends() {
-            renderUserRecommendList();
-            showSection('userRecommendsSection');
-        }
+// 分類篩選（修復預約無法送出的問題）
+function filterByCategory(category) {
+    const books = window.libraryData.allBooks;
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報
+    document.getElementById('posterThumbContainer').style.display = 'none';
+
+    const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
+    
+    filtered.forEach((book, index) => {
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil((index + 1) / 3);
+        container.appendChild(card);
+    });
+
+    showSection('posterSection');
+    document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
+    // 確保數據同步
+    collectAllBooks();
+}
 
         // 渲染用戶推薦列表
         function renderUserRecommendList() {
             const list = document.getElementById('userRecommendList');
             list.innerHTML = '';
+            const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
 
-            // 按時間倒序排列
-            const sortedRecommends = [...libraryData.recommendRecords]
-                .sort((a, b) => new Date(b.time) - new Date(a.time));
-
-            if (sortedRecommends.length === 0) {
+            if (sorted.length === 0) {
                 list.innerHTML = '<p>暫無推薦記錄</p>';
-            } else {
-                sortedRecommends.forEach((r, index) => {
-                    let statusText = '';
-                    let statusClass = '';
-                    
-                    switch(r.status) {
-                        case '已推薦':
-                            statusText = '推薦中';
-                            statusClass = 'status-pending';
-                            break;
-                        case '已記錄':
-                            statusText = '已記錄';
-                            statusClass = 'status-recorded';
-                            break;
-                        case '不合規定':
-                            statusText = '不合規定';
-                            statusClass = 'status-invalid';
-                            break;
-                    }
-                    
-                    list.innerHTML += `
-                        <div class="recommend-item">
-                            <span class="recommend-index">${index + 1}</span>
-                            <span class="recommend-name">${r.bookName}</span>
-                            <span class="recommend-status ${statusClass}">${statusText}</span>
-                        </div>
-                    `;
-                });
+                return;
             }
+
+            sorted.forEach((r, i) => {
+    let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
+    let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
+    // 獲取隨機顏色
+    const randomColor = window.getRandomSoftColor();
+    list.innerHTML += `
+        <div class="recommend-item">
+            <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
+            <span class="recommend-name">${r.bookName}</span>
+            <span class="recommend-status ${statusClass}">${statusText}</span>
+        </div>
+    `;
+});
         }
 
-        // 海報管理相關
-        function updatePosterNumSelect() {
-            const issue = document.getElementById('posterIssueSelect').value;
-            renderPosterThumbs(issue);
-        }
-
-        // 渲染海報縮略圖（自動適應窗口）
+        // 渲染海報
         function renderPosterThumbs(issue) {
             const container = document.getElementById('posterThumbContainer');
             container.innerHTML = '';
-            
+
             for (let i = 1; i <= 2; i++) {
-                const posterUrl = libraryData.issues[issue]?.posters[i] || '';
-                if (posterUrl) {
-                    container.innerHTML += `
-                        <img src="${posterUrl}" class="poster-thumb" data-poster="${i}">
-                    `;
+                const url = window.libraryData.issues[issue]?.posters[i] || '';
+                if (url) {
+                    container.innerHTML += `<img src="${url}" class="poster-thumb" data-poster="${i}" onclick="renderBooks(${issue}, ${i})">`;
                 } else {
-                    container.innerHTML += `
-                        <div class="poster-thumb placeholder" data-poster="${i}">
-                            海報${i}<br>[暫未上傳]
-                        </div>
-                    `;
+                    container.innerHTML += `<div class="poster-thumb placeholder" data-poster="${i}" onclick="renderBooks(${issue}, ${i})">海報${i}<br>[暫未上傳]</div>`;
                 }
             }
+        }
 
-            // 點擊海報顯示對應書籍
-            document.querySelectorAll('.poster-thumb').forEach(thumb => {
-                thumb.addEventListener('click', function() {
-                    const posterNum = this.dataset.poster;
-                    renderBooks(issue, posterNum);
-                });
+// 创建书籍卡片（修复预约按钮ID绑定）
+function createBookCard(book) {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.dataset.classCode = book.classCode;
+    card.dataset.id = book.id; // 绑定标准ID
+
+    let statusText, statusClass, reserveBtn;
+    if (book.status === 'in') {
+        statusText = '在架（可預約）';
+        statusClass = 'status-in';
+        // 确保预约按钮使用正确的ID
+        reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
+    } else if (book.status === 'out') {
+        statusText = '不在架';
+        statusClass = 'status-out';
+        reserveBtn = '';
+    } else {
+        statusText = '已被預約';
+        statusClass = 'status-reserved';
+        reserveBtn = '';
+    }
+
+    card.innerHTML = `
+        <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
+        <h3 class="book-title">${book.title}</h3>
+        <p>作者: ${book.author || '待編輯'}</p>
+        <p>簡介: ${book.intro || '待編輯'}</p>
+        <p>適合: ${book.suitable || '待編輯'}</p>
+        <div class="book-status-bar">
+            <span class="book-status ${statusClass}">${statusText}</span>
+            ${reserveBtn}
+        </div>
+        <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
+    `;
+
+    return card;
+}
+// 渲染書籍列表（统一ID格式）
+window.renderBooks = function(issue, posterNum) {
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 确保基础数据结构存在
+    if (!window.libraryData.issues[issue]) {
+        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+    }
+    if (!window.libraryData.issues[issue].books[posterNum]) {
+        window.libraryData.issues[issue].books[posterNum] = {};
+    }
+    const books = window.libraryData.issues[issue].books[posterNum];
+
+    for (let i = 1; i <= 9; i++) {
+        // 强制生成标准格式的书籍数据
+        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+        let book = books[i] || {
+            id: bookId, // 使用标准化ID
+            issue: issue.toString(), // 确保是字符串类型
+            posterNum: posterNum.toString(), // 确保是字符串类型
+            bookNum: i.toString(),
+            callNo: '待編輯',
+            title: '新書' + i,
+            classCode: '000',
+            author: '待編輯',
+            intro: '待編輯',
+            suitable: '待編輯',
+            status: 'in',
+            cover: `https://via.placeholder.com/100x150?text=新書${i}`
+        };
+        // 强制更新ID为标准格式
+        book.id = bookId;
+        books[i] = book;
+        window.libraryData.issues[issue].books[posterNum][i] = book;
+        
+        // 创建卡片时绑定正确的ID
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil(i / 3);
+        container.appendChild(card);
+    }
+    collectAllBooks(); // 重新收集书籍
+    saveData();
+}
+
+        // 渲染當前視圖
+        function renderCurrentView() {
+            const activeSec = document.querySelector('.content-section:not(.hidden)');
+            if (activeSec.id === 'posterSection') {
+                const issue = document.getElementById('issueSelect').value;
+                const poster = document.querySelector('.poster-thumb:hover')?.dataset.poster || '1';
+                window.renderBooks(issue, poster);
+            }
+        }
+
+        // 渲染預約記錄
+        function renderReserveRecords() {
+            const container = document.getElementById('reserveRecordsContainer');
+            container.innerHTML = '';
+            const sorted = [...window.libraryData.reserveRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<p>暫無預約記錄</p>';
+                return;
+            }
+
+            sorted.forEach((r, i) => {
+                container.innerHTML += `
+                    <div class="record-item">
+                        <div>${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}</div>
+                        <select onchange="updateReserveStatus(${i}, this.value)">
+                            <option ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
+                            <option ${r.status === '處理中' ? 'selected' : ''}>處理中</option>
+                            <option ${r.status === '借走了' ? 'selected' : ''}>借走了</option>
+                            <option ${r.status === '找不到' ? 'selected' : ''}>找不到</option>
+                            <option ${r.status === '已還書' ? 'selected' : ''}>已還書</option>
+                        </select>
+                    </div>
+                `;
             });
         }
 
-        // 上傳/更新海報
-        function uploadPoster() {
+        // 渲染推薦記錄
+        function renderRecommendRecords() {
+            const container = document.getElementById('recommendRecordsContainer');
+            container.innerHTML = '';
+            const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<p>暫無推薦記錄</p>';
+                return;
+            }
+
+            sorted.forEach((r, i) => {
+                container.innerHTML += `
+                    <div class="record-item">
+                        <div>${r.time} | 書名: ${r.bookName} | 理由: ${r.reason}</div>
+                        <select onchange="updateRecommendStatus(${i}, this.value)">
+                            <option ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
+                            <option ${r.status === '已記錄' ? 'selected' : ''}>已記錄</option>
+                            <option ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
+                        </select>
+                    </div>
+                `;
+            });
+        }
+
+// 顯示預約彈窗（修复找不到书籍的问题）
+window.showReserveModal = function(bookId) {
+    // 双重检查：先从allBooks找，找不到则直接从原数据解析
+    let book = window.libraryData.allBooks.find(b => b.id === bookId);
+    if (!book) {
+        // 直接从bookId解析出书的位置并读取
+        const [issue, poster, bookNum] = bookId.split('-');
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            book = window.libraryData.issues[issue].books[poster][bookNum];
+        }
+    }
+    if (!book) {
+        alert('未找到這本書的資訊，請刷新頁面重試');
+        return;
+    }
+    document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
+    document.getElementById('reserveBookId').value = bookId;
+    document.getElementById('reserveModal').classList.remove('hidden');
+}
+
+        // 提交預約
+        window.submitReserve = function() {
+            const bookId = document.getElementById('reserveBookId').value;
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('書籍資訊不存在');
+                return;
+            }
+
+            const className = document.getElementById('className').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+
+            if (!className) {
+                alert('請填寫班級');
+                return;
+            }
+            if (!studentName) {
+                alert('請填寫姓名');
+                return;
+            }
+
+            const newReserve = {
+                bookId,
+                bookTitle: book.title,
+                className,
+                studentName,
+                time: new Date().toLocaleString(),
+                status: '已預約'
+            };
+
+            window.saveReserveRecord(newReserve);
+            window.closeAllModals();
+            alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
+            
+            // 清空表單
+            document.getElementById('className').value = '';
+            document.getElementById('studentName').value = '';
+        }
+
+        // 顯示推薦表單
+        window.showRecommendForm = function() {
+            document.getElementById('recommendModal').classList.remove('hidden');
+        }
+
+        // 提交推薦
+        window.submitRecommend = function() {
+            const bookName = document.getElementById('recommendBookName').value.trim();
+            const reason = document.getElementById('recommendReason').value.trim();
+
+            if (!bookName) {
+                alert('請填寫書名');
+                return;
+            }
+            if (!reason) {
+                alert('請填寫推薦理由');
+                return;
+            }
+
+            const newRecommend = {
+                bookName,
+                reason,
+                time: new Date().toLocaleString(),
+                status: '已推薦'
+            };
+
+            window.saveRecommendRecord(newRecommend);
+            window.closeAllModals();
+            alert('推薦成功，感謝你的建議！');
+            
+            // 清空表單
+            document.getElementById('recommendBookName').value = '';
+            document.getElementById('recommendReason').value = '';
+        }
+
+// 搜索書籍（修復預約無法送出的問題）
+window.searchBooks = function() {
+    const keyword = document.getElementById('keywordInput').value.toLowerCase();
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報
+    document.getElementById('posterThumbContainer').style.display = 'none';
+
+    if (!keyword) {
+        showLatestIssue();
+        return;
+    }
+
+    // 重新收集所有書籍，確保匹配數據最新
+    collectAllBooks();
+    const matched = window.libraryData.allBooks.filter(book => 
+        book.title.toLowerCase().includes(keyword) ||
+        book.author.toLowerCase().includes(keyword) ||
+        book.callNo.toLowerCase().includes(keyword) ||
+        book.intro.toLowerCase().includes(keyword)
+    );
+
+    if (matched.length === 0) {
+        container.innerHTML = '<p>沒有找到匹配的書籍</p>';
+    } else {
+        matched.forEach((book, index) => {
+            const card = createBookCard(book);
+            card.dataset.group = Math.ceil((index + 1) / 3);
+            container.appendChild(card);
+        });
+    }
+
+    showSection('posterSection');
+    document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
+}
+
+        // 顯示指定區域
+        window.showSection = function(sectionId) {
+            document.querySelectorAll('.content-section').forEach(sec => {
+                sec.classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
+        }
+
+        // 顯示管理員登錄
+        window.showAdminLogin = function() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+        }
+
+        // 管理員登錄
+        window.adminLogin = function() {
+            const user = document.getElementById('adminUser').value;
+            const pass = document.getElementById('adminPass').value;
+            if (user === '123' && pass === '123') {
+                window.closeAllModals();
+                document.getElementById('adminPanel').classList.remove('hidden');
+                renderReserveRecords();
+                renderRecommendRecords();
+            } else {
+                alert('賬號或密碼錯誤');
+            }
+        }
+
+        // 退出管理員
+        window.logoutAdmin = function() {
+            document.getElementById('adminPanel').classList.add('hidden');
+        }
+
+        // 關閉所有彈窗
+        window.closeAllModals = function() {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.classList.add('hidden');
+            });
+        }
+// 设置导航项活跃状态
+window.setActiveNav = function(element) {
+    // 移除所有导航项的活跃状态
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    // 给当前点击的导航项添加活跃状态
+    element.classList.add('active');
+}
+// 生成隨機柔和顏色（用於推薦書籍序號）
+window.getRandomSoftColor = function() {
+    // 預定柔和色譜，避免刺眼顏色
+    const colors = [
+        '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
+        '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
+    ];
+    // 隨機返回一種顏色
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+        // 上傳海報
+        window.uploadPoster = function() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
-            const fileInput = document.getElementById('posterUpload');
-            const file = fileInput.files[0];
+            const file = document.getElementById('posterUpload').files[0];
             
             if (!file) {
-                showWarning('posterWarning', '請選擇要上傳的海報圖片');
+                alert('請選擇圖片');
                 return;
             }
-            
-            if (!file.type.startsWith('image/')) {
-                showWarning('posterWarning', '請上傳圖片格式（PNG/JPG等）');
-                return;
-            }
-            
+
             const reader = new FileReader();
             reader.onload = function(e) {
-                if (!libraryData.issues[issue]) {
-                    libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+                if (!window.libraryData.issues[issue]) {
+                    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
                 }
-                libraryData.issues[issue].posters[num] = e.target.result;
+                window.libraryData.issues[issue].posters[num] = e.target.result;
                 saveData();
-                showWarning('posterWarning', '海報上傳成功', 'green');
                 renderPosterThumbs(issue);
-                fileInput.value = '';
+                alert('上傳成功');
+                document.getElementById('posterUpload').value = '';
             };
             reader.readAsDataURL(file);
         }
 
         // 刪除單張海報
-        function deleteSinglePoster() {
+        window.deleteSinglePoster = function() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
             
-            if (!libraryData.issues[issue] || !libraryData.issues[issue].posters[num]) {
-                showWarning('posterWarning', '該海報不存在');
+            if (!window.libraryData.issues[issue]?.posters[num]) {
+                alert('該海報不存在');
                 return;
             }
-            
+
             if (confirm(`確定要刪除第${issue}期第${num}張海報嗎？`)) {
-                libraryData.issues[issue].posters[num] = '';
+                window.libraryData.issues[issue].posters[num] = '';
                 saveData();
                 renderPosterThumbs(issue);
-                showWarning('posterWarning', '海報已刪除', 'green');
             }
         }
 
-        // 刪除整期海報
-        async function deleteWholeIssueHandler() {
+        // 刪除整期
+        window.deleteWholeIssue = async function() {
             const issue = document.getElementById('posterIssueSelect').value;
-            if (!libraryData.issues[issue]) {
-                showWarning('posterWarning', '該期不存在');
+            if (!window.libraryData.issues[issue]) {
+                alert('該期不存在');
                 return;
             }
-            
-            if (confirm(`確定要刪除第${issue}期所有海報和書籍嗎？此操作不可恢復！`)) {
-                await deleteWholeIssue(issue);
-                const issues = Object.keys(libraryData.issues).map(Number).sort((a, b) => b - a);
-                libraryData.latestIssue = issues.length > 0 ? issues[0] : 0;
+
+            if (confirm(`確定要刪除第${issue}期所有內容嗎？`)) {
+                await remove(ref(db, `issues/${issue}`));
+                delete window.libraryData.issues[issue];
+                const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => b - a);
+                window.libraryData.latestIssue = issues.length > 0 ? issues[0] : 1;
                 await saveData();
                 renderIssueSelectors();
                 showLatestIssue();
-                showWarning('posterWarning', `第${issue}期已全部刪除`, 'green');
             }
         }
 
         // 新增期數
-        async function addNewIssue() {
-            const newIssue = libraryData.latestIssue + 1;
-            libraryData.issues[newIssue] = {
+        window.addNewIssue = async function() {
+            const newIssue = window.libraryData.latestIssue + 1;
+            window.libraryData.issues[newIssue] = {
                 posters: {1: '', 2: ''},
                 books: {1: {}, 2: {}}
             };
-            libraryData.latestIssue = newIssue;
+            window.libraryData.latestIssue = newIssue;
             await saveData();
             renderIssueSelectors();
-            showWarning('issueWarning', `已新增第${newIssue}期`, 'green');
-            document.getElementById('posterIssueSelect').value = newIssue;
-            renderPosterThumbs(newIssue);
+            alert(`已新增第${newIssue}期`);
         }
 
-        // 書籍管理相關
-        function updateBookPosterSelect() {
-            const issue = document.getElementById('bookIssueSelect').value;
-            const posterSelect = document.getElementById('bookPosterSelect');
-            posterSelect.innerHTML = '';
-            posterSelect.innerHTML = `
-                <option value="1">海報1</option>
-                <option value="2">海報2</option>
-            `;
-            updateBookNumSelect();
-        }
-
-        function updateBookNumSelect() {
-            // 書籍序號固定1-9
-        }
-
-        // 檢測書名重複
-        function checkDuplicateTitle() {
-            const newTitle = document.getElementById('bookTitle').value.trim();
-            const titleWarning = document.getElementById('titleWarning');
-            
-            if (!newTitle) {
-                titleWarning.textContent = '';
-                return false;
-            }
-            
-            const currentIssue = document.getElementById('bookIssueSelect').value;
-            const currentPoster = document.getElementById('bookPosterSelect').value;
-            const currentBookNum = document.getElementById('bookNumSelect').value;
-            
-            for (const issue in libraryData.issues) {
-                const books = libraryData.issues[issue].books;
-                for (const poster in books) {
-                    for (const bookNum in books[poster]) {
-                        if (issue === currentIssue && poster === currentPoster && bookNum === currentBookNum) {
-                            continue;
-                        }
-                        if (books[poster][bookNum]?.title === newTitle) {
-                            titleWarning.textContent = `警告：往期已有同名書籍“${newTitle}”`;
-                            return true;
-                        }
-                    }
-                }
-            }
-            
-            titleWarning.textContent = '';
-            return false;
-        }
-
-        // 儲存/修改書籍
-        async function saveBookInfo() {
+        // 保存書籍信息
+        window.saveBookInfo = function() {
             const title = document.getElementById('bookTitle').value.trim();
             if (!title) {
                 alert('請輸入書名');
                 return;
             }
-            
-            const isDuplicate = checkDuplicateTitle();
-            if (isDuplicate && !confirm(`往期已有同名書籍“${title}”，確定要繼續嗎？`)) {
-                return;
-            }
-            
+
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
-            
-            if (!libraryData.issues[issue]) {
-                libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+
+            if (!window.libraryData.issues[issue]) {
+                window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
             }
-            if (!libraryData.issues[issue].books[posterNum]) {
-                libraryData.issues[issue].books[posterNum] = {};
+            if (!window.libraryData.issues[issue].books[posterNum]) {
+                window.libraryData.issues[issue].books[posterNum] = {};
             }
-            
-            let coverUrl = 'https://via.placeholder.com/100x150?text=封面';
+
+            let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
-            const coverInput = document.getElementById('bookCoverUpload');
             
             if (coverFile) {
                 const reader = new FileReader();
-                reader.onload = async function(e) {
+                reader.onload = function(e) {
                     coverUrl = e.target.result;
-                    await saveBookData();
-                    coverInput.value = '';
+                    saveBookData(coverUrl);
                 };
                 reader.readAsDataURL(coverFile);
             } else {
-                const existingBook = libraryData.issues[issue].books[posterNum][bookNum];
-                if (existingBook && existingBook.cover) {
-                    coverUrl = existingBook.cover;
-                }
-                await saveBookData();
+                saveBookData(coverUrl);
             }
 
-            async function saveBookData() {
-                libraryData.issues[issue].books[posterNum][bookNum] = {
+            function saveBookData(cover) {
+                window.libraryData.issues[issue].books[posterNum][bookNum] = {
                     callNo: document.getElementById('bookCallNo').value,
                     title: title,
                     classCode: document.getElementById('bookClassCode').value,
@@ -554,443 +781,62 @@
                     intro: document.getElementById('bookIntro').value,
                     suitable: document.getElementById('bookSuitable').value,
                     status: document.getElementById('bookStatus').value,
-                    cover: coverUrl
+                    cover: cover
                 };
-                await saveData();
-                alert('書籍資訊已儲存');
+                saveData();
                 renderBooks(issue, posterNum);
-                updateRecordsBookTitle(issue, posterNum, bookNum, title);
+                alert('儲存成功');
+                document.getElementById('bookCoverUpload').value = '';
             }
         }
 
         // 刪除書籍
-        async function deleteBookInfo() {
+        window.deleteBookInfo = function() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
-            const books = libraryData.issues[issue]?.books[posterNum];
             
-            if (!books || !books[bookNum]) {
+            if (!window.libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
                 alert('該書籍不存在');
                 return;
             }
-            
-            if (confirm(`確定要刪除第${issue}期第${posterNum}張海報的第${bookNum}本書嗎？`)) {
-                delete books[bookNum];
-                await saveData();
+
+            if (confirm('確定要刪除此書籍嗎？')) {
+                delete window.libraryData.issues[issue].books[posterNum][bookNum];
+                saveData();
                 renderBooks(issue, posterNum);
-                alert('書籍已刪除');
             }
         }
 
-        // 創建書籍卡片（修復預約按鈕點擊事件）
-        function createBookCard(book) {
-            const card = document.createElement('div');
-            card.className = 'book-card';
-            card.dataset.classCode = book.classCode;
-            card.dataset.id = book.id || `${book.issue}-${book.posterNum}-${book.bookNum}`;
-            
-            let statusText = '';
-            let statusClass = '';
-            let reserveButton = '';
-            
-            // 僅在書籍可預約時顯示預約按鈕
-            if (book.status === 'in') {
-                statusText = '在架';
-                statusClass = 'status-in';
-                reserveButton = `<button class="reserve-btn">預約</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-            } else if (book.status === 'reserved') {
-                statusText = '已被預約';
-                statusClass = 'status-reserved';
-            }
-            
-            card.innerHTML = `
-                <img src="${book.cover}" class="book-cover">
-                <h3 class="book-title">${book.title}</h3>
-                <p>作者: ${book.author}</p>
-                <p>簡介: ${book.intro}</p>
-                <p>適合: ${book.suitable}</p>
-                <div class="book-status-bar">
-                    <span class="book-status ${statusClass}">${statusText}${statusText === '在架' ? '（可預約）' : ''}</span>
-                    ${reserveButton}
-                </div>
-                <p class="book-callno">索書號: ${book.callNo}</p>
-            `;
-            
-            // 單獨綁定預約按鈕點擊事件
-            if (book.status === 'in') {
-                const btn = card.querySelector('.reserve-btn');
-                btn.addEventListener('click', () => {
-                    showReserveModal(card.dataset.id);
-                });
-            }
-            
-            return card;
-        }
-
-        // 渲染書籍列表
-        function renderBooks(issue, posterNum) {
-            const container = document.getElementById('booksContainer');
-            container.innerHTML = '';
-            const books = libraryData.issues[issue]?.books[posterNum] || {};
-            
-            // 按3個一組顯示，每組相同背景色
-            let groupIndex = 0;
-            for (let i = 1; i <= 9; i++) {
-                if (i % 3 === 1) {
-                    groupIndex++;
-                }
-                
-                const book = books[i] || {
-                    callNo: '待編輯',
-                    title: '新書' + i,
-                    classCode: '000',
-                    author: '待編輯',
-                    intro: '待編輯',
-                    suitable: '待編輯',
-                    status: 'out',
-                    cover: 'https://via.placeholder.com/100x150?text=新書' + i,
-                    issue,
-                    posterNum,
-                    bookNum: i
-                };
-                
-                const card = createBookCard(book);
-                card.dataset.group = groupIndex;
-                container.appendChild(card);
-            }
-        }
-
-        // 渲染當前視圖（用於狀態更新後刷新）
-        function renderCurrentView() {
-            const activeSection = document.querySelector('.content-section:not(.hidden)');
-            if (activeSection.id === 'posterSection') {
-                const currentIssue = document.getElementById('issueSelect').value;
-                const activePoster = document.querySelector('.poster-thumb:hover')?.dataset.poster || '1';
-                renderBooks(currentIssue, activePoster);
-            } else if (activeSection.id === 'userRecommendsSection') {
-                renderUserRecommendList();
-            }
-        }
-
-        // 預約記錄管理
-        function renderReserveRecords() {
-            const container = document.getElementById('reserveRecordsContainer');
-            container.innerHTML = '';
-            
-            if (libraryData.reserveRecords.length === 0) {
-                container.innerHTML = '<p>暫無預約記錄</p>';
-                return;
-            }
-            
-            // 按時間倒序排列
-            const sortedReserves = [...libraryData.reserveRecords]
-                .sort((a, b) => new Date(b.time) - new Date(a.time));
-                
-            sortedReserves.forEach((r, i) => {
-                const recordId = `reserve-${i}`;
-                container.innerHTML += `
-                    <div class="record-item">
-                        <div>
-                            ${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}
-                        </div>
-                        <select class="record-status" id="${recordId}" onchange="updateReserveStatus(${i}, this.value)">
-                            <option value="已預約" ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
-                            <option value="處理中" ${r.status === '處理中' ? 'selected' : ''}>處理中</option>
-                            <option value="借走了" ${r.status === '借走了' ? 'selected' : ''}>借走了</option>
-                            <option value="找不到" ${r.status === '找不到' ? 'selected' : ''}>找不到</option>
-                            <option value="已還書" ${r.status === '已還書' ? 'selected' : ''}>已還書</option>
-                        </select>
-                    </div>
-                `;
-            });
-        }
-
-        // 推薦購書記錄管理
-        function renderRecommendRecords() {
-            const container = document.getElementById('recommendRecordsContainer');
-            container.innerHTML = '';
-            
-            if (libraryData.recommendRecords.length === 0) {
-                container.innerHTML = '<p>暫無推薦記錄</p>';
-                return;
-            }
-            
-            const sortedRecommends = [...libraryData.recommendRecords]
-                .sort((a, b) => new Date(b.time) - new Date(a.time));
-                
-            sortedRecommends.forEach((r, i) => {
-                const recordId = `recommend-${i}`;
-                container.innerHTML += `
-                    <div class="record-item">
-                        <div>
-                            ${r.time} | 書名: ${r.bookName} | 理由: ${r.reason}
-                        </div>
-                        <select class="record-status" id="${recordId}" onchange="updateRecommendStatus(${i}, this.value)">
-                            <option value="已推薦" ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
-                            <option value="已記錄" ${r.status === '已記錄' ? 'selected' : ''}>已記錄</option>
-                            <option value="不合規定" ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
-                        </select>
-                    </div>
-                `;
-            });
-        }
-
-        // 更新記錄中的書籍名稱
-        function updateRecordsBookTitle(issue, posterNum, bookNum, newTitle) {
-            const bookId = `${issue}-${posterNum}-${bookNum}`;
-            libraryData.reserveRecords.forEach(r => {
-                if (r.bookId === bookId) {
-                    r.bookTitle = newTitle;
-                    update(ref(db, `reserves/${r.id}`), {
-                        bookTitle: newTitle
-                    });
-                }
-            });
-        }
-
-        // 預約和推薦功能
-        function showReserveModal(bookId) {
-            const [issue, posterNum, bookNum] = bookId.split('-');
-            const book = libraryData.issues[issue].books[posterNum][bookNum];
-            document.getElementById('bookReserveInfo').innerText = `書名: ${book.title}`;
-            document.getElementById('reserveBookId').value = bookId;
-            document.getElementById('reserveModal').classList.remove('hidden');
-        }
-
-        document.getElementById('reserveForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const bookId = document.getElementById('reserveBookId').value;
-            const [issue, posterNum, bookNum] = bookId.split('-');
-            const book = libraryData.issues[issue].books[posterNum][bookNum];
-            
-            const newReserve = {
-                bookId,
-                bookTitle: book.title,
-                className: document.getElementById('className').value,
-                studentName: document.getElementById('studentName').value,
-                time: new Date().toLocaleString(),
-                status: '已預約'
-            };
-            
-            await saveReserveRecord(newReserve);
-            closeAllModals();
-            alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
-            this.reset();
-        });
-
-        function showRecommendForm() {
-            document.getElementById('recommendModal').classList.remove('hidden');
-        }
-
-        document.getElementById('recommendForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const newRecommend = {
-                bookName: document.getElementById('recommendBookName').value,
-                reason: document.getElementById('recommendReason').value,
-                time: new Date().toLocaleString(),
-                status: '已推薦'
-            };
-            
-            await saveRecommendRecord(newRecommend);
-            closeAllModals();
-            alert('推薦成功，感謝你的建議！');
-            this.reset();
-            showUserRecommends(); // 刷新推薦列表
-        });
-
-        // 關鍵詞搜索（全域所有書籍）
-        function searchBooks() {
-            const keyword = document.getElementById('keywordInput').value.toLowerCase();
-            const posterContainer = document.getElementById('posterThumbContainer'); // 海報容器
-            const booksContainer = document.getElementById('booksContainer');
-            
-            if (!keyword) {
-                // 無關鍵詞時顯示海報，恢復默認視圖
-                posterContainer.style.display = 'flex';
-                showLatestIssue();
-                return;
-            }
-            
-            // 有搜索關鍵詞時隱藏海報
-            posterContainer.style.display = 'none';
-            
-            const allBooks = libraryData.allBooks;
-            booksContainer.innerHTML = '';
-            
-            // 搜索所有匹配的書籍
-            const matchedBooks = allBooks.filter(book => 
-                book.title.toLowerCase().includes(keyword) ||
-                book.author.toLowerCase().includes(keyword) ||
-                book.callNo.toLowerCase().includes(keyword) ||
-                book.intro.toLowerCase().includes(keyword)
-            );
-            
-            // 按3個一組顯示
-            let groupIndex = 0;
-            matchedBooks.forEach((book, index) => {
-                if (index % 3 === 0) {
-                    groupIndex++;
-                }
-                
-                const card = createBookCard(book);
-                card.dataset.group = groupIndex;
-                booksContainer.appendChild(card);
-            });
-            
-            if (matchedBooks.length === 0) {
-                booksContainer.innerHTML = '<p>沒有找到匹配的書籍</p>';
-            }
-            
-            showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
-        }
-
-        // 初始化分類下拉菜單（修復點擊無效問題）
-        function initCategoryDropdown() {
-            const trigger = document.querySelector('.category-trigger');
-            const menu = document.getElementById('categoryMenu');
-            let isFixed = false;
-
-            // 鼠標進入顯示菜單
-            trigger.addEventListener('mouseenter', () => {
-                if (!isFixed) menu.classList.add('visible');
-            });
-
-            // 鼠標離開隱藏菜單
-            menu.addEventListener('mouseleave', () => {
-                if (!isFixed) menu.classList.remove('visible');
-            });
-
-            // 點擊分類按鈕切換菜單狀態
-            trigger.addEventListener('click', (e) => {
-                e.stopPropagation();
-                isFixed = !isFixed;
-                menu.classList.toggle('visible', isFixed);
-            });
-
-            // 為每個分類項綁定點擊事件
-            document.querySelectorAll('.category-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation(); // 阻止事件冒泡
-                    const category = item.dataset.category;
-                    filterByCategory(category);
-                    // 點擊後隱藏菜單
-                    isFixed = false;
-                    menu.classList.remove('visible');
-                });
-            });
-
-            // 點擊頁面其他地方隱藏菜單
-            document.addEventListener('click', (e) => {
-                if (!menu.contains(e.target) && e.target !== trigger) {
-                    isFixed = false;
-                    menu.classList.remove('visible');
-                }
-            });
-        }
-
-        // 顯示指定區域，隱藏其他區域
-        function showSection(sectionId) {
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.add('hidden');
-            });
-            document.getElementById(sectionId).classList.remove('hidden');
-        }
-
-        // 管理員登錄/退出
-        function showAdminLogin() {
-            document.getElementById('adminLoginModal').classList.remove('hidden');
-        }
-
-        document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const user = document.getElementById('adminUser').value;
-            const pass = document.getElementById('adminPass').value;
-            if (user === '123' && pass === '123') {
-                closeAllModals();
-                document.getElementById('adminPanel').classList.remove('hidden');
-                renderReserveRecords();
-                renderRecommendRecords();
-            } else {
-                alert('賬號或密碼錯誤');
-            }
-        });
-
-        function logoutAdmin() {
-            document.getElementById('adminPanel').classList.add('hidden');
-        }
-
-        // 輔助函數
-        function closeAllModals() {
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.classList.add('hidden');
-            });
-        }
-
-        function showWarning(elementId, text, color = '#f44336') {
-            const warning = document.getElementById(elementId);
-            warning.textContent = text;
-            warning.style.color = color;
-            setTimeout(() => { warning.textContent = ''; }, 3000);
-        }
-
-        // 全域函數聲明
-        window.switchIssue = switchIssue;
-        window.showLatestIssue = showLatestIssue;
-        window.showUserRecommends = showUserRecommends;
-        window.searchBooks = searchBooks;
-        window.uploadPoster = uploadPoster;
-        window.deleteSinglePoster = deleteSinglePoster;
-        window.deleteWholeIssue = deleteWholeIssueHandler;
-        window.addNewIssue = addNewIssue;
-        window.updateBookPosterSelect = updateBookPosterSelect;
-        window.updateBookNumSelect = updateBookNumSelect;
-        window.checkDuplicateTitle = checkDuplicateTitle;
-        window.saveBookInfo = saveBookInfo;
-        window.deleteBookInfo = deleteBookInfo;
-        window.showReserveModal = showReserveModal;
-        window.showRecommendForm = showRecommendForm;
-        window.showAdminLogin = showAdminLogin;
-        window.logoutAdmin = logoutAdmin;
-        window.closeAllModals = closeAllModals;
-        window.updateReserveStatus = updateReserveStatus;
-        window.updateRecommendStatus = updateRecommendStatus;
-
-        // 頁面加載時從Firebase加載資料
+        // 頁面加載完成後載入數據
         window.onload = loadData;
     </script>
     <style>
-        /* 基礎樣式與品牌色調定義 - 蘋果風格 */
+        /* 基礎樣式 */
         :root {
-            --primary: #0071e3; /* 蘋果藍 */
-            --primary-light: #f0f7ff;
-            --secondary: #ff9500; /* 蘋果橙 */
-            --success: #34c759; /* 蘋果綠 */
-            --warning: #ff9500;
+            --primary: #0071e3;
+            --secondary: #ff9500;
+            --success: #34c759;
             --danger: #ff3b30;
-            --gray-light: #f5f5f7; /* 蘋果淺灰 */
+            --gray-light: #f5f5f7;
             --gray: #e2e2e7;
             --gray-dark: #8e8e93;
-            --text: #1d1d1f; /* 蘋果文字色 */
+            --text: #1d1d1f;
             --text-light: #6e6e73;
             --shadow: 0 4px 20px rgba(0,0,0,0.05);
-            --radius: 12px; /* 更大的圆角，苹果风格 */
-            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); /* 苹果动画曲线 */
+            --radius: 12px;
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif; 
-            padding: 0; 
             max-width: 1440px; 
             margin: 0 auto; 
             color: var(--text);
             background-color: var(--gray-light);
             line-height: 1.6;
+            padding-bottom: 50px;
         }
         .hidden { display: none !important; }
         button, input, select, textarea { 
@@ -1000,78 +846,61 @@
             border-radius: var(--radius); 
             font-family: inherit;
             transition: var(--transition);
-            background-color: white;
         }
         button { 
             cursor: pointer; 
             border: none; 
             font-weight: 500;
-            padding: 10px 20px;
-            box-shadow: none;
         }
         button:hover { 
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
-        button:active { 
-            transform: translateY(0);
-        }
 
-        /* 按鈕樣式 - 蘋果風格扁平化 */
-        .btn-primary { 
-            background: var(--primary); 
-            color: white; 
-        }
-        .btn-primary:hover { 
-            background: #0077ed; 
-        }
-        .btn-secondary { 
-            background: var(--secondary); 
-            color: white; 
-        }
-        .btn-secondary:hover { 
-            background: #ff9f0a;
-        }
-        .btn-danger { 
-            background: var(--danger); 
-            color: white; 
-        }
-        .btn-danger:hover { 
-            background: #ff4d40;
-        }
-        .btn-text { 
-            background: transparent; 
-            color: var(--primary); 
-        }
-        .btn-text:hover { 
-            background: var(--primary-light); 
-        }
+        /* 按鈕樣式 */
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: var(--secondary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-text { background: transparent; color: var(--primary); }
 
-        /* 頂部區域 - 蘋果風格簡潔頂欄 */
-        .header { 
-            text-align: center; 
-            padding: 40px 20px 20px;
-            background: transparent;
-        }
-        .header h1 { 
-            color: var(--text); 
-            margin: 10px 0 20px; 
-            font-weight: 600;
-            font-size: 2.2rem;
-            letter-spacing: -0.02em;
-        }
-        .issue-selector { 
-            margin: 15px 0; 
-        }
-        .issue-selector select {
-            padding: 8px 24px 8px 12px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7C93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            appearance: none;
-        }
+        /* 頂部區域 */
+.header { 
+    text-align: center; 
+    padding: 60px 20px 40px;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(245,245,247,1) 100%);
+    position: relative;
+    overflow: hidden;
+}
+.header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 120px;
+    background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px),
+                linear-gradient(#f0f0f0 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.4;
+    z-index: 1;
+}
+.header h1 { 
+    color: var(--text); 
+    margin: 10px 0 20px; 
+    font-weight: 600;
+    font-size: clamp(2rem, 5vw, 3rem); /* 響應式字體 */
+    letter-spacing: -0.02em; /* 緊湊字距 */
+    line-height: 1.1;
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(90deg, #1d1d1f, #6e6e73);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; /* 漸變文字 */
+}
+        .issue-selector { margin: 15px 0; }
 
-        /* 導航欄 - 蘋果風格毛玻璃效果 */
+        /* 導航欄 */
         .nav-bar { 
             display: flex; 
             flex-wrap: wrap; 
@@ -1080,7 +909,6 @@
             padding: 15px 20px; 
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(20px);
-            border-radius: 0;
             box-shadow: var(--shadow);
             position: sticky;
             top: 0;
@@ -1088,25 +916,26 @@
             margin-bottom: 30px;
         }
         .nav-item { 
-            background: transparent; 
             padding: 10px 18px; 
             border-radius: 20px; 
             cursor: pointer; 
             white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
             font-weight: 500;
             transition: var(--transition);
-            color: var(--text);
         }
         .nav-item:hover { 
             background: var(--gray-light);
             color: var(--primary);
         }
-        .nav-item.active {
-            background: var(--primary);
-            color: white;
-        }
+
+/* 导航项活跃状态 */
+.nav-item.active {
+    background: var(--primary);
+    color: white;
+}
+.nav-item.category-dropdown.active .category-trigger {
+    color: white;
+}
         .keyword-search { 
             margin-left: auto; 
             display: flex;
@@ -1116,23 +945,11 @@
             min-width: 250px;
             background: var(--gray-light);
             border: none;
-            padding: 10px 16px;
-        }
-        .keyword-search input:focus {
-            background: white;
-            outline: none;
-            box-shadow: 0 0 0 2px var(--primary);
         }
 
-        /* 分類下拉菜單 - 蘋果風格浮出效果 */
-        .category-dropdown { 
-            position: relative; 
-        }
-        .category-trigger { 
-            display: flex; 
-            align-items: center; 
-            gap: 5px; 
-        }
+        /* 分類下拉菜單 */
+        .category-dropdown { position: relative; }
+        .category-trigger { display: flex; align-items: center; gap: 5px; }
         .category-trigger::after {
             content: "▼";
             font-size: 0.8em;
@@ -1150,28 +967,19 @@
             display: none; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             margin-top: 8px;
-            border: none;
         }
-        .category-menu.visible { 
-            display: block;
-            animation: fadeIn 0.2s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .category-menu.visible { display: block; }
         .category-item { 
             padding: 10px 16px; 
             cursor: pointer; 
             transition: var(--transition);
-            display: block;
         }
         .category-item:hover { 
             background: var(--gray-light);
             color: var(--primary);
         }
 
-        /* 海報區 - 蘋果風格大量留白 */
+        /* 海報區 */
         .poster-section { 
             margin: 0 20px 40px; 
             padding: 30px;
@@ -1198,10 +1006,7 @@
             padding: 20px;
             transition: var(--transition);
         }
-        .poster-thumb:hover { 
-            transform: scale(1.02);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-        }
+        .poster-thumb:hover { transform: scale(1.02); }
         .poster-thumb.placeholder { 
             display: flex; 
             align-items: center; 
@@ -1210,15 +1015,17 @@
             font-size: 1.2em;
         }
 
-        /* 書籍資料格 - 蘋果風格精緻卡片 */
+        /* 書籍資料格（固定3列） */
         .books-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            grid-template-columns: repeat(3, 1fr); /* 固定3列 */
             gap: 30px; 
             margin: 30px 0; 
+            max-width: 1200px;
+            margin-left: auto; 
+            margin-right: auto;
         }
         .book-card { 
-            border: none; 
             padding: 20px; 
             border-radius: var(--radius); 
             transition: var(--transition); 
@@ -1246,25 +1053,15 @@
             margin: 0 auto 20px; 
             display: block; 
             border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transition: var(--transition);
-        }
-        .book-card:hover .book-cover {
-            transform: scale(1.05);
         }
         .book-title { 
             text-align: center; 
             margin: 10px 0 20px; 
-            color: var(--text); 
             font-size: 1.1em;
             min-height: 40px;
             font-weight: 600;
         }
-        .book-card p {
-            margin: 8px 0;
-            font-size: 0.95em;
-            color: var(--text);
-        }
+        .book-card p { margin: 8px 0; font-size: 0.95em; }
         .book-status-bar { 
             margin: 20px 0 10px; 
             display: flex; 
@@ -1277,38 +1074,17 @@
             border-radius: 20px;
             font-size: 0.9em;
         }
-        .status-in { 
-            color: var(--success); 
-            background: rgba(52, 199, 89, 0.1);
-        }
-        .status-out { 
-            color: var(--danger); 
-            background: rgba(255, 59, 48, 0.1);
-        }
-        .status-reserved { 
-            color: var(--warning); 
-            background: rgba(255, 149, 0, 0.1);
-        }
+        .status-in { color: var(--success); background: rgba(52, 199, 89, 0.1); }
+        .status-out { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
+        .status-reserved { color: var(--secondary); background: rgba(255, 149, 0, 0.1); }
         .reserve-btn { 
             background: var(--primary); 
             color: white;
             padding: 6px 16px;
-            font-size: 0.9em;
             border-radius: 20px;
         }
-        .reserve-btn:hover { 
-            background: #0077ed;
-            transform: none;
-        }
-        .book-callno { 
-            color: var(--text-light); 
-            font-size: 0.9em; 
-            margin-top: 10px;
-            padding-top: 15px;
-            border-top: 1px dashed var(--gray);
-        }
 
-        /* 推薦購書區 - 蘋果風格輕量感 */
+        /* 推薦購書區 */
         .user-recommends { 
             margin: 0 20px 40px; 
             padding: 30px; 
@@ -1326,13 +1102,8 @@
         }
         .recommend-header h3 { 
             margin: 0;
-            color: var(--text);
             font-size: 1.5em;
             font-weight: 600;
-        }
-        .recommend-add-btn {
-            margin: 0;
-            border-radius: 20px;
         }
         .recommend-list { 
             display: flex; 
@@ -1347,12 +1118,6 @@
             background: white;
             display: flex;
             align-items: center;
-            transition: var(--transition);
-        }
-        .recommend-item:hover {
-            border-color: var(--primary-light);
-            background: var(--gray-light);
-            transform: translateX(5px);
         }
         .recommend-index { 
             width: 30px; 
@@ -1363,33 +1128,19 @@
             color: white;
             background: var(--primary);
             border-radius: 50%;
-            font-size: 0.9em;
         }
-        .recommend-name { 
-            flex: 1;
-            font-weight: 500;
-        }
+        .recommend-name { flex: 1; font-weight: 500; }
         .recommend-status { 
             padding: 4px 12px;
             border-radius: 20px; 
             font-size: 0.85em; 
             margin-left: 15px; 
-            font-weight: 500;
         }
-        .status-recorded { 
-            background: rgba(52, 199, 89, 0.1);
-            color: var(--success); 
-        }
-        .status-invalid { 
-            background: rgba(255, 59, 48, 0.1);
-            color: var(--danger); 
-        }
-        .status-pending {
-            background: rgba(255, 149, 0, 0.1);
-            color: var(--warning);
-        }
+        .status-recorded { background: rgba(52, 199, 89, 0.1); color: var(--success); }
+        .status-invalid { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+        .status-pending { background: rgba(255, 149, 0, 0.1); color: var(--secondary); }
 
-        /* 彈窗樣式 - 蘋果風格半透明背景 */
+        /* 彈窗樣式 */
         .modal { 
             position: fixed; 
             top: 0; 
@@ -1402,13 +1153,6 @@
             justify-content: center; 
             z-index: 100; 
             backdrop-filter: blur(2px);
-            opacity: 0;
-            visibility: hidden;
-            transition: var(--transition);
-        }
-        .modal:not(.hidden) {
-            opacity: 1;
-            visibility: visible;
         }
         .modal-content { 
             background: white; 
@@ -1418,11 +1162,6 @@
             max-width: 400px; 
             position: relative; 
             box-shadow: 0 15px 50px rgba(0,0,0,0.15);
-            transform: translateY(20px);
-            transition: var(--transition);
-        }
-        .modal:not(.hidden) .modal-content {
-            transform: translateY(0);
         }
         .close-modal { 
             position: absolute; 
@@ -1431,12 +1170,8 @@
             cursor: pointer; 
             font-size: 1.5em; 
             color: var(--gray-dark);
-            transition: var(--transition);
         }
-        .close-modal:hover { 
-            color: var(--danger);
-            transform: rotate(90deg);
-        }
+        .close-modal:hover { color: var(--danger); }
         .modal-content h3 {
             color: var(--text);
             margin-bottom: 25px;
@@ -1445,26 +1180,14 @@
             font-size: 1.3em;
         }
 
-        /* 編輯後台 - 保持專業感 */
-        .admin-login { 
-            position: fixed; 
-            bottom: 20px; 
-            right: 20px; 
-            font-size: 0.9em; 
-            color: var(--primary); 
-            cursor: pointer; 
-            background: white;
-            padding: 10px 18px;
-            border-radius: 20px;
-            box-shadow: var(--shadow);
-            transition: var(--transition);
-            z-index: 4;
+        /* 預約按鈕靠右 */
+        .reserve-submit-btn {
+            display: block;
+            margin-left: auto;
+            margin-top: 15px;
         }
-        .admin-login:hover {
-            background: var(--primary);
-            color: white;
-            transform: translateY(-2px);
-        }
+
+        /* 管理員後台 */
         .admin-panel { 
             margin: 20px; 
             padding: 30px; 
@@ -1473,7 +1196,6 @@
             box-shadow: var(--shadow);
         }
         .admin-panel h2 {
-            color: var(--text);
             margin-bottom: 30px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
@@ -1485,11 +1207,7 @@
             border-radius: var(--radius); 
             background: var(--gray-light); 
         }
-        .form-group h3 { 
-            margin-bottom: 20px; 
-            color: var(--text); 
-            font-size: 1.1em;
-        }
+        .form-group h3 { margin-bottom: 20px; }
         .book-editor { 
             margin: 15px 0; 
             padding: 20px; 
@@ -1500,27 +1218,39 @@
             background: white;
             border-radius: 8px;
         }
-        .warning { 
-            color: var(--danger); 
-            font-size: 0.9em; 
-            margin: 8px 0; 
-            padding: 5px 0;
-        }
         .record-item { 
             padding: 15px; 
             border-bottom: 1px solid var(--gray-light); 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
-            transition: var(--transition);
         }
-        .record-item:hover {
-            background: var(--gray-light);
+
+        /* 載入提示 */
+        #loadingIndicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            font-size: 1.5em;
+            color: var(--primary);
         }
-        .record-status { 
-            min-width: 120px;
-            padding: 6px 12px;
-            border-radius: 20px;
+
+        /* 隱藏的管理員入口 */
+        .hidden-admin-entry {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.5;
+            z-index: 4;
         }
 
         /* 響應式調整 */
@@ -1531,45 +1261,39 @@
             .nav-bar { flex-direction: column; align-items: stretch; }
             .keyword-search { margin-left: 0; width: 100%; }
             .keyword-search input { width: 70%; }
-            .recommend-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .header h1 {
-                font-size: 1.8rem;
-            }
         }
 
         @media (max-width: 480px) {
             .books-grid { grid-template-columns: 1fr; }
             .keyword-search input { width: 60%; }
-            .header, .nav-bar, .poster-section, .user-recommends {
-                padding: 15px 10px;
-            }
-            .header h1 {
-                font-size: 1.5rem;
-            }
+            .header h1 { font-size: 1.5rem; }
         }
     </style>
 </head>
 <body>
+    <!-- 載入提示 -->
+    <div id="loadingIndicator" style="display: none;">
+        正在載入圖書館資料...
+    </div>
+
     <!-- 頂部區域 -->
+<div class="header-divider" style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;"></div>
     <div class="header">
         <h1>XX中學圖書館 | 每週新書速遞</h1>
         <div class="issue-selector">
             <label>選擇期數: </label>
             <select id="issueSelect" onchange="switchIssue(this.value)">
-                <option value="1">第一期</option>
+                <option value="1">第1期</option>
             </select>
         </div>
     </div>
 
     <!-- 導航欄 -->
     <div class="nav-bar">
-        <div class="nav-item" onclick="showLatestIssue()">最新一期</div>
-        <div class="nav-item category-dropdown">
-            <span class="category-trigger">分類</span>
-            <div class="category-menu" id="categoryMenu">
+<div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
+<div class="nav-item category-dropdown" onclick="setActiveNav(this)">
+    <span class="category-trigger">分類</span>
+    <div class="category-menu" id="categoryMenu">
                 <div class="category-item" data-category="all">全部</div>
                 <div class="category-item" data-category="000">000 總類</div>
                 <div class="category-item" data-category="100">100 哲學</div>
@@ -1581,10 +1305,10 @@
                 <div class="category-item" data-category="700">700 世界史</div>
                 <div class="category-item" data-category="800">800 語文</div>
                 <div class="category-item" data-category="900">900 藝術</div>
-            </div>
-        </div>
-        <div class="nav-item" onclick="showUserRecommends()">推薦購書</div>
-        <div class="nav-item keyword-search">
+    </div>
+</div>
+<div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
+        <div class="keyword-search">
             <label>關鍵詞檢索: </label>
             <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
             <button onclick="searchBooks()">搜索</button>
@@ -1595,7 +1319,7 @@
     <div class="user-recommends content-section hidden" id="userRecommendsSection">
         <div class="recommend-header">
             <h3>大家推薦的書籍</h3>
-            <button class="recommend-add-btn btn-primary" onclick="showRecommendForm()">點擊為圖書館推薦書籍</button>
+            <button class="btn-primary" onclick="showRecommendForm()">推薦新書</button>
         </div>
         <div class="recommend-list" id="userRecommendList">
             <!-- 動態生成 -->
@@ -1604,7 +1328,7 @@
 
     <!-- 海報區 -->
     <div class="poster-section content-section" id="posterSection">
-        <h2 id="currentIssueTitle">第一期海報</h2>
+        <h2 id="currentIssueTitle">第1期海報</h2>
         <div class="poster-thumbnails" id="posterThumbContainer">
             <div class="poster-thumb placeholder" data-poster="1">
                 海報1<br>[暫未上傳]
@@ -1624,73 +1348,33 @@
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
             <h3>預約書籍</h3>
             <div id="bookReserveInfo"></div>
-            <form id="reserveForm">
-                <input type="hidden" id="reserveBookId">
-                <div class="form-group">
-                    <label>班級: </label>
-                    <input type="text" id="className" required>
-                </div>
-                <div class="form-group">
-                    <label>姓名: </label>
-                    <input type="text" id="studentName" required>
-                </div>
-                <button type="button" onclick="submitReserve()">提交預約</button>
-            </form>
+            <div class="form-group">
+                <label>班級: </label>
+                <input type="text" id="className" required>
+            </div>
+            <div class="form-group">
+                <label>姓名: </label>
+                <input type="text" id="studentName" required>
+            </div>
+            <button type="button" onclick="submitReserve()" class="reserve-submit-btn btn-primary">提交預約</button>
+            <input type="hidden" id="reserveBookId">
         </div>
     </div>
-
-    <!-- 預約提交函數 -->
-    <script>
-    function submitReserve() {
-        const bookId = document.getElementById('reserveBookId').value;
-        const [issue, posterNum, bookNum] = bookId.split('-');
-        const book = libraryData.issues[issue]?.books[posterNum]?.[bookNum];
-        
-        if (!book) {
-            alert('書籍資訊不存在');
-            return;
-        }
-        
-        const className = document.getElementById('className').value.trim();
-        const studentName = document.getElementById('studentName').value.trim();
-        
-        if (!className || !studentName) {
-            alert('請填寫班級和姓名');
-            return;
-        }
-        
-        const newReserve = {
-            bookId,
-            bookTitle: book.title,
-            className,
-            studentName,
-            time: new Date().toLocaleString(),
-            status: '已預約'
-        };
-        
-        saveReserveRecord(newReserve);
-        closeAllModals();
-        alert('預約成功！請1小時內到圖書館確認，書籍保留2天');
-        document.getElementById('reserveForm').reset();
-    }
-    </script>
 
     <!-- 推薦購書彈窗 -->
     <div class="modal hidden" id="recommendModal">
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
             <h3>推薦購買書籍</h3>
-            <form id="recommendForm">
-                <div class="form-group">
-                    <label>書名: </label>
-                    <input type="text" id="recommendBookName" required>
-                </div>
-                <div class="form-group">
-                    <label>推薦理由: </label>
-                    <textarea id="recommendReason" required></textarea>
-                </div>
-                <button type="submit">提交推薦</button>
-            </form>
+            <div class="form-group">
+                <label>書名: </label>
+                <input type="text" id="recommendBookName" required>
+            </div>
+            <div class="form-group">
+                <label>推薦理由: </label>
+                <textarea id="recommendReason" required></textarea>
+            </div>
+            <button type="button" onclick="submitRecommend()" class="btn-primary">提交推薦</button>
         </div>
     </div>
 
@@ -1699,38 +1383,35 @@
         <div class="modal-content">
             <span class="close-modal" onclick="closeAllModals()">&times;</span>
             <h3>管理員登錄</h3>
-            <form id="adminLoginForm">
-                <div class="form-group">
-                    <label>賬號: </label>
-                    <input type="text" id="adminUser" required>
-                </div>
-                <div class="form-group">
-                    <label>密碼: </label>
-                    <input type="password" id="adminPass" required>
-                </div>
-                <button type="submit">登錄</button>
-            </form>
+            <div class="form-group">
+                <label>賬號: </label>
+                <input type="text" id="adminUser" required>
+            </div>
+            <div class="form-group">
+                <label>密碼: </label>
+                <input type="password" id="adminPass" required>
+            </div>
+            <button type="button" onclick="adminLogin()" class="btn-primary">登錄</button>
         </div>
     </div>
 
     <!-- 管理員後台 -->
     <div class="admin-panel hidden" id="adminPanel">
         <h2>管理員後台</h2>
-        <button onclick="logoutAdmin()">退出登錄</button>
+        <button onclick="logoutAdmin()" class="btn-text">退出登錄</button>
 
         <!-- 1. 期數管理 -->
         <div class="form-group">
             <h3>1. 期數管理</h3>
             <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
-            <div class="warning" id="issueWarning"></div>
         </div>
 
         <!-- 2. 海報管理 -->
         <div class="form-group">
             <h3>2. 海報管理</h3>
             <label>選擇期數: </label>
-            <select id="posterIssueSelect" onchange="updatePosterNumSelect()">
-                <option value="1">第一期</option>
+            <select id="posterIssueSelect" onchange="renderPosterThumbs(this.value)">
+                <option value="1">第1期</option>
             </select>
             <label>選擇序號: </label>
             <select id="posterNumSelect">
@@ -1738,10 +1419,9 @@
                 <option value="2">海報2</option>
             </select>
             <input type="file" id="posterUpload" accept="image/*">
-            <button class="btn-primary" onclick="uploadPoster()">重新上傳海報</button>
+            <button class="btn-primary" onclick="uploadPoster()">上傳海報</button>
             <button class="btn-danger" onclick="deleteSinglePoster()">刪除此海報</button>
-            <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期海報</button>
-            <div class="warning" id="posterWarning"></div>
+            <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
         </div>
 
         <!-- 3. 書籍資訊編輯 -->
@@ -1749,11 +1429,11 @@
             <h3>3. 書籍資訊管理</h3>
             <div>
                 <label>選擇期數: </label>
-                <select id="bookIssueSelect" onchange="updateBookPosterSelect()">
-                    <option value="1">第一期</option>
+                <select id="bookIssueSelect">
+                    <option value="1">第1期</option>
                 </select>
                 <label>選擇海報序號: </label>
-                <select id="bookPosterSelect" onchange="updateBookNumSelect()">
+                <select id="bookPosterSelect">
                     <option value="1">海報1</option>
                     <option value="2">海報2</option>
                 </select>
@@ -1773,8 +1453,7 @@
             
             <div class="book-editor">
                 <input type="text" id="bookCallNo" placeholder="索書號">
-                <input type="text" id="bookTitle" placeholder="書名" onblur="checkDuplicateTitle()">
-                <div class="warning" id="titleWarning"></div>
+                <input type="text" id="bookTitle" placeholder="書名">
                 <label>分類代碼: </label>
                 <select id="bookClassCode">
                     <option value="000">000 總類</option>
@@ -1796,12 +1475,12 @@
                     <option value="out">不在架</option>
                 </select>
                 <input type="file" id="bookCoverUpload" accept="image/*">
-                <button class="btn-primary" onclick="saveBookInfo()">儲存/修改書籍</button>
+                <button class="btn-primary" onclick="saveBookInfo()">儲存書籍</button>
                 <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
             </div>
         </div>
 
-        <!-- 4. 資料查看 -->
+        <!-- 4. 預約記錄管理 -->
         <div class="form-group">
             <h3>4. 預約記錄管理</h3>
             <div id="reserveRecordsContainer">
@@ -1809,6 +1488,7 @@
             </div>
         </div>
 
+        <!-- 5. 推薦購書記錄管理 -->
         <div class="form-group">
             <h3>5. 推薦購書記錄管理</h3>
             <div id="recommendRecordsContainer">
@@ -1817,7 +1497,7 @@
         </div>
     </div>
 
-    <!-- 編輯者入口 -->
-    <div class="admin-login" onclick="showAdminLogin()">編輯者入口</div>
+    <!-- 隱藏的管理員入口 -->
+    <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
 </html>
