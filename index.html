@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,7 +45,7 @@
 
                 // 載入預約記錄
                 const reservesSnapshot = await get(ref(db, "reserves"));
-                window.libraryData.reserveRecords = reservesSnapshot.exists()
+                window.libraryData.reserveRecords = reservesSnapshot.exists() 
                     ? Object.values(reservesSnapshot.val()).map((r, i) => ({ ...r, id: Object.keys(reservesSnapshot.val())[i] }))
                     : [];
 
@@ -74,28 +73,28 @@
             }
         }
 
-        // 收集所有書籍（确保海報书籍被正确收录）
-        function collectAllBooks() {
-            window.libraryData.allBooks = [];
-            // 遍历所有期数
-            for (const issue in window.libraryData.issues) {
-                const issueData = window.libraryData.issues[issue];
-                // 遍历所有海報
-                for (const poster in issueData.books) {
-                    const posterBooks = issueData.books[poster];
-                    // 遍历所有书籍
-                    for (const bookNum in posterBooks) {
-                        const book = { ...posterBooks[bookNum] };
-                        // 强制设置标准ID
-                        book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
-                        book.issue = issue;
-                        book.posterNum = poster;
-                        book.bookNum = bookNum;
-                        window.libraryData.allBooks.push(book);
-                    }
-                }
+// 收集所有書籍（确保海報书籍被正确收录）
+function collectAllBooks() {
+    window.libraryData.allBooks = [];
+    // 遍历所有期数
+    for (const issue in window.libraryData.issues) {
+        const issueData = window.libraryData.issues[issue];
+        // 遍历所有海報
+        for (const poster in issueData.books) {
+            const posterBooks = issueData.books[poster];
+            // 遍历所有书籍
+            for (const bookNum in posterBooks) {
+                const book = { ...posterBooks[bookNum] };
+                // 强制设置标准ID
+                book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
+                book.issue = issue;
+                book.posterNum = poster;
+                book.bookNum = bookNum;
+                window.libraryData.allBooks.push(book);
             }
         }
+    }
+}
 
         // 儲存資料到 Firebase
         async function saveData() {
@@ -108,72 +107,71 @@
             }
         }
 
-        // 儲存預約記錄（修复状态同步）
-        window.saveReserveRecord = async function (record) {
-            try {
-                const recordId = Date.now().toString();
-                await set(ref(db, `reserves/${recordId}`), record);
-                record.id = recordId;
-                window.libraryData.reserveRecords.push(record);
+// 儲存預約記錄（修复状态同步）
+window.saveReserveRecord = async function(record) {
+    try {
+        const recordId = Date.now().toString();
+        await set(ref(db, `reserves/${recordId}`), record);
+        record.id = recordId;
+        window.libraryData.reserveRecords.push(record);
+        
+        // 解析标准化ID（适配新的ID格式）
+        const idParts = record.bookId.split('-'); // 格式：issue-x-poster-y-book-z
+        const issue = idParts[1];       // 提取期数
+        const poster = idParts[3];      // 提取海報号
+        const bookNum = idParts[5];     // 提取书籍号
 
-                // 解析标准化ID（适配新的ID格式）
-                const idParts = record.bookId.split('-'); // 格式：issue-x-poster-y-book-z
-                const issue = idParts[1];       // 提取期数
-                const poster = idParts[3];      // 提取海報号
-                const bookNum = idParts[5];     // 提取书籍号
-
-                // 更新书籍状态为"已被預約"
-                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-                    window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
-                    await saveData();
-                    collectAllBooks();
-                    renderCurrentView(); // 立即刷新当前页面的书籍卡片
-                }
-                renderReserveRecords();
-            } catch (err) {
-                console.error("預約失敗:", err);
-                alert("預約失敗，請重試");
-            }
+        // 更新书籍状态为"已被預約"
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
+            await saveData();
+            collectAllBooks();
+            renderCurrentView(); // 立即刷新当前页面的书籍卡片
         }
+        renderReserveRecords();
+    } catch (err) {
+        console.error("預約失敗:", err);
+        alert("預約失敗，請重試");
+    }
+}
+// 更新預約狀態（修复状态同步）
+window.updateReserveStatus = async function(index, status) {
+    try {
+        const record = window.libraryData.reserveRecords[index];
+        record.status = status;
+        await update(ref(db, `reserves/${record.id}`), { status });
+        
+        // 解析标准化ID
+        const idParts = record.bookId.split('-');
+        const issue = idParts[1];
+        const poster = idParts[3];
+        const bookNum = idParts[5];
 
-        // 更新預約狀態（修复状态同步）
-        window.updateReserveStatus = async function (index, status) {
-            try {
-                const record = window.libraryData.reserveRecords[index];
-                record.status = status;
-                await update(ref(db, `reserves/${record.id}`), { status });
-
-                // 解析标准化ID
-                const idParts = record.bookId.split('-');
-                const issue = idParts[1];
-                const poster = idParts[3];
-                const bookNum = idParts[5];
-
-                // 根据不同状态更新书籍状态
-                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-                    let bookStatus;
-                    if (status === '已還書' || status === '找不到') {
-                        bookStatus = 'in'; // 已還書或找不到时，恢复可预约
-                    } else if (status === '借走了') {
-                        bookStatus = 'out'; // 借走了时，标记为不在架
-                    } else {
-                        bookStatus = 'reserved'; // 其他状态（已预约/处理中）保持已预约
-                    }
-
-                    window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
-                    await saveData();
-                    collectAllBooks();
-                    renderCurrentView(); // 刷新当前页面显示
-                }
-                renderReserveRecords(); // 刷新预约记录列表
-            } catch (err) {
-                console.error("更新失敗:", err);
-                alert("更新失敗");
+        // 根据不同状态更新书籍状态
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            let bookStatus;
+            if (status === '已還書' || status === '找不到') {
+                bookStatus = 'in'; // 已還書或找不到时，恢复可预约
+            } else if (status === '借走了') {
+                bookStatus = 'out'; // 借走了时，标记为不在架
+            } else {
+                bookStatus = 'reserved'; // 其他状态（已预约/处理中）保持已预约
             }
+
+            window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
+            await saveData();
+            collectAllBooks();
+            renderCurrentView(); // 刷新当前页面显示
         }
+        renderReserveRecords(); // 刷新预约记录列表
+    } catch (err) {
+        console.error("更新失敗:", err);
+        alert("更新失敗");
+    }
+}
 
         // 儲存推薦記錄
-        window.saveRecommendRecord = async function (record) {
+        window.saveRecommendRecord = async function(record) {
             try {
                 const recordId = Date.now().toString();
                 await set(ref(db, `recommends/${recordId}`), record);
@@ -187,7 +185,7 @@
         }
 
         // 更新推薦狀態
-        window.updateRecommendStatus = async function (index, status) {
+        window.updateRecommendStatus = async function(index, status) {
             try {
                 const record = window.libraryData.recommendRecords[index];
                 record.status = status;
@@ -206,13 +204,7 @@
             renderUserRecommendList();
             // 顯示海報容器
             document.getElementById('posterThumbContainer').style.display = 'flex';
-            document.querySelector('.nav-item').classList.add('active');
-
-            // 移动端初始化期数选择器
-            if (currentDevice === 'mobile') {
-                mobileRenderIssueSelector();
-                mobileShowLatestIssue();
-            }
+document.querySelector('.nav-item').classList.add('active');
         }
 
         // 渲染期數選擇器
@@ -223,7 +215,7 @@
                 document.getElementById('posterIssueSelect'),
                 document.getElementById('bookIssueSelect')
             ];
-
+            
             selectors.forEach(sel => {
                 sel.innerHTML = '';
                 issues.forEach(issue => {
@@ -234,7 +226,7 @@
         }
 
         // 切換期數
-        window.switchIssue = function (issue) {
+        window.switchIssue = function(issue) {
             const issueNum = Number(issue);
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
@@ -245,7 +237,7 @@
         }
 
         // 顯示最新一期
-        window.showLatestIssue = function () {
+        window.showLatestIssue = function() {
             window.switchIssue(window.libraryData.latestIssue);
             document.getElementById('issueSelect').value = window.libraryData.latestIssue;
         }
@@ -278,34 +270,29 @@
             });
         }
 
-        // 分類篩選（修復預約無法送出的問題）
-        function filterByCategory(category) {
-            const books = window.libraryData.allBooks;
-            const container = currentDevice === 'mobile' ? document.getElementById('mobileBooksContainer') : document.getElementById('booksContainer');
-            container.innerHTML = '';
+// 分類篩選（修復預約無法送出的問題）
+function filterByCategory(category) {
+    const books = window.libraryData.allBooks;
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報
+    document.getElementById('posterThumbContainer').style.display = 'none';
 
-            // 电脑端隐藏海報
-            if (currentDevice === 'pc') {
-                document.getElementById('posterThumbContainer').style.display = 'none';
-            }
+    const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
+    
+    filtered.forEach((book, index) => {
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil((index + 1) / 3);
+        container.appendChild(card);
+    });
 
-            const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
+    showSection('posterSection');
+    document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
+    // 確保數據同步
+    collectAllBooks();
+}
 
-            filtered.forEach((book, index) => {
-                const card = currentDevice === 'mobile' ? createMobileBookCard(book) : createBookCard(book);
-                if (currentDevice === 'pc') {
-                    card.dataset.group = Math.ceil((index + 1) / 3);
-                }
-                container.appendChild(card);
-            });
-
-            showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
-            // 確保數據同步
-            collectAllBooks();
-        }
-
-        // 渲染用戶推薦列表（电脑端）
+        // 渲染用戶推薦列表
         function renderUserRecommendList() {
             const list = document.getElementById('userRecommendList');
             list.innerHTML = '';
@@ -317,21 +304,21 @@
             }
 
             sorted.forEach((r, i) => {
-                let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
-                let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
-                // 獲取隨機顏色
-                const randomColor = window.getRandomSoftColor();
-                list.innerHTML += `
-                    <div class="recommend-item">
-                        <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
-                        <span class="recommend-name">${r.bookName}</span>
-                        <span class="recommend-status ${statusClass}">${statusText}</span>
-                    </div>
-                `;
-            });
+    let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
+    let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
+    // 獲取隨機顏色
+    const randomColor = window.getRandomSoftColor();
+    list.innerHTML += `
+        <div class="recommend-item">
+            <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
+            <span class="recommend-name">${r.bookName}</span>
+            <span class="recommend-status ${statusClass}">${statusText}</span>
+        </div>
+    `;
+});
         }
 
-        // 渲染海報（电脑端）
+        // 渲染海報
         function renderPosterThumbs(issue) {
             const container = document.getElementById('posterThumbContainer');
             container.innerHTML = '';
@@ -346,88 +333,87 @@
             }
         }
 
-        // 创建书籍卡片（电脑端）
-        function createBookCard(book) {
-            const card = document.createElement('div');
-            card.className = 'book-card';
-            card.dataset.classCode = book.classCode;
-            card.dataset.id = book.id; // 绑定标准ID
+// 创建书籍卡片（修复预约按钮ID绑定）
+function createBookCard(book) {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.dataset.classCode = book.classCode;
+    card.dataset.id = book.id; // 绑定标准ID
 
-            let statusText, statusClass, reserveBtn;
-            if (book.status === 'in') {
-                statusText = '在架（可預約）';
-                statusClass = 'status-in';
-                // 确保预约按钮使用正确的ID
-                reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-                reserveBtn = '';
-            } else {
-                statusText = '已被預約';
-                statusClass = 'status-reserved';
-                reserveBtn = '';
-            }
+    let statusText, statusClass, reserveBtn;
+    if (book.status === 'in') {
+        statusText = '在架（可預約）';
+        statusClass = 'status-in';
+        // 确保预约按钮使用正确的ID
+        reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
+    } else if (book.status === 'out') {
+        statusText = '不在架';
+        statusClass = 'status-out';
+        reserveBtn = '';
+    } else {
+        statusText = '已被預約';
+        statusClass = 'status-reserved';
+        reserveBtn = '';
+    }
 
-            card.innerHTML = `
-                <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
-                <h3 class="book-title">${book.title}</h3>
-                <p>作者: ${book.author || '待編輯'}</p>
-                <p>簡介: ${book.intro || '待編輯'}</p>
-                <p>適合: ${book.suitable || '待編輯'}</p>
-                <div class="book-status-bar">
-                    <span class="book-status ${statusClass}">${statusText}</span>
-                    ${reserveBtn}
-                </div>
-                <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
-            `;
+    card.innerHTML = `
+        <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
+        <h3 class="book-title">${book.title}</h3>
+        <p>作者: ${book.author || '待編輯'}</p>
+        <p>簡介: ${book.intro || '待編輯'}</p>
+        <p>適合: ${book.suitable || '待編輯'}</p>
+        <div class="book-status-bar">
+            <span class="book-status ${statusClass}">${statusText}</span>
+            ${reserveBtn}
+        </div>
+        <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
+    `;
 
-            return card;
-        }
+    return card;
+}
+// 渲染書籍列表（统一ID格式）
+window.renderBooks = function(issue, posterNum) {
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 确保基础数据结构存在
+    if (!window.libraryData.issues[issue]) {
+        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+    }
+    if (!window.libraryData.issues[issue].books[posterNum]) {
+        window.libraryData.issues[issue].books[posterNum] = {};
+    }
+    const books = window.libraryData.issues[issue].books[posterNum];
 
-        // 渲染書籍列表（电脑端）
-        window.renderBooks = function (issue, posterNum) {
-            const container = document.getElementById('booksContainer');
-            container.innerHTML = '';
-            // 确保基础数据结构存在
-            if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
-            }
-            if (!window.libraryData.issues[issue].books[posterNum]) {
-                window.libraryData.issues[issue].books[posterNum] = {};
-            }
-            const books = window.libraryData.issues[issue].books[posterNum];
-
-            for (let i = 1; i <= 9; i++) {
-                // 强制生成标准格式的书籍数据
-                const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
-                let book = books[i] || {
-                    id: bookId, // 使用标准化ID
-                    issue: issue.toString(), // 确保是字符串类型
-                    posterNum: posterNum.toString(), // 确保是字符串类型
-                    bookNum: i.toString(),
-                    callNo: '待編輯',
-                    title: '新書' + i,
-                    classCode: '000',
-                    author: '待編輯',
-                    intro: '待編輯',
-                    suitable: '待編輯',
-                    status: 'in',
-                    cover: `https://via.placeholder.com/100x150?text=新書${i}`
-                };
-                // 强制更新ID为标准格式
-                book.id = bookId;
-                books[i] = book;
-                window.libraryData.issues[issue].books[posterNum][i] = book;
-
-                // 创建卡片时绑定正确的ID
-                const card = createBookCard(book);
-                card.dataset.group = Math.ceil(i / 3);
-                container.appendChild(card);
-            }
-            collectAllBooks(); // 重新收集书籍
-            saveData();
-        }
+    for (let i = 1; i <= 9; i++) {
+        // 强制生成标准格式的书籍数据
+        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+        let book = books[i] || {
+            id: bookId, // 使用标准化ID
+            issue: issue.toString(), // 确保是字符串类型
+            posterNum: posterNum.toString(), // 确保是字符串类型
+            bookNum: i.toString(),
+            callNo: '待編輯',
+            title: '新書' + i,
+            classCode: '000',
+            author: '待編輯',
+            intro: '待編輯',
+            suitable: '待編輯',
+            status: 'in',
+            cover: `https://via.placeholder.com/100x150?text=新書${i}`
+        };
+        // 强制更新ID为标准格式
+        book.id = bookId;
+        books[i] = book;
+        window.libraryData.issues[issue].books[posterNum][i] = book;
+        
+        // 创建卡片时绑定正确的ID
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil(i / 3);
+        container.appendChild(card);
+    }
+    collectAllBooks(); // 重新收集书籍
+    saveData();
+}
 
         // 渲染當前視圖
         function renderCurrentView() {
@@ -436,11 +422,6 @@
                 const issue = document.getElementById('issueSelect').value;
                 const poster = document.querySelector('.poster-thumb:hover')?.dataset.poster || '1';
                 window.renderBooks(issue, poster);
-
-                // 移动端同步更新
-                if (currentDevice === 'mobile') {
-                    mobileRenderBooks(issue, poster);
-                }
             }
         }
 
@@ -496,33 +477,28 @@
             });
         }
 
-        // 顯示預約彈窗（修复找不到书籍的问题）
-        window.showReserveModal = function (bookId) {
-            // 双重检查：先从allBooks找，找不到则直接从原数据解析
-            let book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                // 直接从bookId解析出书的位置并读取
-                const idParts = bookId.split('-');
-                if (idParts.length === 6) {
-                    const issue = idParts[1];
-                    const poster = idParts[3];
-                    const bookNum = idParts[5];
-                    if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-                        book = window.libraryData.issues[issue].books[poster][bookNum];
-                    }
-                }
-            }
-            if (!book) {
-                alert('未找到這本書的資訊，請刷新頁面重試');
-                return;
-            }
-            document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
-            document.getElementById('reserveBookId').value = bookId;
-            document.getElementById('reserveModal').classList.remove('hidden');
+// 顯示預約彈窗（修复找不到书籍的问题）
+window.showReserveModal = function(bookId) {
+    // 双重检查：先从allBooks找，找不到则直接从原数据解析
+    let book = window.libraryData.allBooks.find(b => b.id === bookId);
+    if (!book) {
+        // 直接从bookId解析出书的位置并读取
+        const [issue, poster, bookNum] = bookId.split('-');
+        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+            book = window.libraryData.issues[issue].books[poster][bookNum];
         }
+    }
+    if (!book) {
+        alert('未找到這本書的資訊，請刷新頁面重試');
+        return;
+    }
+    document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
+    document.getElementById('reserveBookId').value = bookId;
+    document.getElementById('reserveModal').classList.remove('hidden');
+}
 
         // 提交預約
-        window.submitReserve = function () {
+        window.submitReserve = function() {
             const bookId = document.getElementById('reserveBookId').value;
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) {
@@ -554,19 +530,19 @@
             window.saveReserveRecord(newReserve);
             window.closeAllModals();
             alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
-
+            
             // 清空表單
             document.getElementById('className').value = '';
             document.getElementById('studentName').value = '';
         }
 
         // 顯示推薦表單
-        window.showRecommendForm = function () {
+        window.showRecommendForm = function() {
             document.getElementById('recommendModal').classList.remove('hidden');
         }
 
         // 提交推薦
-        window.submitRecommend = function () {
+        window.submitRecommend = function() {
             const bookName = document.getElementById('recommendBookName').value.trim();
             const reason = document.getElementById('recommendReason').value.trim();
 
@@ -589,64 +565,50 @@
             window.saveRecommendRecord(newRecommend);
             window.closeAllModals();
             alert('推薦成功，感謝你的建議！');
-
+            
             // 清空表單
             document.getElementById('recommendBookName').value = '';
             document.getElementById('recommendReason').value = '';
         }
 
-        // 搜索書籍（修復預約無法送出的問題）
-        window.searchBooks = function () {
-            const keyword = currentDevice === 'mobile' ? document.getElementById('mobileKeywordInput').value.toLowerCase() : document.getElementById('keywordInput').value.toLowerCase();
-            const container = currentDevice === 'mobile' ? document.getElementById('mobileBooksContainer') : document.getElementById('booksContainer');
-            container.innerHTML = '';
+// 搜索書籍（修復預約無法送出的問題）
+window.searchBooks = function() {
+    const keyword = document.getElementById('keywordInput').value.toLowerCase();
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報
+    document.getElementById('posterThumbContainer').style.display = 'none';
 
-            // 电脑端隐藏海報
-            if (currentDevice === 'pc') {
-                document.getElementById('posterThumbContainer').style.display = 'none';
-            }
+    if (!keyword) {
+        showLatestIssue();
+        return;
+    }
 
-            if (!keyword) {
-                if (currentDevice === 'mobile') {
-                    mobileShowLatestIssue();
-                } else {
-                    showLatestIssue();
-                }
-                return;
-            }
+    // 重新收集所有書籍，確保匹配數據最新
+    collectAllBooks();
+    const matched = window.libraryData.allBooks.filter(book => 
+        book.title.toLowerCase().includes(keyword) ||
+        book.author.toLowerCase().includes(keyword) ||
+        book.callNo.toLowerCase().includes(keyword) ||
+        book.intro.toLowerCase().includes(keyword)
+    );
 
-            // 重新收集所有書籍，確保匹配數據最新
-            collectAllBooks();
-            const matched = window.libraryData.allBooks.filter(book =>
-                book.title.toLowerCase().includes(keyword) ||
-                book.author.toLowerCase().includes(keyword) ||
-                book.callNo.toLowerCase().includes(keyword) ||
-                book.intro.toLowerCase().includes(keyword)
-            );
+    if (matched.length === 0) {
+        container.innerHTML = '<p>沒有找到匹配的書籍</p>';
+    } else {
+        matched.forEach((book, index) => {
+            const card = createBookCard(book);
+            card.dataset.group = Math.ceil((index + 1) / 3);
+            container.appendChild(card);
+        });
+    }
 
-            if (matched.length === 0) {
-                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 20px;">沒有找到匹配的書籍</p>';
-            } else {
-                matched.forEach((book, index) => {
-                    const card = currentDevice === 'mobile' ? createMobileBookCard(book) : createBookCard(book);
-                    if (currentDevice === 'pc') {
-                        card.dataset.group = Math.ceil((index + 1) / 3);
-                    }
-                    container.appendChild(card);
-                });
-            }
-
-            showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
-
-            // 移动端显示返回按钮
-            if (currentDevice === 'mobile') {
-                document.getElementById('mobileBackBtn').classList.remove('hidden');
-            }
-        }
+    showSection('posterSection');
+    document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
+}
 
         // 顯示指定區域
-        window.showSection = function (sectionId) {
+        window.showSection = function(sectionId) {
             document.querySelectorAll('.content-section').forEach(sec => {
                 sec.classList.add('hidden');
             });
@@ -654,12 +616,12 @@
         }
 
         // 顯示管理員登錄
-        window.showAdminLogin = function () {
+        window.showAdminLogin = function() {
             document.getElementById('adminLoginModal').classList.remove('hidden');
         }
 
         // 管理員登錄
-        window.adminLogin = function () {
+        window.adminLogin = function() {
             const user = document.getElementById('adminUser').value;
             const pass = document.getElementById('adminPass').value;
             if (user === '123' && pass === '123') {
@@ -673,63 +635,55 @@
         }
 
         // 退出管理員
-        window.logoutAdmin = function () {
+        window.logoutAdmin = function() {
             document.getElementById('adminPanel').classList.add('hidden');
         }
 
         // 關閉所有彈窗
-        window.closeAllModals = function () {
+        window.closeAllModals = function() {
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.classList.add('hidden');
             });
         }
-
-        // 设置导航项活跃状态
-        window.setActiveNav = function (element) {
-            // 移除所有导航项的活跃状态
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            // 给当前点击的导航项添加活跃状态
-            element.classList.add('active');
-        }
-
-        // 生成隨機柔和顏色（用於推薦書籍序號）
-        window.getRandomSoftColor = function () {
-            // 預定柔和色譜，避免刺眼顏色
-            const colors = [
-                '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
-                '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
-            ];
-            // 隨機返回一種顏色
-            return colors[Math.floor(Math.random() * colors.length)];
-        }
+// 设置导航项活跃状态
+window.setActiveNav = function(element) {
+    // 移除所有导航项的活跃状态
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    // 给当前点击的导航项添加活跃状态
+    element.classList.add('active');
+}
+// 生成隨機柔和顏色（用於推薦書籍序號）
+window.getRandomSoftColor = function() {
+    // 預定柔和色譜，避免刺眼顏色
+    const colors = [
+        '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
+        '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
+    ];
+    // 隨機返回一種顏色
+    return colors[Math.floor(Math.random() * colors.length)];
+}
 
         // 上傳海報
-        window.uploadPoster = function () {
+        window.uploadPoster = function() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
             const file = document.getElementById('posterUpload').files[0];
-
+            
             if (!file) {
                 alert('請選擇圖片');
                 return;
             }
 
             const reader = new FileReader();
-            reader.onload = function (e) {
+            reader.onload = function(e) {
                 if (!window.libraryData.issues[issue]) {
-                    window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
+                    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
                 }
                 window.libraryData.issues[issue].posters[num] = e.target.result;
                 saveData();
                 renderPosterThumbs(issue);
-
-                // 移动端同步更新海报
-                if (currentDevice === 'mobile' && document.getElementById('mobileIssueSelect').value === issue) {
-                    mobileRenderPosterSlider(issue);
-                }
-
                 alert('上傳成功');
                 document.getElementById('posterUpload').value = '';
             };
@@ -737,10 +691,10 @@
         }
 
         // 刪除單張海報
-        window.deleteSinglePoster = function () {
+        window.deleteSinglePoster = function() {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
-
+            
             if (!window.libraryData.issues[issue]?.posters[num]) {
                 alert('該海報不存在');
                 return;
@@ -750,16 +704,11 @@
                 window.libraryData.issues[issue].posters[num] = '';
                 saveData();
                 renderPosterThumbs(issue);
-
-                // 移动端同步删除
-                if (currentDevice === 'mobile' && document.getElementById('mobileIssueSelect').value === issue) {
-                    mobileRenderPosterSlider(issue);
-                }
             }
         }
 
         // 刪除整期
-        window.deleteWholeIssue = async function () {
+        window.deleteWholeIssue = async function() {
             const issue = document.getElementById('posterIssueSelect').value;
             if (!window.libraryData.issues[issue]) {
                 alert('該期不存在');
@@ -774,36 +723,24 @@
                 await saveData();
                 renderIssueSelectors();
                 showLatestIssue();
-
-                // 移动端同步更新
-                if (currentDevice === 'mobile') {
-                    mobileRenderIssueSelector();
-                    mobileShowLatestIssue();
-                }
             }
         }
 
         // 新增期數
-        window.addNewIssue = async function () {
+        window.addNewIssue = async function() {
             const newIssue = window.libraryData.latestIssue + 1;
             window.libraryData.issues[newIssue] = {
-                posters: { 1: '', 2: '' },
-                books: { 1: {}, 2: {} }
+                posters: {1: '', 2: ''},
+                books: {1: {}, 2: {}}
             };
             window.libraryData.latestIssue = newIssue;
             await saveData();
             renderIssueSelectors();
-
-            // 移动端同步更新
-            if (currentDevice === 'mobile') {
-                mobileRenderIssueSelector();
-            }
-
             alert(`已新增第${newIssue}期`);
         }
 
         // 保存書籍信息
-        window.saveBookInfo = function () {
+        window.saveBookInfo = function() {
             const title = document.getElementById('bookTitle').value.trim();
             if (!title) {
                 alert('請輸入書名');
@@ -815,7 +752,7 @@
             const bookNum = document.getElementById('bookNumSelect').value;
 
             if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
+                window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
             }
             if (!window.libraryData.issues[issue].books[posterNum]) {
                 window.libraryData.issues[issue].books[posterNum] = {};
@@ -823,10 +760,10 @@
 
             let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
-
+            
             if (coverFile) {
                 const reader = new FileReader();
-                reader.onload = function (e) {
+                reader.onload = function(e) {
                     coverUrl = e.target.result;
                     saveBookData(coverUrl);
                 };
@@ -848,23 +785,17 @@
                 };
                 saveData();
                 renderBooks(issue, posterNum);
-
-                // 移动端同步更新
-                if (currentDevice === 'mobile' && document.getElementById('mobileIssueSelect').value === issue) {
-                    mobileRenderBooks(issue, posterNum);
-                }
-
                 alert('儲存成功');
                 document.getElementById('bookCoverUpload').value = '';
             }
         }
 
         // 刪除書籍
-        window.deleteBookInfo = function () {
+        window.deleteBookInfo = function() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
-
+            
             if (!window.libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
                 alert('該書籍不存在');
                 return;
@@ -874,332 +805,11 @@
                 delete window.libraryData.issues[issue].books[posterNum][bookNum];
                 saveData();
                 renderBooks(issue, posterNum);
-
-                // 移动端同步删除
-                if (currentDevice === 'mobile' && document.getElementById('mobileIssueSelect').value === issue) {
-                    mobileRenderBooks(issue, posterNum);
-                }
             }
         }
 
-        // ========== 设备选择核心功能 ==========
-        let currentDevice = localStorage.getItem('libraryDevice') || '';
-
-        // 页面加载时触发设备选择
-        window.onload = function () {
-            if (!currentDevice) {
-                // 显示设备选择弹窗
-                document.getElementById('deviceSelectModal').style.display = 'flex';
-            } else {
-                // 已选择过设备，直接加载对应版本
-                initDeviceVersion(currentDevice);
-                // 加载原有数据
-                loadData();
-            }
-        }
-
-        // 手动选择设备
-        window.setDevice = function (deviceType) {
-            currentDevice = deviceType;
-            localStorage.setItem('libraryDevice', deviceType); // 记住选择
-            document.getElementById('deviceSelectModal').style.display = 'none';
-            initDeviceVersion(deviceType);
-            loadData(); // 加载原有数据
-        }
-
-        // 自动识别设备（手机/电脑）
-        function autoDetectDevice() {
-            if (!currentDevice) {
-                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                currentDevice = isMobile ? 'mobile' : 'pc';
-                localStorage.setItem('libraryDevice', currentDevice);
-                document.getElementById('deviceSelectModal').style.display = 'none';
-                initDeviceVersion(currentDevice);
-                loadData(); // 加载原有数据
-            }
-        }
-
-        // 初始化对应设备的版本显示
-        function initDeviceVersion(deviceType) {
-            if (deviceType === 'mobile') {
-                document.getElementById('mobileNav').classList.remove('hidden');
-                document.getElementById('mobileContent').classList.remove('hidden');
-                document.getElementById('navBar').classList.add('hidden');
-            } else {
-                // 电脑版，确保隐藏移动端元素
-                document.getElementById('mobileNav').classList.add('hidden');
-                document.getElementById('mobileContent').classList.add('hidden');
-                document.getElementById('navBar').classList.remove('hidden');
-            }
-        }
-
-        // ========== 移动端核心功能 ==========
-        // 创建移动端书籍卡片
-        function createMobileBookCard(book) {
-            const card = document.createElement('div');
-            card.className = 'book-card';
-            card.dataset.id = book.id;
-
-            let statusText, statusClass, reserveBtn;
-            if (book.status === 'in') {
-                statusText = '在架\n可預約';
-                statusClass = 'status-in';
-                reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-                reserveBtn = '';
-            } else {
-                statusText = '已被預約';
-                statusClass = 'status-reserved';
-                reserveBtn = '';
-            }
-
-            card.innerHTML = `
-                <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
-                <h3 class="book-title">${book.title}</h3>
-                <p>作者: ${book.author || '待編輯'}</p>
-                <div class="book-status-bar">
-                    <span class="book-status ${statusClass}">${statusText}</span>
-                    ${reserveBtn}
-                </div>
-            `;
-
-            // 点击卡片切换显示/隐藏完整信息
-            card.addEventListener('click', function (e) {
-                if (!e.target.closest('.reserve-btn')) {
-                    const book = window.libraryData.allBooks.find(b => b.id === this.dataset.id);
-                    if (book) {
-                        // 显示放大弹窗
-                        const modal = document.createElement('div');
-                        modal.className = 'modal';
-                        modal.style.zIndex = '300';
-                        modal.innerHTML = `
-                <div style="background: white; padding: 20px; border-radius: 12px; max-width: 90%;">
-                    <img src="${book.cover}" style="width: 120px; height: 180px; margin: 0 auto; display: block;">
-                    <h3 style="text-align: center; margin: 15px 0;">${book.title}</h3>
-                    <p>作者: ${book.author || '待編輯'}</p>
-                    <p>簡介: ${book.intro || '待編輯'}</p>
-                    <p>適合: ${book.suitable || '待編輯'}</p>
-                    <p>索書號: ${book.callNo || '待編輯'}</p>
-                    <div style="text-align: center; margin-top: 20px;">
-                        <span class="book-status ${book.status === 'in' ? 'status-in' : book.status === 'out' ? 'status-out' : 'status-reserved'}">
-                            ${book.status === 'in' ? '在架\n可預約' : book.status === 'out' ? '不在架' : '已被預約'}
-                        </span>
-                    </div>
-                </div>
-            `;
-                        document.body.appendChild(modal);
-                        // 点击关闭
-                        modal.onclick = function () {
-                            document.body.removeChild(modal);
-                        };
-                    }
-                }
-            });
-
-            return card;
-        }
-
-        // 移动端切换期数
-        window.mobileSwitchIssue = function (issue) {
-            const issueNum = Number(issue);
-            // 新增：同步海報标题
-            document.getElementById('mobileIssueTitle').textContent = `第${issueNum}期海報`;
-            // 渲染移动端海报滑动区
-            mobileRenderPosterSlider(issueNum);
-            // 渲染移动端书籍
-            mobileRenderBooks(issueNum, 1);
-        }
-
-        // 移动端显示最新一期
-        window.mobileShowLatestIssue = function () {
-            const latest = window.libraryData.latestIssue;
-            document.getElementById('mobileIssueSelect').value = latest;
-            mobileSwitchIssue(latest);
-            // 隐藏返回按钮
-            document.getElementById('mobileBackBtn').classList.add('hidden');
-        }
-
-        // 移动端渲染海报滑动区
-        function mobileRenderPosterSlider(issue) {
-            const track = document.getElementById('mobilePosterTrack');
-            const indicators = document.getElementById('mobileSliderIndicators');
-            track.innerHTML = '';
-
-            // 加载2张海报
-            for (let i = 1; i <= 2; i++) {
-                const url = window.libraryData.issues[issue]?.posters[i] || '';
-                if (url) {
-                    track.innerHTML += `<img src="${url}" class="poster-thumb" onclick="mobileZoomPoster('${url}')">`;
-                } else {
-                    track.innerHTML += `<div class="poster-thumb placeholder" onclick="mobileZoomPoster('')">海報${i}<br>[暫未上傳]</div>`;
-                }
-            }
-
-            // 绑定滑动事件（左右滑动切换海报）
-            let startX = 0;
-            track.addEventListener('touchstart', (e) => {
-                startX = e.touches[0].clientX;
-                e.preventDefault(); // 阻止页面滚动
-            }, { passive: false });
-            track.addEventListener('touchmove', (e) => {
-                e.preventDefault(); // 滑动中阻止页面滚动
-            }, { passive: false });
-            track.addEventListener('touchend', (e) => {
-                const endX = e.changedTouches[0].clientX;
-                const diff = endX - startX;
-                if (diff > 50) {
-                    mobilePrevPoster(); // 左滑
-                } else if (diff < -50) {
-                    mobileNextPoster(); // 右滑
-                }
-            });
-        }
-
-        // 移动端海报放大/缩小
-        window.mobileZoomPoster = function (url) {
-            const modal = document.getElementById('mobilePosterZoomModal');
-            const img = document.getElementById('mobileZoomedPoster');
-            img.src = url;
-            modal.classList.toggle('hidden');
-
-            // 点击任意位置关闭
-            modal.onclick = function (e) {
-                // 只允许点击黑色背景关闭，点击白色内容区不关闭
-                if (e.target === modal) {
-                    document.body.removeChild(modal);
-                }
-            };
-        }
-        // 移动端切换上一张海报
-        function mobilePrevPoster() {
-            const track = document.getElementById('mobilePosterTrack');
-            const indicators = document.querySelectorAll('.indicator');
-            const currentTranslate = getComputedStyle(track).transform;
-            const matrix = new DOMMatrix(currentTranslate);
-            const x = matrix.e;
-            if (x < 0) {
-                const newX = x + 100;
-                track.style.transform = `translateX(${newX}%)`;
-                // 同步指示器
-                const activeIndex = Math.abs(newX / 100);
-                indicators.forEach((ind, i) => ind.classList.toggle('active', i === activeIndex));
-            }
-        }
-
-        // 移动端切换下一张海报
-        function mobileNextPoster() {
-            const track = document.getElementById('mobilePosterTrack');
-            const indicators = document.querySelectorAll('.indicator');
-            const currentTranslate = getComputedStyle(track).transform;
-            const matrix = new DOMMatrix(currentTranslate);
-            const x = matrix.e;
-            const maxTranslate = -(document.querySelectorAll('.poster-thumb').length - 1) * 100;
-            if (x > maxTranslate) {
-                const newX = x - 100;
-                track.style.transform = `translateX(${newX}%)`;
-                // 同步指示器
-                const activeIndex = Math.abs(newX / 100);
-                indicators.forEach((ind, i) => ind.classList.toggle('active', i === activeIndex));
-            }
-        }
-        // 移动端渲染书籍卡片（2列布局）
-        function mobileRenderBooks(issue, posterNum) {
-            const container = document.getElementById('mobileBooksContainer');
-            container.innerHTML = '';
-
-            // 确保数据结构存在
-            if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
-            }
-            if (!window.libraryData.issues[issue].books[posterNum]) {
-                window.libraryData.issues[issue].books[posterNum] = {};
-            }
-            const books = window.libraryData.issues[issue].books[posterNum];
-
-            // 生成9本书籍卡片（移动端简化版）
-            for (let i = 1; i <= 9; i++) {
-                const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
-                let book = books[i] || {
-                    id: bookId,
-                    title: '新書' + i,
-                    author: '待編輯',
-                    status: 'in',
-                    cover: `https://via.placeholder.com/100x150?text=新書${i}`,
-                    intro: '待編輯',
-                    suitable: '待編輯',
-                    callNo: '待編輯'
-                };
-                book.id = bookId;
-                books[i] = book;
-
-                const card = createMobileBookCard(book);
-                container.appendChild(card);
-            }
-        }
-
-        // 移动端分类切换
-        window.toggleCategory = function () {
-            const categoryContainer = document.getElementById('mobileCategoryContainer');
-            categoryContainer.classList.toggle('hidden');
-        }
-
-        // 移动端搜索框切换
-        window.toggleSearch = function () {
-            const searchContainer = document.getElementById('mobileSearchContainer');
-            searchContainer.classList.toggle('hidden');
-        }
-
-        // 移动端推荐页面显示/隐藏
-        window.showRecommendPage = function () {
-            document.getElementById('mobileRecommendPage').classList.remove('hidden');
-            mobileRenderRecommendList();
-        }
-
-        window.hideRecommendPage = function () {
-            document.getElementById('mobileRecommendPage').classList.add('hidden');
-        }
-
-        // 移动端渲染推荐书籍列表（2列布局）
-        function mobileRenderRecommendList() {
-            const list = document.getElementById('mobileRecommendList');
-            list.innerHTML = '';
-            const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-
-            if (sorted.length === 0) {
-                list.innerHTML = '<p style="grid-column: 1/-1; text-align: center; padding: 20px;">暫無推薦記錄</p>';
-                return;
-            }
-
-            sorted.forEach(r => {
-                let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
-                let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
-
-                list.innerHTML += `
-                    <div class="recommend-item">
-                        <span class="recommend-status ${statusClass}">${statusText}</span>
-                        <span class="recommend-name">${r.bookName}</span>
-                    </div>
-                `;
-            });
-        }
-
-        // 移动端期数选择器渲染
-        function mobileRenderIssueSelector() {
-            const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
-            const mobileSelect = document.getElementById('mobileIssueSelect');
-            mobileSelect.innerHTML = '';
-            issues.forEach(issue => {
-                mobileSelect.innerHTML += `<option value="${issue}">第${issue}期</option>`;
-            });
-            mobileSelect.value = window.libraryData.latestIssue;
-        }
-
-        // 移动端回到顶部
-        window.scrollToTop = function () {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        // 頁面加載完成後載入數據
+        window.onload = loadData;
     </script>
     <style>
         /* 基礎樣式 */
@@ -1213,124 +823,90 @@
             --gray-dark: #8e8e93;
             --text: #1d1d1f;
             --text-light: #6e6e73;
-            --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 20px rgba(0,0,0,0.05);
             --radius: 12px;
             --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif;
-            max-width: 1440px;
-            margin: 0 auto;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif; 
+            max-width: 1440px; 
+            margin: 0 auto; 
             color: var(--text);
             background-color: var(--gray-light);
             line-height: 1.6;
             padding-bottom: 50px;
         }
-
-        .hidden {
-            display: none !important;
-        }
-
-        button,
-        input,
-        select,
-        textarea {
-            padding: 8px 16px;
-            margin: 5px;
-            border: 1px solid var(--gray);
-            border-radius: var(--radius);
+        .hidden { display: none !important; }
+        button, input, select, textarea { 
+            padding: 8px 16px; 
+            margin: 5px; 
+            border: 1px solid var(--gray); 
+            border-radius: var(--radius); 
             font-family: inherit;
             transition: var(--transition);
         }
-
-        button {
-            cursor: pointer;
-            border: none;
+        button { 
+            cursor: pointer; 
+            border: none; 
             font-weight: 500;
         }
-
-        button:hover {
+        button:hover { 
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
         /* 按鈕樣式 */
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .btn-secondary {
-            background: var(--secondary);
-            color: white;
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-        }
-
-        .btn-text {
-            background: transparent;
-            color: var(--primary);
-        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: var(--secondary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-text { background: transparent; color: var(--primary); }
 
         /* 頂部區域 */
-        .header {
-            text-align: center;
-            padding: 60px 20px 40px;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(245, 245, 247, 1) 100%);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 120px;
-            background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px),
+.header { 
+    text-align: center; 
+    padding: 60px 20px 40px;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(245,245,247,1) 100%);
+    position: relative;
+    overflow: hidden;
+}
+.header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 120px;
+    background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px),
                 linear-gradient(#f0f0f0 1px, transparent 1px);
-            background-size: 20px 20px;
-            opacity: 0.4;
-            z-index: 1;
-        }
-
-        .header h1 {
-            color: var(--text);
-            margin: 10px 0 20px;
-            font-weight: 600;
-            font-size: clamp(2rem, 5vw, 3rem);
-            letter-spacing: -0.02em;
-            line-height: 1.1;
-            position: relative;
-            z-index: 2;
-            background: linear-gradient(90deg, #1d1d1f, #6e6e73);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-
-        .issue-selector {
-            margin: 15px 0;
-        }
+    background-size: 20px 20px;
+    opacity: 0.4;
+    z-index: 1;
+}
+.header h1 { 
+    color: var(--text); 
+    margin: 10px 0 20px; 
+    font-weight: 600;
+    font-size: clamp(2rem, 5vw, 3rem); /* 響應式字體 */
+    letter-spacing: -0.02em; /* 緊湊字距 */
+    line-height: 1.1;
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(90deg, #1d1d1f, #6e6e73);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent; /* 漸變文字 */
+}
+        .issue-selector { margin: 15px 0; }
 
         /* 導航欄 */
-        .nav-bar {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-            padding: 15px 20px;
+        .nav-bar { 
+            display: flex; 
+            flex-wrap: wrap; 
+            align-items: center; 
+            gap: 10px; 
+            padding: 15px 20px; 
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(20px);
             box-shadow: var(--shadow);
@@ -1339,37 +915,32 @@
             z-index: 5;
             margin-bottom: 30px;
         }
-
-        .nav-item {
-            padding: 10px 18px;
-            border-radius: 20px;
-            cursor: pointer;
+        .nav-item { 
+            padding: 10px 18px; 
+            border-radius: 20px; 
+            cursor: pointer; 
             white-space: nowrap;
             font-weight: 500;
             transition: var(--transition);
         }
-
-        .nav-item:hover {
+        .nav-item:hover { 
             background: var(--gray-light);
             color: var(--primary);
         }
 
-        /* 导航项活跃状态 */
-        .nav-item.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .nav-item.category-dropdown.active .category-trigger {
-            color: white;
-        }
-
-        .keyword-search {
-            margin-left: auto;
+/* 导航项活跃状态 */
+.nav-item.active {
+    background: var(--primary);
+    color: white;
+}
+.nav-item.category-dropdown.active .category-trigger {
+    color: white;
+}
+        .keyword-search { 
+            margin-left: auto; 
             display: flex;
             align-items: center;
         }
-
         .keyword-search input {
             min-width: 250px;
             background: var(--gray-light);
@@ -1377,202 +948,150 @@
         }
 
         /* 分類下拉菜單 */
-        .category-dropdown {
-            position: relative;
-        }
-
-        .category-trigger {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
+        .category-dropdown { position: relative; }
+        .category-trigger { display: flex; align-items: center; gap: 5px; }
         .category-trigger::after {
             content: "▼";
             font-size: 0.8em;
             opacity: 0.7;
         }
-
-        .category-menu {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background: white;
-            border-radius: var(--radius);
-            padding: 10px 0;
-            width: 200px;
-            z-index: 10;
-            display: none;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        .category-menu { 
+            position: absolute; 
+            top: 100%; 
+            left: 0; 
+            background: white; 
+            border-radius: var(--radius); 
+            padding: 10px 0; 
+            width: 200px; 
+            z-index: 10; 
+            display: none; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             margin-top: 8px;
         }
-
-        .category-menu.visible {
-            display: block;
-        }
-
-        .category-item {
-            padding: 10px 16px;
-            cursor: pointer;
+        .category-menu.visible { display: block; }
+        .category-item { 
+            padding: 10px 16px; 
+            cursor: pointer; 
             transition: var(--transition);
         }
-
-        .category-item:hover {
+        .category-item:hover { 
             background: var(--gray-light);
             color: var(--primary);
         }
 
         /* 海報區 */
-        .poster-section {
-            margin: 0 20px 40px;
+        .poster-section { 
+            margin: 0 20px 40px; 
             padding: 30px;
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
         }
-
-        .poster-thumbnails {
-            display: flex;
-            gap: 30px;
-            margin: 30px 0;
+        .poster-thumbnails { 
+            display: flex; 
+            gap: 30px; 
+            margin: 30px 0; 
             justify-content: center;
             width: 100%;
         }
-
-        .poster-thumb {
+        .poster-thumb { 
             flex: 1;
-            max-width: 50%;
-            /* 限制最大宽度为50%，两张开满屏幕 */
-            height: auto;
-            max-height: 600px;
-            /* 限制最大高度 */
-            object-fit: contain;
-            cursor: pointer;
-            border-radius: var(--radius);
-            background: var(--gray-light);
+            max-width: 500px;
+            height: auto; 
+            min-height: 300px;
+            object-fit: contain; 
+            cursor: pointer; 
+            border-radius: var(--radius); 
+            background: var(--gray-light); 
             padding: 20px;
             transition: var(--transition);
         }
-
-        .poster-thumb:hover {
-            transform: scale(1.02);
-        }
-
-        .poster-thumb.placeholder {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--gray-dark);
+        .poster-thumb:hover { transform: scale(1.02); }
+        .poster-thumb.placeholder { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: var(--gray-dark); 
             font-size: 1.2em;
         }
 
         /* 書籍資料格（固定3列） */
-        .books-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 30px;
-            margin: 30px 0;
+        .books-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); /* 固定3列 */
+            gap: 30px; 
+            margin: 30px 0; 
             max-width: 1200px;
-            margin-left: auto;
+            margin-left: auto; 
             margin-right: auto;
         }
-
-        .book-card {
-            padding: 20px;
-            border-radius: var(--radius);
-            transition: var(--transition);
+        .book-card { 
+            padding: 20px; 
+            border-radius: var(--radius); 
+            transition: var(--transition); 
             background: white;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
         }
-
         .book-card[data-group="1"],
         .book-card[data-group="3"],
-        .book-card[data-group="5"] {
+        .book-card[data-group="5"] { 
             border-top: 3px solid var(--primary);
         }
-
         .book-card[data-group="2"],
         .book-card[data-group="4"],
-        .book-card[data-group="6"] {
+        .book-card[data-group="6"] { 
             border-top: 3px solid var(--secondary);
         }
-
-        .book-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
+        .book-card:hover { 
+            transform: translateY(-8px); 
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08);
         }
-
-        .book-cover {
-            width: 100px;
-            height: 150px;
-            object-fit: cover;
-            margin: 0 auto 20px;
-            display: block;
+        .book-cover { 
+            width: 100px; 
+            height: 150px; 
+            object-fit: cover; 
+            margin: 0 auto 20px; 
+            display: block; 
             border-radius: 6px;
         }
-
-        .book-title {
-            text-align: center;
-            margin: 10px 0 20px;
+        .book-title { 
+            text-align: center; 
+            margin: 10px 0 20px; 
             font-size: 1.1em;
             min-height: 40px;
             font-weight: 600;
         }
-
-        .book-card p {
-            margin: 8px 0;
-            font-size: 0.95em;
-        }
-
-        .book-status-bar {
-            margin: 20px 0 10px;
-            display: flex;
-            justify-content: space-between;
+        .book-card p { margin: 8px 0; font-size: 0.95em; }
+        .book-status-bar { 
+            margin: 20px 0 10px; 
+            display: flex; 
+            justify-content: space-between; 
             align-items: center;
         }
-
-        .book-status {
-            font-weight: 500;
+        .book-status { 
+            font-weight: 500; 
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.9em;
         }
-
-        .status-in {
-            color: var(--success);
-            background: rgba(52, 199, 89, 0.1);
-            white-space: pre-line;
-            /* 允许换行 */
-            text-align: center;
-            padding: 4px 5px;
-        }
-
-        .status-out {
-            color: var(--danger);
-            background: rgba(255, 59, 48, 0.1);
-        }
-
-        .status-reserved {
-            color: var(--secondary);
-            background: rgba(255, 149, 0, 0.1);
-        }
-
-        .reserve-btn {
-            background: var(--primary);
+        .status-in { color: var(--success); background: rgba(52, 199, 89, 0.1); }
+        .status-out { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
+        .status-reserved { color: var(--secondary); background: rgba(255, 149, 0, 0.1); }
+        .reserve-btn { 
+            background: var(--primary); 
             color: white;
             padding: 6px 16px;
             border-radius: 20px;
         }
 
         /* 推薦購書區 */
-        .user-recommends {
-            margin: 0 20px 40px;
-            padding: 30px;
-            background: white;
-            border-radius: var(--radius);
+        .user-recommends { 
+            margin: 0 20px 40px; 
+            padding: 30px; 
+            background: white; 
+            border-radius: var(--radius); 
             box-shadow: var(--shadow);
         }
-
         .recommend-header {
             display: flex;
             align-items: center;
@@ -1581,105 +1100,78 @@
             padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
-
-        .recommend-header h3 {
+        .recommend-header h3 { 
             margin: 0;
             font-size: 1.5em;
             font-weight: 600;
         }
-
-        .recommend-list {
-            display: flex;
+        .recommend-list { 
+            display: flex; 
             flex-direction: column;
-            gap: 15px;
+            gap: 15px; 
             margin-top: 15px;
         }
-
-        .recommend-item {
-            padding: 15px 20px;
-            border: 1px solid var(--gray-light);
-            border-radius: var(--radius);
+        .recommend-item { 
+            padding: 15px 20px; 
+            border: 1px solid var(--gray-light); 
+            border-radius: var(--radius); 
             background: white;
             display: flex;
             align-items: center;
         }
-
-        .recommend-index {
-            width: 30px;
+        .recommend-index { 
+            width: 30px; 
             height: 30px;
-            text-align: center;
+            text-align: center; 
             line-height: 30px;
-            margin-right: 15px;
+            margin-right: 15px; 
             color: white;
             background: var(--primary);
             border-radius: 50%;
         }
-
-        .recommend-name {
-            flex: 1;
-            font-weight: 500;
-        }
-
-        .recommend-status {
+        .recommend-name { flex: 1; font-weight: 500; }
+        .recommend-status { 
             padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            margin-left: 15px;
+            border-radius: 20px; 
+            font-size: 0.85em; 
+            margin-left: 15px; 
         }
-
-        .status-recorded {
-            background: rgba(52, 199, 89, 0.1);
-            color: var(--success);
-        }
-
-        .status-invalid {
-            background: rgba(255, 59, 48, 0.1);
-            color: var(--danger);
-        }
-
-        .status-pending {
-            background: rgba(255, 149, 0, 0.1);
-            color: var(--secondary);
-        }
+        .status-recorded { background: rgba(52, 199, 89, 0.1); color: var(--success); }
+        .status-invalid { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+        .status-pending { background: rgba(255, 149, 0, 0.1); color: var(--secondary); }
 
         /* 彈窗樣式 */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
+        .modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.3); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 100; 
             backdrop-filter: blur(2px);
         }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: var(--radius);
-            width: 90%;
-            max-width: 400px;
-            position: relative;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
+        .modal-content { 
+            background: white; 
+            padding: 30px; 
+            border-radius: var(--radius); 
+            width: 90%; 
+            max-width: 400px; 
+            position: relative; 
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
         }
-
-        .close-modal {
-            position: absolute;
-            top: 20px;
-            right: 25px;
-            cursor: pointer;
-            font-size: 1.5em;
+        .close-modal { 
+            position: absolute; 
+            top: 20px; 
+            right: 25px; 
+            cursor: pointer; 
+            font-size: 1.5em; 
             color: var(--gray-dark);
         }
-
-        .close-modal:hover {
-            color: var(--danger);
-        }
-
+        .close-modal:hover { color: var(--danger); }
         .modal-content h3 {
             color: var(--text);
             margin-bottom: 25px;
@@ -1696,49 +1188,42 @@
         }
 
         /* 管理員後台 */
-        .admin-panel {
-            margin: 20px;
-            padding: 30px;
-            background: white;
-            border-radius: var(--radius);
+        .admin-panel { 
+            margin: 20px; 
+            padding: 30px; 
+            background: white; 
+            border-radius: var(--radius); 
             box-shadow: var(--shadow);
         }
-
         .admin-panel h2 {
             margin-bottom: 30px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
-
-        .form-group {
-            margin: 30px 0;
-            padding: 25px;
-            border: 1px solid var(--gray-light);
-            border-radius: var(--radius);
-            background: var(--gray-light);
+        .form-group { 
+            margin: 30px 0; 
+            padding: 25px; 
+            border: 1px solid var(--gray-light); 
+            border-radius: var(--radius); 
+            background: var(--gray-light); 
         }
-
-        .form-group h3 {
-            margin-bottom: 20px;
-        }
-
-        .book-editor {
-            margin: 15px 0;
-            padding: 20px;
-            border: 1px dashed var(--gray);
+        .form-group h3 { margin-bottom: 20px; }
+        .book-editor { 
+            margin: 15px 0; 
+            padding: 20px; 
+            border: 1px dashed var(--gray); 
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             background: white;
             border-radius: 8px;
         }
-
-        .record-item {
-            padding: 15px;
-            border-bottom: 1px solid var(--gray-light);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .record-item { 
+            padding: 15px; 
+            border-bottom: 1px solid var(--gray-light); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
         }
 
         /* 載入提示 */
@@ -1748,7 +1233,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255,255,255,0.8);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1768,435 +1253,52 @@
             z-index: 4;
         }
 
-        /* 響應式調整（电脑版） */
+        /* 響應式調整 */
         @media (max-width: 768px) {
-            .books-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .poster-thumbnails {
-                flex-direction: column;
-            }
-
-            .poster-thumb {
-                max-width: 100%;
-            }
-
-            .nav-bar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .keyword-search {
-                margin-left: 0;
-                width: 100%;
-            }
-
-            .keyword-search input {
-                width: 70%;
-            }
+            .books-grid { grid-template-columns: 1fr 1fr; }
+            .poster-thumbnails { flex-direction: column; }
+            .poster-thumb { max-width: 100%; }
+            .nav-bar { flex-direction: column; align-items: stretch; }
+            .keyword-search { margin-left: 0; width: 100%; }
+            .keyword-search input { width: 70%; }
         }
 
         @media (max-width: 480px) {
-            .books-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .keyword-search input {
-                width: 60%;
-            }
-
-            .header h1 {
-                font-size: 1.5rem;
-            }
-        }
-
-        /* ========== 设备选择弹窗样式 ========== */
-        .device-select-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .device-select-modal .modal-content {
-            padding: 40px 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-
-        .device-buttons {
-            display: flex;
-            gap: 20px;
-            margin: 30px 0;
-            justify-content: center;
-        }
-
-        .device-btn {
-            padding: 15px 30px;
-            background: #0071e3;
-            color: white;
-            font-size: 1.1rem;
-            border-radius: 12px;
-        }
-
-        .auto-tip {
-            color: #8e8e93;
-            font-size: 0.9rem;
-        }
-
-        /* ========== 移动端通用样式 ========== */
-        .mobile-nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-        }
-
-        .fixed-header {
-            background: #1d1d1f;
-            color: white;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-        }
-
-        .header-title {
-            font-size: 1.2rem;
-            font-weight: 500;
-            margin: 0;
-            cursor: pointer;
-        }
-
-        .header-buttons {
-            display: flex;
-            gap: 15px;
-        }
-
-        .header-btn {
-            background: transparent;
-            color: white;
-            border: none;
-            font-size: 1.1rem;
-            padding: 5px;
-            margin: 0;
-        }
-
-        /* 移动端搜索框样式 */
-        .search-container {
-            padding: 15px 20px;
-            background: #1d1d1f;
-            border-top: 1px solid #333;
-            display: flex;
-            gap: 10px;
-        }
-
-        .search-container input {
-            flex: 1;
-            background: #333;
-            color: white;
-            border: none;
-            margin: 0;
-        }
-
-        .search-container button {
-            background: #0071e3;
-            color: white;
-            margin: 0;
-        }
-
-        /* 移动端分类菜单样式 */
-        .category-container {
-            position: fixed;
-            top: 60px;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: white;
-            z-index: 99;
-            overflow-y: auto;
-        }
-
-        .category-items {
-            padding: 20px;
-        }
-
-        .category-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            font-size: 1.1rem;
-            color: #1d1d1f;
-        }
-
-        .category-item:hover {
-            background: #f5f5f7;
-        }
-
-
-        .latest-issue-btn {
-            background: #0071e3;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 12px;
-        }
-
-        /* 移动端海报滑动样式 */
-        .poster-slider {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            margin: 0 20px;
-            border-radius: 12px;
-        }
-
-        .poster-track {
-            display: flex;
-            transition: transform 0.3s ease;
-        }
-
-        .poster-thumb {
-            min-width: 100%;
-            height: auto;
-            border-radius: 12px;
-        }
-
-        .slider-indicators {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin: 15px 0;
-        }
-
-        .indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ccc;
-        }
-
-        .indicator.active {
-            background: #0071e3;
-        }
-
-        /* 海报放大弹层样式 */
-        .poster-zoom-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 200;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .zoomed-poster {
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-        }
-
-        /* 移动端书籍卡片区 */
-        .mobile-books-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            padding: 0 20px 40px;
-        }
-
-        .book-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            padding: 15px;
-            border-radius: 12px;
-            background: white;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-            transition: transform 0.3s ease;
-        }
-
-        .book-card:active {
-            transform: scale(1.05) rotate(1deg);
-        }
-
-        .book-cover {
-            width: 80px;
-            height: 120px;
-            margin-bottom: 10px;
-            border-radius: 6px;
-        }
-
-        .book-title {
-            font-size: 0.9rem;
-            min-height: auto;
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-
-        .book-card p {
-            font-size: 0.8rem;
-            margin: 5px 0;
-            color: #6e6e73;
-        }
-
-        .book-status-bar {
-            width: 100%;
-            margin-top: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .reserve-btn {
-            background: #0071e3;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-        }
-
-        /* 移动端推荐按钮样式 */
-        .recommend-book-btn {
-            display: block;
-            width: 90%;
-            margin: 0 auto 40px;
-            padding: 15px;
-            background: #0071e3;
-            color: white;
-            font-size: 1rem;
-            border-radius: 12px;
-        }
-
-        /* 移动端返回按钮样式 */
-        .back-btn {
-            background: transparent;
-            color: #0071e3;
-            padding: 10px 20px;
-            margin: 20px;
-            border: none;
-            font-size: 1rem;
-        }
-
-        /* 移动端推荐页面样式 */
-        .recommend-page {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: white;
-            z-index: 150;
-            overflow-y: auto;
-        }
-
-        .page-header {
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid #eee;
-            padding: 15px 0;
-        }
-
-        .page-header h2 {
-            flex: 1;
-            text-align: center;
-            margin: 0;
-            font-size: 1.2rem;
-        }
-
-        .recommend-books-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            padding: 20px;
-        }
-
-        .add-recommend-btn {
-            position: fixed;
-            bottom: 20px;
-            left: 5%;
-            width: 90%;
-            padding: 15px;
-            background: #0071e3;
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-        }
-
-        .recommend-item {
-            padding: 15px;
-            border-radius: 12px;
-            background: #f5f5f7;
-            text-align: center;
-        }
-
-        .recommend-status {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            margin-bottom: 8px;
-            display: inline-block;
+            .books-grid { grid-template-columns: 1fr; }
+            .keyword-search input { width: 60%; }
+            .header h1 { font-size: 1.5rem; }
         }
     </style>
 </head>
-
 <body>
-    <!-- 设备选择弹窗（首次打开显示） -->
-    <div class="device-select-modal" id="deviceSelectModal">
-        <div class="modal-content">
-            <h3>选择浏览版本</h3>
-            <div class="device-buttons">
-                <button class="device-btn" onclick="setDevice('pc')">电脑版</button>
-                <button class="device-btn" onclick="setDevice('mobile')">手机版</button>
-            </div>
-            <p class="auto-tip">也可等待3秒自动识别设备</p>
-        </div>
-    </div>
-
     <!-- 載入提示 -->
     <div id="loadingIndicator" style="display: none;">
         正在載入圖書館資料...
     </div>
 
     <!-- 頂部區域 -->
-    <div class="header-divider"
-        style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;">
+<div class="header-divider" style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;"></div>
+<div class="header">
+    <h1>中學圖書館 | 每週新書速遞</h1>
+    <!-- 新增的小字 -->
+    <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
+        建議使用電腦瀏覽
     </div>
-    <div class="header">
-        <h1>中學圖書館 | 每週新書速遞</h1>
-        <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
-            建議使用電腦瀏覽
-        </div>
-        <div class="issue-selector">
-            <label>選擇期數: </label>
-            <select id="issueSelect" onchange="switchIssue(this.value)">
-                <option value="1">第1期</option>
-            </select>
-        </div>
+    <!-- 原有的期数选择器 -->
+    <div class="issue-selector">
+        <label>選擇期數: </label>
+        <select id="issueSelect" onchange="switchIssue(this.value)">
+            <option value="1">第1期</option>
+        </select>
     </div>
+</div>
 
     <!-- 導航欄 -->
-    <div class="nav-bar" id="navBar">
-        <div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
-        <div class="nav-item category-dropdown" onclick="setActiveNav(this)">
-            <span class="category-trigger">分類</span>
-            <div class="category-menu" id="categoryMenu">
+    <div class="nav-bar">
+<div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
+<div class="nav-item category-dropdown" onclick="setActiveNav(this)">
+    <span class="category-trigger">分類</span>
+    <div class="category-menu" id="categoryMenu">
                 <div class="category-item" data-category="all">全部</div>
                 <div class="category-item" data-category="000">000 總類</div>
                 <div class="category-item" data-category="100">100 哲學</div>
@@ -2208,127 +1310,13 @@
                 <div class="category-item" data-category="700">700 世界史</div>
                 <div class="category-item" data-category="800">800 語文</div>
                 <div class="category-item" data-category="900">900 藝術</div>
-            </div>
-        </div>
-        <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
+    </div>
+</div>
+<div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
         <div class="keyword-search">
             <label>關鍵詞: </label>
             <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
             <button onclick="searchBooks()">搜索</button>
-        </div>
-    </div>
-
-    <!-- 移动端导航 -->
-    <div class="mobile-nav hidden" id="mobileNav">
-        <div class="fixed-header">
-            <div class="header-content">
-                <h1 class="header-title" onclick="mobileShowLatestIssue()">圖書館新書</h1>
-                <div class="header-buttons">
-                    <button class="header-btn" onclick="toggleCategory()">分類</button>
-                    <button class="header-btn" onclick="toggleSearch()">搜索</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 移动端搜索框（默认隐藏） -->
-        <div class="search-container hidden" id="mobileSearchContainer">
-            <input type="text" id="mobileKeywordInput" placeholder="輸入書名/作者/索書號...">
-            <button onclick="mobileSearch()">查詢</button>
-        </div>
-
-        <!-- 移动端分类菜单（默认隐藏） -->
-        <div class="category-container hidden" id="mobileCategoryContainer">
-            <div class="category-items">
-                <div class="category-item" data-category="all" onclick="filterByCategory('all'); toggleCategory()">全部
-                </div>
-                <div class="category-item" data-category="000" onclick="filterByCategory('000'); toggleCategory()">000
-                    總類</div>
-                <div class="category-item" data-category="100" onclick="filterByCategory('100'); toggleCategory()">100
-                    哲學</div>
-                <div class="category-item" data-category="200" onclick="filterByCategory('200'); toggleCategory()">200
-                    宗教</div>
-                <div class="category-item" data-category="300" onclick="filterByCategory('300'); toggleCategory()">300
-                    科學</div>
-                <div class="category-item" data-category="400" onclick="filterByCategory('400'); toggleCategory()">400
-                    應用科學</div>
-                <div class="category-item" data-category="500" onclick="filterByCategory('500'); toggleCategory()">500
-                    社科</div>
-                <div class="category-item" data-category="600" onclick="filterByCategory('600'); toggleCategory()">600
-                    歷史</div>
-                <div class="category-item" data-category="700" onclick="filterByCategory('700'); toggleCategory()">700
-                    世界史</div>
-                <div class="category-item" data-category="800" onclick="filterByCategory('800'); toggleCategory()">800
-                    語文</div>
-                <div class="category-item" data-category="900" onclick="filterByCategory('900'); toggleCategory()">900
-                    藝術</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 移动端内容容器（默认隐藏） -->
-    <div class="mobile-content hidden" id="mobileContent">
-        <!-- 移动端期数选择区 -->
-
-        <div class="header-content" style="border-bottom: 1px solid #333; padding-bottom: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <label style="color: white;">第</label>
-                <select id="mobileIssueSelect" onchange="mobileSwitchIssue(this.value)"
-                    style="background: #333; color: white; border: none; padding: 5px; margin: 0;">
-                    <option value="1">1</option>
-                </select>
-                <label style="color: white;">期</label>
-                <button class="latest-issue-btn" onclick="mobileShowLatestIssue()"
-                    style="padding: 5px 10px; font-size: 0.8em;">最新一期</button>
-            </div>
-        </div>
-
-        <!-- 移动端海报滑动区 -->
-        <div style="padding: 15px 20px 5px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 id="mobileIssueTitle" style="margin: 0; font-size: 1.1em;">第1期海報</h3>
-                <span style="font-size: 0.8em; color: #8e8e93;">左右滑動 | 點擊放大</span>
-            </div>
-        </div>
-        <div class="poster-slider">
-            <div class="poster-track" id="mobilePosterTrack">
-                <!-- 动态生成海报 -->
-            </div>
-            <div class="slider-indicators" id="mobileSliderIndicators">
-                <span class="indicator active" data-index="0"></span>
-                <span class="indicator" data-index="1"></span>
-            </div>
-        </div>
-
-        <!-- 海报放大弹层 -->
-        <div class="poster-zoom-modal hidden" id="mobilePosterZoomModal">
-            <img src="" id="mobileZoomedPoster" class="zoomed-poster">
-        </div>
-
-        <!-- 移动端书籍卡片区 -->
-        <div id="mobileBooksContainer" class="mobile-books-grid">
-            <!-- 动态生成书籍卡片 -->
-        </div>
-
-        <!-- 移动端返回按钮（搜索后显示） -->
-        <button class="back-btn hidden" id="mobileBackBtn" onclick="mobileShowLatestIssue()">返回上一頁</button>
-
-        <!-- 移动端推荐新书按钮 -->
-        <button class="recommend-book-btn" onclick="showRecommendPage()"
-            style="position: fixed; bottom: 20px; left: 5%; width: 90%; margin: 0; z-index: 50;">推薦新書</button>
-
-        <!-- 移动端推荐书籍页面 -->
-        <div class="recommend-page hidden" id="mobileRecommendPage">
-            <div class="page-header"
-                style="padding: 15px 20px; display: flex; justify-content: center; align-items: center; position: relative;">
-                <button class="back-btn" onclick="hideRecommendPage()"
-                    style="position: absolute; left: 20px; margin: 0;">← 返回</button>
-                <h2 style="margin: 0; text-align: center; flex: 1;">大家推薦的書籍</h2>
-                <button class="add-recommend-btn" onclick="showRecommendForm()"
-                    style="position: absolute; right: 20px; margin: 0; padding: 8px 15px; font-size: 0.9em;">推薦新書</button>
-            </div>
-            <div class="recommend-books-grid" id="mobileRecommendList" style="padding-bottom: 80px;">
-                <!-- 动态生成推荐书籍 -->
-            </div>
         </div>
     </div>
 
@@ -2346,7 +1334,6 @@
     <!-- 海報區 -->
     <div class="poster-section content-section" id="posterSection">
         <h2 id="currentIssueTitle">第1期海報</h2>
-        <p style="color: #8e8e93; margin: -10px 0 20px; font-size: 0.9em;">點擊海報切換書籍資料</p>
         <div class="poster-thumbnails" id="posterThumbContainer">
             <div class="poster-thumb placeholder" data-poster="1">
                 海報1<br>[暫未上傳]
@@ -2468,7 +1455,7 @@
                     <option value="9">9</option>
                 </select>
             </div>
-
+            
             <div class="book-editor">
                 <input type="text" id="bookCallNo" placeholder="索書號">
                 <input type="text" id="bookTitle" placeholder="書名">
@@ -2518,5 +1505,4 @@
     <!-- 隱藏的管理員入口 -->
     <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
-
 </html>
