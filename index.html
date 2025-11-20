@@ -384,25 +384,30 @@ function createBookCard(book) {
     return card;
 }
 // 渲染書籍列表（统一ID格式）
+// 1. 修改 renderBooks（确保走到 await saveData）
 window.renderBooks = async function(issue, posterNum) {
+    console.log("=== renderBooks 开始执行 ===");
+    console.log("当前期数:", issue, "海报号:", posterNum);
     const container = document.getElementById('booksContainer');
     container.innerHTML = '';
-    // 确保基础数据结构存在
+
+    // 确保基础数据结构存在（不变）
     if (!window.libraryData.issues[issue]) {
         window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+        console.log("创建新期数数据结构:", issue);
     }
     if (!window.libraryData.issues[issue].books[posterNum]) {
         window.libraryData.issues[issue].books[posterNum] = {};
+        console.log("创建新海报书籍结构:", issue, "-", posterNum);
     }
     const books = window.libraryData.issues[issue].books[posterNum];
 
     for (let i = 1; i <= 9; i++) {
-        // 强制生成标准格式的书籍数据
-        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
         let book = books[i] || {
-            id: bookId, // 使用标准化ID
-            issue: issue.toString(), // 确保是字符串类型
-            posterNum: posterNum.toString(), // 确保是字符串类型
+            id: bookId,
+            issue: issue.toString(),
+            posterNum: posterNum.toString(),
             bookNum: i.toString(),
             callNo: '待編輯',
             title: '新書' + i,
@@ -413,18 +418,52 @@ window.renderBooks = async function(issue, posterNum) {
             status: 'in',
             cover: `https://via.placeholder.com/100x150?text=新書${i}`
         };
-        // 强制更新ID为标准格式
         book.id = bookId;
         books[i] = book;
         window.libraryData.issues[issue].books[posterNum][i] = book;
         
-        // 创建卡片时绑定正确的ID
         const card = createBookCard(book);
         card.dataset.group = Math.ceil(i / 3);
         container.appendChild(card);
     }
- await saveData();
+
+    console.log("=== 准备调用 saveData ===");
+    try {
+        await saveData(); // 等待保存
+        console.log("=== saveData 执行成功 ==="); // 关键日志
+    } catch (err) {
+        console.error("=== saveData 执行失败 ===", err); // 捕获错误
+    }
 }
+
+// 2. 修改 saveData（添加更细粒度日志）
+async function saveData() {
+    console.log("saveData 开始执行");
+    try {
+        // 先打印要保存的数据（确认数据存在）
+        console.log("准备保存的 issues 数据:", JSON.stringify(window.libraryData.issues, null, 2));
+        console.log("准备保存的 latestIssue:", window.libraryData.latestIssue);
+
+        collectAllBooks();
+        console.log("collectAllBooks 执行完成");
+
+        // 分两步保存（分别日志，定位哪步出问题）
+        console.log("开始保存 issues 到 Firebase");
+        await set(ref(db, "issues"), window.libraryData.issues);
+        console.log("issues 保存成功");
+
+        console.log("开始保存 settings 到 Firebase");
+        await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
+        console.log("settings 保存成功");
+
+        console.log("数据已完整保存到 Firebase");
+    } catch (err) {
+        console.error("saveData 保存失败:", err.message, err.stack); // 打印错误详情
+        alert("儲存失敗，錯誤：" + err.message);
+        throw err; // 抛出错误，让调用方捕获
+    }
+}
+
 
         // 渲染當前視圖
         function renderCurrentView() {
