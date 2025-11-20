@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -45,7 +46,7 @@
 
                 // 載入預約記錄
                 const reservesSnapshot = await get(ref(db, "reserves"));
-                window.libraryData.reserveRecords = reservesSnapshot.exists() 
+                window.libraryData.reserveRecords = reservesSnapshot.exists()
                     ? Object.values(reservesSnapshot.val()).map((r, i) => ({ ...r, id: Object.keys(reservesSnapshot.val())[i] }))
                     : [];
 
@@ -73,28 +74,28 @@
             }
         }
 
-// 收集所有書籍（确保海報书籍被正确收录）
-function collectAllBooks() {
-    window.libraryData.allBooks = [];
-    // 遍历所有期数
-    for (const issue in window.libraryData.issues) {
-        const issueData = window.libraryData.issues[issue];
-        // 遍历所有海報
-        for (const poster in issueData.books) {
-            const posterBooks = issueData.books[poster];
-            // 遍历所有书籍
-            for (const bookNum in posterBooks) {
-                const book = { ...posterBooks[bookNum] };
-                // 强制设置标准ID
-                book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
-                book.issue = issue;
-                book.posterNum = poster;
-                book.bookNum = bookNum;
-                window.libraryData.allBooks.push(book);
+        // 收集所有書籍（确保海報书籍被正确收录）
+        function collectAllBooks() {
+            window.libraryData.allBooks = [];
+            // 遍历所有期数
+            for (const issue in window.libraryData.issues) {
+                const issueData = window.libraryData.issues[issue];
+                // 遍历所有海報
+                for (const poster in issueData.books) {
+                    const posterBooks = issueData.books[poster];
+                    // 遍历所有书籍
+                    for (const bookNum in posterBooks) {
+                        const book = { ...posterBooks[bookNum] };
+                        // 强制设置标准ID
+                        book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
+                        book.issue = issue;
+                        book.posterNum = poster;
+                        book.bookNum = bookNum;
+                        window.libraryData.allBooks.push(book);
+                    }
+                }
             }
         }
-    }
-}
 
         // 儲存資料到 Firebase
         async function saveData() {
@@ -107,71 +108,71 @@ function collectAllBooks() {
             }
         }
 
-// 儲存預約記錄（修复状态同步）
-window.saveReserveRecord = async function(record) {
-    try {
-        const recordId = Date.now().toString();
-        await set(ref(db, `reserves/${recordId}`), record);
-        record.id = recordId;
-        window.libraryData.reserveRecords.push(record);
-        
-        // 解析标准化ID（适配新的ID格式）
-        const idParts = record.bookId.split('-'); // 格式：issue-x-poster-y-book-z
-        const issue = idParts[1];       // 提取期数
-        const poster = idParts[3];      // 提取海報号
-        const bookNum = idParts[5];     // 提取书籍号
+        // 儲存預約記錄（修复状态同步）
+        window.saveReserveRecord = async function (record) {
+            try {
+                const recordId = Date.now().toString();
+                await set(ref(db, `reserves/${recordId}`), record);
+                record.id = recordId;
+                window.libraryData.reserveRecords.push(record);
 
-        // 更新书籍状态为"已被預約"
-        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-            window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
-            await saveData();
-            collectAllBooks();
-            renderCurrentView(); // 立即刷新当前页面的书籍卡片
-        }
-        renderReserveRecords();
-    } catch (err) {
-        console.error("預約失敗:", err);
-        alert("預約失敗，請重試");
-    }
-}
-// 更新預約狀態（修复状态同步）
-window.updateReserveStatus = async function(index, status) {
-    try {
-        const record = window.libraryData.reserveRecords[index];
-        record.status = status;
-        await update(ref(db, `reserves/${record.id}`), { status });
-        
-        // 解析标准化ID
-        const idParts = record.bookId.split('-');
-        const issue = idParts[1];
-        const poster = idParts[3];
-        const bookNum = idParts[5];
+                // 解析标准化ID（适配新的ID格式）
+                const idParts = record.bookId.split('-'); // 格式：issue-x-poster-y-book-z
+                const issue = idParts[1];       // 提取期数
+                const poster = idParts[3];      // 提取海報号
+                const bookNum = idParts[5];     // 提取书籍号
 
-        // 根据不同状态更新书籍状态
-        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-            let bookStatus;
-            if (status === '已還書' || status === '找不到') {
-                bookStatus = 'in'; // 已還書或找不到时，恢复可预约
-            } else if (status === '借走了') {
-                bookStatus = 'out'; // 借走了时，标记为不在架
-            } else {
-                bookStatus = 'reserved'; // 其他状态（已预约/处理中）保持已预约
+                // 更新书籍状态为"已被預約"
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
+                    await saveData();
+                    collectAllBooks();
+                    renderCurrentView(); // 立即刷新当前页面的书籍卡片
+                }
+                renderReserveRecords();
+            } catch (err) {
+                console.error("預約失敗:", err);
+                alert("預約失敗，請重試");
             }
-
-            window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
-            await saveData();
-            collectAllBooks();
-            renderCurrentView(); // 刷新当前页面显示
         }
-        renderReserveRecords(); // 刷新预约记录列表
-    } catch (err) {
-        console.error("更新失敗:", err);
-        alert("更新失敗");
-    }
-}
+        // 更新預約狀態（修复状态同步）
+        window.updateReserveStatus = async function (index, status) {
+            try {
+                const record = window.libraryData.reserveRecords[index];
+                record.status = status;
+                await update(ref(db, `reserves/${record.id}`), { status });
+
+                // 解析标准化ID
+                const idParts = record.bookId.split('-');
+                const issue = idParts[1];
+                const poster = idParts[3];
+                const bookNum = idParts[5];
+
+                // 根据不同状态更新书籍状态
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    let bookStatus;
+                    if (status === '已還書' || status === '找不到') {
+                        bookStatus = 'in'; // 已還書或找不到时，恢复可预约
+                    } else if (status === '借走了') {
+                        bookStatus = 'out'; // 借走了时，标记为不在架
+                    } else {
+                        bookStatus = 'reserved'; // 其他状态（已预约/处理中）保持已预约
+                    }
+
+                    window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
+                    await saveData();
+                    collectAllBooks();
+                    renderCurrentView(); // 刷新当前页面显示
+                }
+                renderReserveRecords(); // 刷新预约记录列表
+            } catch (err) {
+                console.error("更新失敗:", err);
+                alert("更新失敗");
+            }
+        }
 
         // 儲存推薦記錄
-        window.saveRecommendRecord = async function(record) {
+        window.saveRecommendRecord = async function (record) {
             try {
                 const recordId = Date.now().toString();
                 await set(ref(db, `recommends/${recordId}`), record);
@@ -185,7 +186,7 @@ window.updateReserveStatus = async function(index, status) {
         }
 
         // 更新推薦狀態
-        window.updateRecommendStatus = async function(index, status) {
+        window.updateRecommendStatus = async function (index, status) {
             try {
                 const record = window.libraryData.recommendRecords[index];
                 record.status = status;
@@ -204,7 +205,8 @@ window.updateReserveStatus = async function(index, status) {
             renderUserRecommendList();
             // 顯示海報容器
             document.getElementById('posterThumbContainer').style.display = 'flex';
-document.querySelector('.nav-item').classList.add('active');
+            document.querySelector('.nav-item').classList.add('active');
+            setTimeout(loadBookData, 500);
         }
 
         // 渲染期數選擇器
@@ -215,7 +217,7 @@ document.querySelector('.nav-item').classList.add('active');
                 document.getElementById('posterIssueSelect'),
                 document.getElementById('bookIssueSelect')
             ];
-            
+
             selectors.forEach(sel => {
                 sel.innerHTML = '';
                 issues.forEach(issue => {
@@ -226,7 +228,7 @@ document.querySelector('.nav-item').classList.add('active');
         }
 
         // 切換期數
-        window.switchIssue = function(issue) {
+        window.switchIssue = function (issue) {
             const issueNum = Number(issue);
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
@@ -237,7 +239,7 @@ document.querySelector('.nav-item').classList.add('active');
         }
 
         // 顯示最新一期
-        window.showLatestIssue = function() {
+        window.showLatestIssue = function () {
             window.switchIssue(window.libraryData.latestIssue);
             document.getElementById('issueSelect').value = window.libraryData.latestIssue;
         }
@@ -270,27 +272,27 @@ document.querySelector('.nav-item').classList.add('active');
             });
         }
 
-// 分類篩選（修復預約無法送出的問題）
-function filterByCategory(category) {
-    const books = window.libraryData.allBooks;
-    const container = document.getElementById('booksContainer');
-    container.innerHTML = '';
-    // 隱藏海報
-    document.getElementById('posterThumbContainer').style.display = 'none';
+        // 分類篩選（修復預約無法送出的問題）
+        function filterByCategory(category) {
+            const books = window.libraryData.allBooks;
+            const container = document.getElementById('booksContainer');
+            container.innerHTML = '';
+            // 隱藏海報
+            document.getElementById('posterThumbContainer').style.display = 'none';
 
-    const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
-    
-    filtered.forEach((book, index) => {
-        const card = createBookCard(book);
-        card.dataset.group = Math.ceil((index + 1) / 3);
-        container.appendChild(card);
-    });
+            const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
 
-    showSection('posterSection');
-    document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
-    // 確保數據同步
-    collectAllBooks();
-}
+            filtered.forEach((book, index) => {
+                const card = createBookCard(book);
+                card.dataset.group = Math.ceil((index + 1) / 3);
+                container.appendChild(card);
+            });
+
+            showSection('posterSection');
+            document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
+            // 確保數據同步
+            collectAllBooks();
+        }
 
         // 渲染用戶推薦列表
         function renderUserRecommendList() {
@@ -304,18 +306,18 @@ function filterByCategory(category) {
             }
 
             sorted.forEach((r, i) => {
-    let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
-    let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
-    // 獲取隨機顏色
-    const randomColor = window.getRandomSoftColor();
-    list.innerHTML += `
+                let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
+                let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
+                // 獲取隨機顏色
+                const randomColor = window.getRandomSoftColor();
+                list.innerHTML += `
         <div class="recommend-item">
             <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
             <span class="recommend-name">${r.bookName}</span>
             <span class="recommend-status ${statusClass}">${statusText}</span>
         </div>
     `;
-});
+            });
         }
 
         // 渲染海報
@@ -333,30 +335,30 @@ function filterByCategory(category) {
             }
         }
 
-// 创建书籍卡片（修复预约按钮ID绑定）
-function createBookCard(book) {
-    const card = document.createElement('div');
-    card.className = 'book-card';
-    card.dataset.classCode = book.classCode;
-    card.dataset.id = book.id; // 绑定标准ID
+        // 创建书籍卡片（修复预约按钮ID绑定）
+        function createBookCard(book) {
+            const card = document.createElement('div');
+            card.className = 'book-card';
+            card.dataset.classCode = book.classCode;
+            card.dataset.id = book.id; // 绑定标准ID
 
-    let statusText, statusClass, reserveBtn;
-    if (book.status === 'in') {
-        statusText = '在架（可預約）';
-        statusClass = 'status-in';
-        // 确保预约按钮使用正确的ID
-        reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
-    } else if (book.status === 'out') {
-        statusText = '不在架';
-        statusClass = 'status-out';
-        reserveBtn = '';
-    } else {
-        statusText = '已被預約';
-        statusClass = 'status-reserved';
-        reserveBtn = '';
-    }
+            let statusText, statusClass, reserveBtn;
+            if (book.status === 'in') {
+                statusText = '在架（可預約）';
+                statusClass = 'status-in';
+                // 确保预约按钮使用正确的ID
+                reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
+            } else if (book.status === 'out') {
+                statusText = '不在架';
+                statusClass = 'status-out';
+                reserveBtn = '';
+            } else {
+                statusText = '已被預約';
+                statusClass = 'status-reserved';
+                reserveBtn = '';
+            }
 
-    card.innerHTML = `
+            card.innerHTML = `
         <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
         <h3 class="book-title">${book.title}</h3>
         <p>作者: ${book.author || '待編輯'}</p>
@@ -369,51 +371,51 @@ function createBookCard(book) {
         <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
     `;
 
-    return card;
-}
-// 渲染書籍列表（统一ID格式）
-window.renderBooks = function(issue, posterNum) {
-    const container = document.getElementById('booksContainer');
-    container.innerHTML = '';
-    // 确保基础数据结构存在
-    if (!window.libraryData.issues[issue]) {
-        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
-    }
-    if (!window.libraryData.issues[issue].books[posterNum]) {
-        window.libraryData.issues[issue].books[posterNum] = {};
-    }
-    const books = window.libraryData.issues[issue].books[posterNum];
+            return card;
+        }
+        // 渲染書籍列表（统一ID格式）
+        window.renderBooks = function (issue, posterNum) {
+            const container = document.getElementById('booksContainer');
+            container.innerHTML = '';
+            // 确保基础数据结构存在
+            if (!window.libraryData.issues[issue]) {
+                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
+            }
+            if (!window.libraryData.issues[issue].books[posterNum]) {
+                window.libraryData.issues[issue].books[posterNum] = {};
+            }
+            const books = window.libraryData.issues[issue].books[posterNum];
 
-    for (let i = 1; i <= 9; i++) {
-        // 强制生成标准格式的书籍数据
-        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
-        let book = books[i] || {
-            id: bookId, // 使用标准化ID
-            issue: issue.toString(), // 确保是字符串类型
-            posterNum: posterNum.toString(), // 确保是字符串类型
-            bookNum: i.toString(),
-            callNo: '待編輯',
-            title: '新書' + i,
-            classCode: '000',
-            author: '待編輯',
-            intro: '待編輯',
-            suitable: '待編輯',
-            status: 'in',
-            cover: `https://via.placeholder.com/100x150?text=新書${i}`
-        };
-        // 强制更新ID为标准格式
-        book.id = bookId;
-        books[i] = book;
-        window.libraryData.issues[issue].books[posterNum][i] = book;
-        
-        // 创建卡片时绑定正确的ID
-        const card = createBookCard(book);
-        card.dataset.group = Math.ceil(i / 3);
-        container.appendChild(card);
-    }
-    collectAllBooks(); // 重新收集书籍
-    saveData();
-}
+            for (let i = 1; i <= 9; i++) {
+                // 强制生成标准格式的书籍数据
+                const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+                let book = books[i] || {
+                    id: bookId, // 使用标准化ID
+                    issue: issue.toString(), // 确保是字符串类型
+                    posterNum: posterNum.toString(), // 确保是字符串类型
+                    bookNum: i.toString(),
+                    callNo: '待編輯',
+                    title: '新書' + i,
+                    classCode: '000',
+                    author: '待編輯',
+                    intro: '待編輯',
+                    suitable: '待編輯',
+                    status: 'in',
+                    cover: `https://via.placeholder.com/100x150?text=新書${i}`
+                };
+                // 强制更新ID为标准格式
+                book.id = bookId;
+                books[i] = book;
+                window.libraryData.issues[issue].books[posterNum][i] = book;
+
+                // 创建卡片时绑定正确的ID
+                const card = createBookCard(book);
+                card.dataset.group = Math.ceil(i / 3);
+                container.appendChild(card);
+            }
+            collectAllBooks(); // 重新收集书籍
+            saveData();
+        }
 
         // 渲染當前視圖
         function renderCurrentView() {
@@ -477,28 +479,28 @@ window.renderBooks = function(issue, posterNum) {
             });
         }
 
-// 顯示預約彈窗（修复找不到书籍的问题）
-window.showReserveModal = function(bookId) {
-    // 双重检查：先从allBooks找，找不到则直接从原数据解析
-    let book = window.libraryData.allBooks.find(b => b.id === bookId);
-    if (!book) {
-        // 直接从bookId解析出书的位置并读取
-        const [issue, poster, bookNum] = bookId.split('-');
-        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-            book = window.libraryData.issues[issue].books[poster][bookNum];
+        // 顯示預約彈窗（修复找不到书籍的问题）
+        window.showReserveModal = function (bookId) {
+            // 双重检查：先从allBooks找，找不到则直接从原数据解析
+            let book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                // 直接从bookId解析出书的位置并读取
+                const [issue, poster, bookNum] = bookId.split('-');
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    book = window.libraryData.issues[issue].books[poster][bookNum];
+                }
+            }
+            if (!book) {
+                alert('未找到這本書的資訊，請刷新頁面重試');
+                return;
+            }
+            document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
+            document.getElementById('reserveBookId').value = bookId;
+            document.getElementById('reserveModal').classList.remove('hidden');
         }
-    }
-    if (!book) {
-        alert('未找到這本書的資訊，請刷新頁面重試');
-        return;
-    }
-    document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
-    document.getElementById('reserveBookId').value = bookId;
-    document.getElementById('reserveModal').classList.remove('hidden');
-}
 
         // 提交預約
-        window.submitReserve = function() {
+        window.submitReserve = function () {
             const bookId = document.getElementById('reserveBookId').value;
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) {
@@ -530,19 +532,19 @@ window.showReserveModal = function(bookId) {
             window.saveReserveRecord(newReserve);
             window.closeAllModals();
             alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
-            
+
             // 清空表單
             document.getElementById('className').value = '';
             document.getElementById('studentName').value = '';
         }
 
         // 顯示推薦表單
-        window.showRecommendForm = function() {
+        window.showRecommendForm = function () {
             document.getElementById('recommendModal').classList.remove('hidden');
         }
 
         // 提交推薦
-        window.submitRecommend = function() {
+        window.submitRecommend = function () {
             const bookName = document.getElementById('recommendBookName').value.trim();
             const reason = document.getElementById('recommendReason').value.trim();
 
@@ -565,50 +567,50 @@ window.showReserveModal = function(bookId) {
             window.saveRecommendRecord(newRecommend);
             window.closeAllModals();
             alert('推薦成功，感謝你的建議！');
-            
+
             // 清空表單
             document.getElementById('recommendBookName').value = '';
             document.getElementById('recommendReason').value = '';
         }
 
-// 搜索書籍（修復預約無法送出的問題）
-window.searchBooks = function() {
-    const keyword = document.getElementById('keywordInput').value.toLowerCase();
-    const container = document.getElementById('booksContainer');
-    container.innerHTML = '';
-    // 隱藏海報
-    document.getElementById('posterThumbContainer').style.display = 'none';
+        // 搜索書籍（修復預約無法送出的問題）
+        window.searchBooks = function () {
+            const keyword = document.getElementById('keywordInput').value.toLowerCase();
+            const container = document.getElementById('booksContainer');
+            container.innerHTML = '';
+            // 隱藏海報
+            document.getElementById('posterThumbContainer').style.display = 'none';
 
-    if (!keyword) {
-        showLatestIssue();
-        return;
-    }
+            if (!keyword) {
+                showLatestIssue();
+                return;
+            }
 
-    // 重新收集所有書籍，確保匹配數據最新
-    collectAllBooks();
-    const matched = window.libraryData.allBooks.filter(book => 
-        book.title.toLowerCase().includes(keyword) ||
-        book.author.toLowerCase().includes(keyword) ||
-        book.callNo.toLowerCase().includes(keyword) ||
-        book.intro.toLowerCase().includes(keyword)
-    );
+            // 重新收集所有書籍，確保匹配數據最新
+            collectAllBooks();
+            const matched = window.libraryData.allBooks.filter(book =>
+                book.title.toLowerCase().includes(keyword) ||
+                book.author.toLowerCase().includes(keyword) ||
+                book.callNo.toLowerCase().includes(keyword) ||
+                book.intro.toLowerCase().includes(keyword)
+            );
 
-    if (matched.length === 0) {
-        container.innerHTML = '<p>沒有找到匹配的書籍</p>';
-    } else {
-        matched.forEach((book, index) => {
-            const card = createBookCard(book);
-            card.dataset.group = Math.ceil((index + 1) / 3);
-            container.appendChild(card);
-        });
-    }
+            if (matched.length === 0) {
+                container.innerHTML = '<p>沒有找到匹配的書籍</p>';
+            } else {
+                matched.forEach((book, index) => {
+                    const card = createBookCard(book);
+                    card.dataset.group = Math.ceil((index + 1) / 3);
+                    container.appendChild(card);
+                });
+            }
 
-    showSection('posterSection');
-    document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
-}
+            showSection('posterSection');
+            document.getElementById('currentIssueTitle').textContent = `搜索結果: "${keyword}"`;
+        }
 
         // 顯示指定區域
-        window.showSection = function(sectionId) {
+        window.showSection = function (sectionId) {
             document.querySelectorAll('.content-section').forEach(sec => {
                 sec.classList.add('hidden');
             });
@@ -616,15 +618,15 @@ window.searchBooks = function() {
         }
 
         // 顯示管理員登錄
-        window.showAdminLogin = function() {
+        window.showAdminLogin = function () {
             document.getElementById('adminLoginModal').classList.remove('hidden');
         }
 
         // 管理員登錄
-        window.adminLogin = function() {
+        window.adminLogin = function () {
             const user = document.getElementById('adminUser').value;
             const pass = document.getElementById('adminPass').value;
-            if (user === '123' && pass === '123') {
+            if (user === 'kakihara' && pass === 'naotoki') {
                 window.closeAllModals();
                 document.getElementById('adminPanel').classList.remove('hidden');
                 renderReserveRecords();
@@ -635,51 +637,51 @@ window.searchBooks = function() {
         }
 
         // 退出管理員
-        window.logoutAdmin = function() {
+        window.logoutAdmin = function () {
             document.getElementById('adminPanel').classList.add('hidden');
         }
 
         // 關閉所有彈窗
-        window.closeAllModals = function() {
+        window.closeAllModals = function () {
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.classList.add('hidden');
             });
         }
-// 设置导航项活跃状态
-window.setActiveNav = function(element) {
-    // 移除所有导航项的活跃状态
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    // 给当前点击的导航项添加活跃状态
-    element.classList.add('active');
-}
-// 生成隨機柔和顏色（用於推薦書籍序號）
-window.getRandomSoftColor = function() {
-    // 預定柔和色譜，避免刺眼顏色
-    const colors = [
-        '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
-        '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
-    ];
-    // 隨機返回一種顏色
-    return colors[Math.floor(Math.random() * colors.length)];
-}
+        // 设置导航项活跃状态
+        window.setActiveNav = function (element) {
+            // 移除所有导航项的活跃状态
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            // 给当前点击的导航项添加活跃状态
+            element.classList.add('active');
+        }
+        // 生成隨機柔和顏色（用於推薦書籍序號）
+        window.getRandomSoftColor = function () {
+            // 預定柔和色譜，避免刺眼顏色
+            const colors = [
+                '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
+                '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
+            ];
+            // 隨機返回一種顏色
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
 
         // 上傳海報
-        window.uploadPoster = function() {
+        window.uploadPoster = function () {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
             const file = document.getElementById('posterUpload').files[0];
-            
+
             if (!file) {
                 alert('請選擇圖片');
                 return;
             }
 
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 if (!window.libraryData.issues[issue]) {
-                    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+                    window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
                 }
                 window.libraryData.issues[issue].posters[num] = e.target.result;
                 saveData();
@@ -691,10 +693,10 @@ window.getRandomSoftColor = function() {
         }
 
         // 刪除單張海報
-        window.deleteSinglePoster = function() {
+        window.deleteSinglePoster = function () {
             const issue = document.getElementById('posterIssueSelect').value;
             const num = document.getElementById('posterNumSelect').value;
-            
+
             if (!window.libraryData.issues[issue]?.posters[num]) {
                 alert('該海報不存在');
                 return;
@@ -708,7 +710,7 @@ window.getRandomSoftColor = function() {
         }
 
         // 刪除整期
-        window.deleteWholeIssue = async function() {
+        window.deleteWholeIssue = async function () {
             const issue = document.getElementById('posterIssueSelect').value;
             if (!window.libraryData.issues[issue]) {
                 alert('該期不存在');
@@ -727,11 +729,11 @@ window.getRandomSoftColor = function() {
         }
 
         // 新增期數
-        window.addNewIssue = async function() {
+        window.addNewIssue = async function () {
             const newIssue = window.libraryData.latestIssue + 1;
             window.libraryData.issues[newIssue] = {
-                posters: {1: '', 2: ''},
-                books: {1: {}, 2: {}}
+                posters: { 1: '', 2: '' },
+                books: { 1: {}, 2: {} }
             };
             window.libraryData.latestIssue = newIssue;
             await saveData();
@@ -739,8 +741,39 @@ window.getRandomSoftColor = function() {
             alert(`已新增第${newIssue}期`);
         }
 
+
+
+// 自動加載選擇的書籍資料（新增函數）
+window.loadBookData = function() {
+    const issue = document.getElementById('bookIssueSelect').value;
+    const posterNum = document.getElementById('bookPosterSelect').value;
+    const bookNum = document.getElementById('bookNumSelect').value;
+
+    // 檢查是否存在該書籍數據
+    if (window.libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+        const book = window.libraryData.issues[issue].books[posterNum][bookNum];
+        // 自動填充表單
+        document.getElementById('bookCallNo').value = book.callNo || '';
+        document.getElementById('bookTitle').value = book.title || '';
+        document.getElementById('bookClassCode').value = book.classCode || '000';
+        document.getElementById('bookAuthor').value = book.author || '';
+        document.getElementById('bookIntro').value = book.intro || '';
+        document.getElementById('bookSuitable').value = book.suitable || '';
+        document.getElementById('bookStatus').value = book.status || 'in';
+    } else {
+        // 沒有數據時清空表單
+        document.getElementById('bookCallNo').value = '';
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('bookClassCode').value = '000';
+        document.getElementById('bookAuthor').value = '';
+        document.getElementById('bookIntro').value = '';
+        document.getElementById('bookSuitable').value = '';
+        document.getElementById('bookStatus').value = 'in';
+    }
+}
+
         // 保存書籍信息
-        window.saveBookInfo = function() {
+        window.saveBookInfo = function () {
             const title = document.getElementById('bookTitle').value.trim();
             if (!title) {
                 alert('請輸入書名');
@@ -752,7 +785,7 @@ window.getRandomSoftColor = function() {
             const bookNum = document.getElementById('bookNumSelect').value;
 
             if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
             }
             if (!window.libraryData.issues[issue].books[posterNum]) {
                 window.libraryData.issues[issue].books[posterNum] = {};
@@ -760,10 +793,10 @@ window.getRandomSoftColor = function() {
 
             let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
-            
+
             if (coverFile) {
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = function (e) {
                     coverUrl = e.target.result;
                     saveBookData(coverUrl);
                 };
@@ -791,11 +824,11 @@ window.getRandomSoftColor = function() {
         }
 
         // 刪除書籍
-        window.deleteBookInfo = function() {
+        window.deleteBookInfo = function () {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
-            
+
             if (!window.libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
                 alert('該書籍不存在');
                 return;
@@ -823,90 +856,127 @@ window.getRandomSoftColor = function() {
             --gray-dark: #8e8e93;
             --text: #1d1d1f;
             --text-light: #6e6e73;
-            --shadow: 0 4px 20px rgba(0,0,0,0.05);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             --radius: 12px;
             --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif; 
-            max-width: 1440px; 
-            margin: 0 auto; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "SF Pro Text", "PingFang TC", "Helvetica Neue", sans-serif;
+            max-width: 1440px;
+            margin: 0 auto;
             color: var(--text);
             background-color: var(--gray-light);
             line-height: 1.6;
             padding-bottom: 50px;
         }
-        .hidden { display: none !important; }
-        button, input, select, textarea { 
-            padding: 8px 16px; 
-            margin: 5px; 
-            border: 1px solid var(--gray); 
-            border-radius: var(--radius); 
+
+        .hidden {
+            display: none !important;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            padding: 8px 16px;
+            margin: 5px;
+            border: 1px solid var(--gray);
+            border-radius: var(--radius);
             font-family: inherit;
             transition: var(--transition);
         }
-        button { 
-            cursor: pointer; 
-            border: none; 
+
+        button {
+            cursor: pointer;
+            border: none;
             font-weight: 500;
         }
-        button:hover { 
+
+        button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         /* 按鈕樣式 */
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-secondary { background: var(--secondary); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-text { background: transparent; color: var(--primary); }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-text {
+            background: transparent;
+            color: var(--primary);
+        }
 
         /* 頂部區域 */
-.header { 
-    text-align: center; 
-    padding: 60px 20px 40px;
-    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(245,245,247,1) 100%);
-    position: relative;
-    overflow: hidden;
-}
-.header::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 120px;
-    background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px),
+        .header {
+            text-align: center;
+            padding: 60px 20px 40px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(245, 245, 247, 1) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(90deg, #f0f0f0 1px, transparent 1px),
                 linear-gradient(#f0f0f0 1px, transparent 1px);
-    background-size: 20px 20px;
-    opacity: 0.4;
-    z-index: 1;
-}
-.header h1 { 
-    color: var(--text); 
-    margin: 10px 0 20px; 
-    font-weight: 600;
-    font-size: clamp(2rem, 5vw, 3rem); /* 響應式字體 */
-    letter-spacing: -0.02em; /* 緊湊字距 */
-    line-height: 1.1;
-    position: relative;
-    z-index: 2;
-    background: linear-gradient(90deg, #1d1d1f, #6e6e73);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent; /* 漸變文字 */
-}
-        .issue-selector { margin: 15px 0; }
+            background-size: 20px 20px;
+            opacity: 0.4;
+            z-index: 1;
+        }
+
+        .header h1 {
+            color: var(--text);
+            margin: 10px 0 20px;
+            font-weight: 600;
+            font-size: clamp(2rem, 5vw, 3rem);
+            /* 響應式字體 */
+            letter-spacing: -0.02em;
+            /* 緊湊字距 */
+            line-height: 1.1;
+            position: relative;
+            z-index: 2;
+            background: linear-gradient(90deg, #1d1d1f, #6e6e73);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            /* 漸變文字 */
+        }
+
+        .issue-selector {
+            margin: 15px 0;
+        }
 
         /* 導航欄 */
-        .nav-bar { 
-            display: flex; 
-            flex-wrap: wrap; 
-            align-items: center; 
-            gap: 10px; 
-            padding: 15px 20px; 
+        .nav-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(20px);
             box-shadow: var(--shadow);
@@ -915,32 +985,37 @@ window.getRandomSoftColor = function() {
             z-index: 5;
             margin-bottom: 30px;
         }
-        .nav-item { 
-            padding: 10px 18px; 
-            border-radius: 20px; 
-            cursor: pointer; 
+
+        .nav-item {
+            padding: 10px 18px;
+            border-radius: 20px;
+            cursor: pointer;
             white-space: nowrap;
             font-weight: 500;
             transition: var(--transition);
         }
-        .nav-item:hover { 
+
+        .nav-item:hover {
             background: var(--gray-light);
             color: var(--primary);
         }
 
-/* 导航项活跃状态 */
-.nav-item.active {
-    background: var(--primary);
-    color: white;
-}
-.nav-item.category-dropdown.active .category-trigger {
-    color: white;
-}
-        .keyword-search { 
-            margin-left: auto; 
+        /* 导航项活跃状态 */
+        .nav-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .nav-item.category-dropdown.active .category-trigger {
+            color: white;
+        }
+
+        .keyword-search {
+            margin-left: auto;
             display: flex;
             align-items: center;
         }
+
         .keyword-search input {
             min-width: 250px;
             background: var(--gray-light);
@@ -948,150 +1023,197 @@ window.getRandomSoftColor = function() {
         }
 
         /* 分類下拉菜單 */
-        .category-dropdown { position: relative; }
-        .category-trigger { display: flex; align-items: center; gap: 5px; }
+        .category-dropdown {
+            position: relative;
+        }
+
+        .category-trigger {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
         .category-trigger::after {
             content: "▼";
             font-size: 0.8em;
             opacity: 0.7;
         }
-        .category-menu { 
-            position: absolute; 
-            top: 100%; 
-            left: 0; 
-            background: white; 
-            border-radius: var(--radius); 
-            padding: 10px 0; 
-            width: 200px; 
-            z-index: 10; 
-            display: none; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+
+        .category-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border-radius: var(--radius);
+            padding: 10px 0;
+            width: 200px;
+            z-index: 10;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             margin-top: 8px;
         }
-        .category-menu.visible { display: block; }
-        .category-item { 
-            padding: 10px 16px; 
-            cursor: pointer; 
+
+        .category-menu.visible {
+            display: block;
+        }
+
+        .category-item {
+            padding: 10px 16px;
+            cursor: pointer;
             transition: var(--transition);
         }
-        .category-item:hover { 
+
+        .category-item:hover {
             background: var(--gray-light);
             color: var(--primary);
         }
 
         /* 海報區 */
-        .poster-section { 
-            margin: 0 20px 40px; 
+        .poster-section {
+            margin: 0 20px 40px;
             padding: 30px;
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
         }
-        .poster-thumbnails { 
-            display: flex; 
-            gap: 30px; 
-            margin: 30px 0; 
+
+        .poster-thumbnails {
+            display: flex;
+            gap: 30px;
+            margin: 30px 0;
             justify-content: center;
             width: 100%;
         }
-        .poster-thumb { 
+
+        .poster-thumb {
             flex: 1;
             max-width: 500px;
-            height: auto; 
+            height: auto;
             min-height: 300px;
-            object-fit: contain; 
-            cursor: pointer; 
-            border-radius: var(--radius); 
-            background: var(--gray-light); 
+            object-fit: contain;
+            cursor: pointer;
+            border-radius: var(--radius);
+            background: var(--gray-light);
             padding: 20px;
             transition: var(--transition);
         }
-        .poster-thumb:hover { transform: scale(1.02); }
-        .poster-thumb.placeholder { 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            color: var(--gray-dark); 
+
+        .poster-thumb:hover {
+            transform: scale(1.02);
+        }
+
+        .poster-thumb.placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-dark);
             font-size: 1.2em;
         }
 
         /* 書籍資料格（固定3列） */
-        .books-grid { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); /* 固定3列 */
-            gap: 30px; 
-            margin: 30px 0; 
+        .books-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            /* 固定3列 */
+            gap: 30px;
+            margin: 30px 0;
             max-width: 1200px;
-            margin-left: auto; 
+            margin-left: auto;
             margin-right: auto;
         }
-        .book-card { 
-            padding: 20px; 
-            border-radius: var(--radius); 
-            transition: var(--transition); 
+
+        .book-card {
+            padding: 20px;
+            border-radius: var(--radius);
+            transition: var(--transition);
             background: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
         }
+
         .book-card[data-group="1"],
         .book-card[data-group="3"],
-        .book-card[data-group="5"] { 
+        .book-card[data-group="5"] {
             border-top: 3px solid var(--primary);
         }
+
         .book-card[data-group="2"],
         .book-card[data-group="4"],
-        .book-card[data-group="6"] { 
+        .book-card[data-group="6"] {
             border-top: 3px solid var(--secondary);
         }
-        .book-card:hover { 
-            transform: translateY(-8px); 
-            box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+
+        .book-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
         }
-        .book-cover { 
-            width: 100px; 
-            height: 150px; 
-            object-fit: cover; 
-            margin: 0 auto 20px; 
-            display: block; 
+
+        .book-cover {
+            width: 100px;
+            height: 150px;
+            object-fit: cover;
+            margin: 0 auto 20px;
+            display: block;
             border-radius: 6px;
         }
-        .book-title { 
-            text-align: center; 
-            margin: 10px 0 20px; 
+
+        .book-title {
+            text-align: center;
+            margin: 10px 0 20px;
             font-size: 1.1em;
             min-height: 40px;
             font-weight: 600;
         }
-        .book-card p { margin: 8px 0; font-size: 0.95em; }
-        .book-status-bar { 
-            margin: 20px 0 10px; 
-            display: flex; 
-            justify-content: space-between; 
+
+        .book-card p {
+            margin: 8px 0;
+            font-size: 0.95em;
+        }
+
+        .book-status-bar {
+            margin: 20px 0 10px;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
         }
-        .book-status { 
-            font-weight: 500; 
+
+        .book-status {
+            font-weight: 500;
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.9em;
         }
-        .status-in { color: var(--success); background: rgba(52, 199, 89, 0.1); }
-        .status-out { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
-        .status-reserved { color: var(--secondary); background: rgba(255, 149, 0, 0.1); }
-        .reserve-btn { 
-            background: var(--primary); 
+
+        .status-in {
+            color: var(--success);
+            background: rgba(52, 199, 89, 0.1);
+        }
+
+        .status-out {
+            color: var(--danger);
+            background: rgba(255, 59, 48, 0.1);
+        }
+
+        .status-reserved {
+            color: var(--secondary);
+            background: rgba(255, 149, 0, 0.1);
+        }
+
+        .reserve-btn {
+            background: var(--primary);
             color: white;
             padding: 6px 16px;
             border-radius: 20px;
         }
 
         /* 推薦購書區 */
-        .user-recommends { 
-            margin: 0 20px 40px; 
-            padding: 30px; 
-            background: white; 
-            border-radius: var(--radius); 
+        .user-recommends {
+            margin: 0 20px 40px;
+            padding: 30px;
+            background: white;
+            border-radius: var(--radius);
             box-shadow: var(--shadow);
         }
+
         .recommend-header {
             display: flex;
             align-items: center;
@@ -1100,78 +1222,105 @@ window.getRandomSoftColor = function() {
             padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
-        .recommend-header h3 { 
+
+        .recommend-header h3 {
             margin: 0;
             font-size: 1.5em;
             font-weight: 600;
         }
-        .recommend-list { 
-            display: flex; 
+
+        .recommend-list {
+            display: flex;
             flex-direction: column;
-            gap: 15px; 
+            gap: 15px;
             margin-top: 15px;
         }
-        .recommend-item { 
-            padding: 15px 20px; 
-            border: 1px solid var(--gray-light); 
-            border-radius: var(--radius); 
+
+        .recommend-item {
+            padding: 15px 20px;
+            border: 1px solid var(--gray-light);
+            border-radius: var(--radius);
             background: white;
             display: flex;
             align-items: center;
         }
-        .recommend-index { 
-            width: 30px; 
+
+        .recommend-index {
+            width: 30px;
             height: 30px;
-            text-align: center; 
+            text-align: center;
             line-height: 30px;
-            margin-right: 15px; 
+            margin-right: 15px;
             color: white;
             background: var(--primary);
             border-radius: 50%;
         }
-        .recommend-name { flex: 1; font-weight: 500; }
-        .recommend-status { 
-            padding: 4px 12px;
-            border-radius: 20px; 
-            font-size: 0.85em; 
-            margin-left: 15px; 
+
+        .recommend-name {
+            flex: 1;
+            font-weight: 500;
         }
-        .status-recorded { background: rgba(52, 199, 89, 0.1); color: var(--success); }
-        .status-invalid { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
-        .status-pending { background: rgba(255, 149, 0, 0.1); color: var(--secondary); }
+
+        .recommend-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-left: 15px;
+        }
+
+        .status-recorded {
+            background: rgba(52, 199, 89, 0.1);
+            color: var(--success);
+        }
+
+        .status-invalid {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--danger);
+        }
+
+        .status-pending {
+            background: rgba(255, 149, 0, 0.1);
+            color: var(--secondary);
+        }
 
         /* 彈窗樣式 */
-        .modal { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0,0,0,0.3); 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            z-index: 100; 
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
             backdrop-filter: blur(2px);
         }
-        .modal-content { 
-            background: white; 
-            padding: 30px; 
-            border-radius: var(--radius); 
-            width: 90%; 
-            max-width: 400px; 
-            position: relative; 
-            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 400px;
+            position: relative;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
         }
-        .close-modal { 
-            position: absolute; 
-            top: 20px; 
-            right: 25px; 
-            cursor: pointer; 
-            font-size: 1.5em; 
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+            cursor: pointer;
+            font-size: 1.5em;
             color: var(--gray-dark);
         }
-        .close-modal:hover { color: var(--danger); }
+
+        .close-modal:hover {
+            color: var(--danger);
+        }
+
         .modal-content h3 {
             color: var(--text);
             margin-bottom: 25px;
@@ -1188,42 +1337,49 @@ window.getRandomSoftColor = function() {
         }
 
         /* 管理員後台 */
-        .admin-panel { 
-            margin: 20px; 
-            padding: 30px; 
-            background: white; 
-            border-radius: var(--radius); 
+        .admin-panel {
+            margin: 20px;
+            padding: 30px;
+            background: white;
+            border-radius: var(--radius);
             box-shadow: var(--shadow);
         }
+
         .admin-panel h2 {
             margin-bottom: 30px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--gray-light);
         }
-        .form-group { 
-            margin: 30px 0; 
-            padding: 25px; 
-            border: 1px solid var(--gray-light); 
-            border-radius: var(--radius); 
-            background: var(--gray-light); 
+
+        .form-group {
+            margin: 30px 0;
+            padding: 25px;
+            border: 1px solid var(--gray-light);
+            border-radius: var(--radius);
+            background: var(--gray-light);
         }
-        .form-group h3 { margin-bottom: 20px; }
-        .book-editor { 
-            margin: 15px 0; 
-            padding: 20px; 
-            border: 1px dashed var(--gray); 
+
+        .form-group h3 {
+            margin-bottom: 20px;
+        }
+
+        .book-editor {
+            margin: 15px 0;
+            padding: 20px;
+            border: 1px dashed var(--gray);
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             background: white;
             border-radius: 8px;
         }
-        .record-item { 
-            padding: 15px; 
-            border-bottom: 1px solid var(--gray-light); 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
+
+        .record-item {
+            padding: 15px;
+            border-bottom: 1px solid var(--gray-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         /* 載入提示 */
@@ -1233,7 +1389,7 @@ window.getRandomSoftColor = function() {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255,255,255,0.8);
+            background: rgba(255, 255, 255, 0.8);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1255,21 +1411,49 @@ window.getRandomSoftColor = function() {
 
         /* 響應式調整 */
         @media (max-width: 768px) {
-            .books-grid { grid-template-columns: 1fr 1fr; }
-            .poster-thumbnails { flex-direction: column; }
-            .poster-thumb { max-width: 100%; }
-            .nav-bar { flex-direction: column; align-items: stretch; }
-            .keyword-search { margin-left: 0; width: 100%; }
-            .keyword-search input { width: 70%; }
+            .books-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .poster-thumbnails {
+                flex-direction: column;
+            }
+
+            .poster-thumb {
+                max-width: 100%;
+            }
+
+            .nav-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .keyword-search {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .keyword-search input {
+                width: 70%;
+            }
         }
 
         @media (max-width: 480px) {
-            .books-grid { grid-template-columns: 1fr; }
-            .keyword-search input { width: 60%; }
-            .header h1 { font-size: 1.5rem; }
+            .books-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .keyword-search input {
+                width: 60%;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </head>
+
 <body>
     <!-- 載入提示 -->
     <div id="loadingIndicator" style="display: none;">
@@ -1277,28 +1461,30 @@ window.getRandomSoftColor = function() {
     </div>
 
     <!-- 頂部區域 -->
-<div class="header-divider" style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;"></div>
-<div class="header">
-    <h1>中學圖書館 | 每週新書速遞</h1>
-    <!-- 新增的小字 -->
-    <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
-        建議使用電腦瀏覽
+    <div class="header-divider"
+        style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;">
     </div>
-    <!-- 原有的期数选择器 -->
-    <div class="issue-selector">
-        <label>選擇期數: </label>
-        <select id="issueSelect" onchange="switchIssue(this.value)">
-            <option value="1">第1期</option>
-        </select>
+    <div class="header">
+        <h1>中學圖書館 | 每週新書速遞</h1>
+        <!-- 新增的小字 -->
+        <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
+            建議使用電腦瀏覽
+        </div>
+        <!-- 原有的期数选择器 -->
+        <div class="issue-selector">
+            <label>選擇期數: </label>
+            <select id="issueSelect" onchange="switchIssue(this.value)">
+                <option value="1">第1期</option>
+            </select>
+        </div>
     </div>
-</div>
 
     <!-- 導航欄 -->
     <div class="nav-bar">
-<div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
-<div class="nav-item category-dropdown" onclick="setActiveNav(this)">
-    <span class="category-trigger">分類</span>
-    <div class="category-menu" id="categoryMenu">
+        <div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
+        <div class="nav-item category-dropdown" onclick="setActiveNav(this)">
+            <span class="category-trigger">分類</span>
+            <div class="category-menu" id="categoryMenu">
                 <div class="category-item" data-category="all">全部</div>
                 <div class="category-item" data-category="000">000 總類</div>
                 <div class="category-item" data-category="100">100 哲學</div>
@@ -1310,9 +1496,9 @@ window.getRandomSoftColor = function() {
                 <div class="category-item" data-category="700">700 世界史</div>
                 <div class="category-item" data-category="800">800 語文</div>
                 <div class="category-item" data-category="900">900 藝術</div>
-    </div>
-</div>
-<div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
+            </div>
+        </div>
+        <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
         <div class="keyword-search">
             <label>關鍵詞: </label>
             <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
@@ -1334,6 +1520,9 @@ window.getRandomSoftColor = function() {
     <!-- 海報區 -->
     <div class="poster-section content-section" id="posterSection">
         <h2 id="currentIssueTitle">第1期海報</h2>
+        <div style="font-size: 11px; color: #8e8e93; margin: -10px 0 20px; text-align: center;">
+        點擊海報切換對應書籍資料
+    </div>
         <div class="poster-thumbnails" id="posterThumbContainer">
             <div class="poster-thumb placeholder" data-poster="1">
                 海報1<br>[暫未上傳]
@@ -1434,16 +1623,16 @@ window.getRandomSoftColor = function() {
             <h3>3. 書籍資訊管理</h3>
             <div>
                 <label>選擇期數: </label>
-                <select id="bookIssueSelect">
+                <select id="bookIssueSelect" onchange="loadBookData()">
                     <option value="1">第1期</option>
                 </select>
                 <label>選擇海報序號: </label>
-                <select id="bookPosterSelect">
+                <select id="bookPosterSelect"  onchange="loadBookData()">
                     <option value="1">海報1</option>
                     <option value="2">海報2</option>
                 </select>
                 <label>選擇書籍序號: </label>
-                <select id="bookNumSelect">
+                <select id="bookNumSelect"  onchange="loadBookData()">
                     <option value="1">1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
@@ -1455,7 +1644,7 @@ window.getRandomSoftColor = function() {
                     <option value="9">9</option>
                 </select>
             </div>
-            
+
             <div class="book-editor">
                 <input type="text" id="bookCallNo" placeholder="索書號">
                 <input type="text" id="bookTitle" placeholder="書名">
@@ -1505,4 +1694,5 @@ window.getRandomSoftColor = function() {
     <!-- 隱藏的管理員入口 -->
     <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
+
 </html>
