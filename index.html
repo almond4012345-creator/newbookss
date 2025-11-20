@@ -747,6 +747,7 @@ window.getRandomSoftColor = function() {
             alert(`已新增第${newIssue}期`);
         }
 
+    
         // 保存書籍信息
         window.saveBookInfo = function() {
             const title = document.getElementById('bookTitle').value.trim();
@@ -769,6 +770,33 @@ window.getRandomSoftColor = function() {
             let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
             
+            function saveBookData(cover) {
+                // 獲取現有的書籍數據（如果存在）
+                const existingBook = window.libraryData.issues[issue].books[posterNum][bookNum] || {};
+                
+                // 更新書籍信息，保留原有的屬性
+                window.libraryData.issues[issue].books[posterNum][bookNum] = {
+                    ...existingBook, // 保留原有屬性
+                    id: existingBook.id || `issue-${issue}-poster-${posterNum}-book-${bookNum}`, // 確保ID存在
+                    callNo: document.getElementById('bookCallNo').value || existingBook.callNo,
+                    title: title || existingBook.title,
+                    classCode: document.getElementById('bookClassCode').value || existingBook.classCode,
+                    author: document.getElementById('bookAuthor').value || existingBook.author,
+                    intro: document.getElementById('bookIntro').value || existingBook.intro,
+                    suitable: document.getElementById('bookSuitable').value || existingBook.suitable,
+                    status: document.getElementById('bookStatus').value || existingBook.status,
+                    cover: cover || existingBook.cover,
+                    issue: issue.toString(), // 確保期數存在
+                    posterNum: posterNum.toString(), // 確保海報序號存在
+                    bookNum: bookNum.toString() // 確保書籍序號存在
+                };
+                
+                saveData();
+                renderBooks(issue, posterNum);
+                alert('儲存成功');
+                document.getElementById('bookCoverUpload').value = '';
+            }
+            
             if (coverFile) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -779,33 +807,8 @@ window.getRandomSoftColor = function() {
             } else {
                 saveBookData(coverUrl);
             }
+        }
 
-function saveBookData(cover) {
-    // 獲取現有的書籍數據（如果存在）
-    const existingBook = window.libraryData.issues[issue].books[posterNum][bookNum] || {};
-    
-    // 更新書籍信息，保留原有的屬性
-    window.libraryData.issues[issue].books[posterNum][bookNum] = {
-        ...existingBook, // 保留原有屬性
-        id: existingBook.id || `issue-${issue}-poster-${posterNum}-book-${bookNum}`, // 確保ID存在
-        callNo: document.getElementById('bookCallNo').value || existingBook.callNo,
-        title: title || existingBook.title,
-        classCode: document.getElementById('bookClassCode').value || existingBook.classCode,
-        author: document.getElementById('bookAuthor').value || existingBook.author,
-        intro: document.getElementById('bookIntro').value || existingBook.intro,
-        suitable: document.getElementById('bookSuitable').value || existingBook.suitable,
-        status: document.getElementById('bookStatus').value || existingBook.status,
-        cover: cover || existingBook.cover,
-        issue: issue.toString(), // 確保期數存在
-        posterNum: posterNum.toString(), // 確保海報序號存在
-        bookNum: bookNum.toString() // 確保書籍序號存在
-    };
-    
-    saveData();
-    renderBooks(issue, posterNum);
-    alert('儲存成功');
-    document.getElementById('bookCoverUpload').value = '';
-}
 // 自動加載書籍信息函數
 window.loadBookInfo = function() {
     const issue = document.getElementById('bookIssueSelect').value;
@@ -854,6 +857,7 @@ window.loadBookInfo = function() {
                 renderBooks(issue, posterNum);
             }
         }
+
 
         // 頁面加載完成後載入數據
         window.onload = loadData;
