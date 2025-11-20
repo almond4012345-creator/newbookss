@@ -743,85 +743,111 @@
 
 
 
-// 自動加載選擇的書籍資料（新增函數）
+// 自動加載選擇的書籍資料（确保加载所有字段，匹配保存的数据结构）
 window.loadBookData = function() {
     const issue = document.getElementById('bookIssueSelect').value;
     const posterNum = document.getElementById('bookPosterSelect').value;
     const bookNum = document.getElementById('bookNumSelect').value;
 
-    // 檢查是否存在該書籍數據
-    if (window.libraryData.issues[issue]?.books[posterNum]?.[bookNum]) {
+    // 检查是否存在该书籍数据（严格匹配数据结构）
+    if (window.libraryData.issues[issue] && 
+        window.libraryData.issues[issue].books[posterNum] && 
+        window.libraryData.issues[issue].books[posterNum][bookNum]) {
+        
         const book = window.libraryData.issues[issue].books[posterNum][bookNum];
-        // 自動填充表單
-        document.getElementById('bookCallNo').value = book.callNo || '';
+        // 自动填充所有字段（和保存的字段一一对应）
+        document.getElementById('bookCallNo').value = book.callNo || '待編輯';
         document.getElementById('bookTitle').value = book.title || '';
         document.getElementById('bookClassCode').value = book.classCode || '000';
-        document.getElementById('bookAuthor').value = book.author || '';
-        document.getElementById('bookIntro').value = book.intro || '';
-        document.getElementById('bookSuitable').value = book.suitable || '';
+        document.getElementById('bookAuthor').value = book.author || '待編輯';
+        document.getElementById('bookIntro').value = book.intro || '待編輯';
+        document.getElementById('bookSuitable').value = book.suitable || '待編輯';
         document.getElementById('bookStatus').value = book.status || 'in';
     } else {
-        // 沒有數據時清空表單
-        document.getElementById('bookCallNo').value = '';
+        // 没有数据时显示默认值（方便直接编辑）
+        document.getElementById('bookCallNo').value = '待編輯';
         document.getElementById('bookTitle').value = '';
         document.getElementById('bookClassCode').value = '000';
-        document.getElementById('bookAuthor').value = '';
-        document.getElementById('bookIntro').value = '';
-        document.getElementById('bookSuitable').value = '';
+        document.getElementById('bookAuthor').value = '待編輯';
+        document.getElementById('bookIntro').value = '待編輯';
+        document.getElementById('bookSuitable').value = '待編輯';
         document.getElementById('bookStatus').value = 'in';
     }
 }
 
-        // 保存書籍信息
-        window.saveBookInfo = function () {
-            const title = document.getElementById('bookTitle').value.trim();
-            if (!title) {
-                alert('請輸入書名');
-                return;
-            }
+// 保存書籍信息（修复封面保存漏洞，确保所有数据永久存储）
+window.saveBookInfo = function() {
+    const title = document.getElementById('bookTitle').value.trim();
+    if (!title) {
+        alert('請輸入書名');
+        return;
+    }
 
-            const issue = document.getElementById('bookIssueSelect').value;
-            const posterNum = document.getElementById('bookPosterSelect').value;
-            const bookNum = document.getElementById('bookNumSelect').value;
+    const issue = document.getElementById('bookIssueSelect').value;
+    const posterNum = document.getElementById('bookPosterSelect').value;
+    const bookNum = document.getElementById('bookNumSelect').value;
 
-            if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
-            }
-            if (!window.libraryData.issues[issue].books[posterNum]) {
-                window.libraryData.issues[issue].books[posterNum] = {};
-            }
+    // 确保数据结构存在（避免报错）
+    if (!window.libraryData.issues[issue]) {
+        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+    }
+    if (!window.libraryData.issues[issue].books[posterNum]) {
+        window.libraryData.issues[issue].books[posterNum] = {};
+    }
 
-            let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
-            const coverFile = document.getElementById('bookCoverUpload').files[0];
+    // 关键修复：保留原有封面（没上传新封面时不替换）
+    let existingCover = '';
+    // 先获取已存储的封面URL（如果存在）
+    if (window.libraryData.issues[issue].books[posterNum][bookNum]) {
+        existingCover = window.libraryData.issues[issue].books[posterNum][bookNum].cover || '';
+    }
 
-            if (coverFile) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    coverUrl = e.target.result;
-                    saveBookData(coverUrl);
-                };
-                reader.readAsDataURL(coverFile);
-            } else {
-                saveBookData(coverUrl);
-            }
+    const coverFile = document.getElementById('bookCoverUpload').files[0];
+    
+    if (coverFile) {
+        // 上传新封面：读取图片并保存
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const newCover = e.target.result;
+            saveBookData(newCover); // 用新封面
+        };
+        reader.readAsDataURL(coverFile);
+    } else {
+        // 没上传新封面：用原有封面（没有则用默认占位图）
+        const coverToUse = existingCover || 'https://via.placeholder.com/100x150?text=封面';
+        saveBookData(coverToUse);
+    }
 
-            function saveBookData(cover) {
-                window.libraryData.issues[issue].books[posterNum][bookNum] = {
-                    callNo: document.getElementById('bookCallNo').value,
-                    title: title,
-                    classCode: document.getElementById('bookClassCode').value,
-                    author: document.getElementById('bookAuthor').value,
-                    intro: document.getElementById('bookIntro').value,
-                    suitable: document.getElementById('bookSuitable').value,
-                    status: document.getElementById('bookStatus').value,
-                    cover: cover
-                };
-                saveData();
-                renderBooks(issue, posterNum);
-                alert('儲存成功');
-                document.getElementById('bookCoverUpload').value = '';
-            }
-        }
+    // 保存所有数据到 Firebase（核心：确保所有字段都存储）
+    function saveBookData(cover) {
+        // 构建完整的书籍数据（包含所有字段，避免遗漏）
+        const bookData = {
+            id: `issue-${issue}-poster-${posterNum}-book-${bookNum}`, // 标准化ID（确保和前端匹配）
+            callNo: document.getElementById('bookCallNo').value || '待編輯',
+            title: title,
+            classCode: document.getElementById('bookClassCode').value || '000',
+            author: document.getElementById('bookAuthor').value || '待編輯',
+            intro: document.getElementById('bookIntro').value || '待編輯',
+            suitable: document.getElementById('bookSuitable').value || '待編輯',
+            status: document.getElementById('bookStatus').value || 'in',
+            cover: cover,
+            issue: issue,
+            posterNum: posterNum,
+            bookNum: bookNum
+        };
+
+        // 更新本地数据
+        window.libraryData.issues[issue].books[posterNum][bookNum] = bookData;
+        // 关键：调用 saveData() 把数据同步到 Firebase（永久保存）
+        saveData().then(() => {
+            collectAllBooks(); // 刷新书籍列表
+            renderBooks(issue, posterNum); // 刷新前端显示
+            alert('儲存成功！所有信息已永久保存');
+            // 清空封面上传框（避免重复上传）
+            document.getElementById('bookCoverUpload').value = '';
+        });
+    }
+}
 
         // 刪除書籍
         window.deleteBookInfo = function () {
