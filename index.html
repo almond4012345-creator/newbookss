@@ -232,11 +232,11 @@ document.querySelector('.nav-item').classList.add('active');
         }
 
         // 切換期數
-        window.switchIssue = function(issue) {
+        window.switchIssue = async function(issue) {
             const issueNum = Number(issue);
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
-            renderBooks(issueNum, 1);
+            async renderBooks(issueNum, 1);
             // 顯示海報
             document.getElementById('posterThumbContainer').style.display = 'flex';
             showSection('posterSection');
@@ -799,26 +799,10 @@ window.saveBookInfo = function() {
   }
 }
 
-            function saveBookData(cover) {
-                window.libraryData.issues[issue].books[posterNum][bookNum] = {
-                    callNo: document.getElementById('bookCallNo').value,
-                    title: title,
-                    classCode: document.getElementById('bookClassCode').value,
-                    author: document.getElementById('bookAuthor').value,
-                    intro: document.getElementById('bookIntro').value,
-                    suitable: document.getElementById('bookSuitable').value,
-                    status: document.getElementById('bookStatus').value,
-                    cover: cover
-                };
-                saveData();
-                renderBooks(issue, posterNum);
-                alert('儲存成功');
-                document.getElementById('bookCoverUpload').value = '';
-            }
-        }
+    
 
         // 刪除書籍
-        window.deleteBookInfo = function() {
+        window.deleteBookInfo = async function() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
@@ -830,8 +814,8 @@ window.saveBookInfo = function() {
 
             if (confirm('確定要刪除此書籍嗎？')) {
                 delete window.libraryData.issues[issue].books[posterNum][bookNum];
-                saveData();
-                renderBooks(issue, posterNum);
+                async saveData();
+                async renderBooks(issue, posterNum);
             }
         }
 
