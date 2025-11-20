@@ -206,8 +206,9 @@
             // 顯示海報容器
             document.getElementById('posterThumbContainer').style.display = 'flex';
             document.querySelector('.nav-item').classList.add('active');
+	    loadBookData();
         }
-        loadBookData();
+        
 
         // 渲染期數選擇器
         function renderIssueSelectors() {
