@@ -97,15 +97,19 @@ function collectAllBooks() {
 }
 
         // 儲存資料到 Firebase
-        async function saveData() {
-            try {
-                await set(ref(db, "issues"), window.libraryData.issues);
-                await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
-                collectAllBooks();
-            } catch (err) {
-                alert("儲存失敗，請重試");
-            }
-        }
+async function saveData() {
+    try {
+        // 先确保所有书籍都有标准化 ID（避免遗漏）
+        collectAllBooks();
+        // 明确写入完整的 issues 数据到 Firebase，确保所有书籍属性同步
+        await set(ref(db, "issues"), window.libraryData.issues);
+        await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
+        console.log("數據已完整保存到FB"); // 调试用，可删除
+    } catch (err) {
+        console.error("保存失敗:", err);
+        alert("儲存失敗，請重試");
+    }
+}
 
 // 儲存預約記錄（修复状态同步）
 window.saveReserveRecord = async function(record) {
@@ -380,7 +384,7 @@ function createBookCard(book) {
     return card;
 }
 // 渲染書籍列表（统一ID格式）
-window.renderBooks = function(issue, posterNum) {
+window.renderBooks = async function(issue, posterNum) {
     const container = document.getElementById('booksContainer');
     container.innerHTML = '';
     // 确保基础数据结构存在
@@ -419,8 +423,7 @@ window.renderBooks = function(issue, posterNum) {
         card.dataset.group = Math.ceil(i / 3);
         container.appendChild(card);
     }
-    collectAllBooks(); // 重新收集书籍
-    saveData();
+ await saveData();
 }
 
         // 渲染當前視圖
