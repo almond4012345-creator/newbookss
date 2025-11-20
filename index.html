@@ -196,16 +196,24 @@ window.updateReserveStatus = async function(index, status) {
             }
         }
 
-        // 初始化頁面
-        function init() {
-            renderIssueSelectors();
-            showLatestIssue();
-            initCategoryDropdown();
-            renderUserRecommendList();
-            // 顯示海報容器
-            document.getElementById('posterThumbContainer').style.display = 'flex';
-document.querySelector('.nav-item').classList.add('active');
-        }
+// 初始化頁面
+function init() {
+    renderIssueSelectors();
+    showLatestIssue();
+    initCategoryDropdown();
+    renderUserRecommendList();
+    // 顯示海報容器
+    document.getElementById('posterThumbContainer').style.display = 'flex';
+    document.querySelector('.nav-item').classList.add('active');
+    
+    // 新增：為書籍選擇下拉菜單添加事件監聽器
+    document.getElementById('bookIssueSelect').addEventListener('change', window.loadBookInfo);
+    document.getElementById('bookPosterSelect').addEventListener('change', window.loadBookInfo);
+    document.getElementById('bookNumSelect').addEventListener('change', window.loadBookInfo);
+    
+    // 初始加載一次
+    window.loadBookInfo();
+}
 
         // 渲染期數選擇器
         function renderIssueSelectors() {
@@ -739,13 +747,6 @@ window.getRandomSoftColor = function() {
             alert(`已新增第${newIssue}期`);
         }
 
-// 加载选中书籍的已有数据并填充到表单
-window.loadBookData = function() { ... } // 上面的新函数
-
-// 保存書籍信息
-window.saveBookInfo = function() { ... } // 原有函数
-
-
         // 保存書籍信息
         window.saveBookInfo = function() {
             const title = document.getElementById('bookTitle').value.trim();
@@ -796,6 +797,38 @@ window.saveBookInfo = function() { ... } // 原有函数
                 document.getElementById('bookCoverUpload').value = '';
             }
         }
+
+// 自動加載書籍信息函數
+window.loadBookInfo = function() {
+    const issue = document.getElementById('bookIssueSelect').value;
+    const posterNum = document.getElementById('bookPosterSelect').value;
+    const bookNum = document.getElementById('bookNumSelect').value;
+    
+    // 檢查書籍是否存在
+    const book = window.libraryData.issues[issue]?.books[posterNum]?.[bookNum];
+    
+    if (book) {
+        // 加載已存在的書籍信息
+        document.getElementById('bookCallNo').value = book.callNo !== '待編輯' ? book.callNo : '';
+        document.getElementById('bookTitle').value = book.title !== '新書' + bookNum ? book.title : '';
+        document.getElementById('bookClassCode').value = book.classCode || '000';
+        document.getElementById('bookAuthor').value = book.author !== '待編輯' ? book.author : '';
+        document.getElementById('bookIntro').value = book.intro !== '待編輯' ? book.intro : '';
+        document.getElementById('bookSuitable').value = book.suitable !== '待編輯' ? book.suitable : '';
+        document.getElementById('bookStatus').value = book.status || 'in';
+    } else {
+        // 清空所有字段（新書籍）
+        document.getElementById('bookCallNo').value = '';
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('bookClassCode').value = '000';
+        document.getElementById('bookAuthor').value = '';
+        document.getElementById('bookIntro').value = '';
+        document.getElementById('bookSuitable').value = '';
+        document.getElementById('bookStatus').value = 'in';
+        document.getElementById('bookCoverUpload').value = '';
+    }
+}
+
 
         // 刪除書籍
         window.deleteBookInfo = function() {
@@ -1441,26 +1474,26 @@ window.saveBookInfo = function() { ... } // 原有函数
             <h3>3. 書籍資訊管理</h3>
             <div>
                 <label>選擇期數: </label>
-            <select id="bookIssueSelect" onchange="document.getElementById('bookNumSelect').value=1; loadBookData()">
+ <select id="bookIssueSelect" onchange="loadBookInfo()">
     <option value="1">第1期</option>
-</select>
+                </select>
                 <label>選擇海報序號: </label>
-               <select id="bookPosterSelect" onchange="document.getElementById('bookNumSelect').value=1; loadBookData()">
-    <option value="1">海報1</option>
-    <option value="2">海報2</option>
-</select>
-     <label>選擇書籍序號: </label>
-<select id="bookNumSelect" onchange="loadBookData()">
-    <option value="1">1</option>
-    <option value="2">2</option>
-    <option value="3">3</option>
-    <option value="4">4</option>
-    <option value="5">5</option>
-    <option value="6">6</option>
-    <option value="7">7</option>
-    <option value="8">8</option>
-    <option value="9">9</option>
-</select>
+                <select id="bookPosterSelect" onchange="loadBookInfo()">
+                    <option value="1">海報1</option>
+                    <option value="2">海報2</option>
+                </select>
+                <label>選擇書籍序號: </label>
+        <select id="bookNumSelect" onchange="loadBookInfo()">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                </select>
             </div>
             
             <div class="book-editor">
