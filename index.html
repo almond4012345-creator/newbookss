@@ -96,22 +96,16 @@ function collectAllBooks() {
     }
 }
 
-// 儲存資料到 Firebase
-async function saveData() {
-  try {
-    // 先收集所有书籍，确保ID和属性完整
-    collectAllBooks();
-    // 打印日志，确认要保存的数据存在（F12控制台可查看）
-    console.log("准备保存的 issues 数据:", Object.keys(window.libraryData.issues));
-    // 分两步保存，确保都执行完成
-    await set(ref(db, "issues"), window.libraryData.issues);
-    await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
-    console.log("数据已成功保存到 Firebase");
-  } catch (err) {
-    console.error("Firebase 保存失败:", err.message);
-    alert("儲存失敗，錯誤：" + err.message);
-  }
-}
+        // 儲存資料到 Firebase
+        async function saveData() {
+            try {
+                await set(ref(db, "issues"), window.libraryData.issues);
+                await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
+                collectAllBooks();
+            } catch (err) {
+                alert("儲存失敗，請重試");
+            }
+        }
 
 // 儲存預約記錄（修复状态同步）
 window.saveReserveRecord = async function(record) {
@@ -232,11 +226,11 @@ document.querySelector('.nav-item').classList.add('active');
         }
 
         // 切換期數
-        window.switchIssue = async function(issue) {
+        window.switchIssue = function(issue) {
             const issueNum = Number(issue);
             document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
             renderPosterThumbs(issueNum);
-            async renderBooks(issueNum, 1);
+            renderBooks(issueNum, 1);
             // 顯示海報
             document.getElementById('posterThumbContainer').style.display = 'flex';
             showSection('posterSection');
@@ -378,44 +372,47 @@ function createBookCard(book) {
     return card;
 }
 // 渲染書籍列表（统一ID格式）
-// 渲染書籍列表（统一ID格式）
-window.renderBooks = async function(issue, posterNum) { // 加 async
-  const container = document.getElementById('booksContainer');
-  container.innerHTML = '';
-  if (!window.libraryData.issues[issue]) {
-    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
-  }
-  if (!window.libraryData.issues[issue].books[posterNum]) {
-    window.libraryData.issues[issue].books[posterNum] = {};
-  }
-  const books = window.libraryData.issues[issue].books[posterNum];
+window.renderBooks = function(issue, posterNum) {
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 确保基础数据结构存在
+    if (!window.libraryData.issues[issue]) {
+        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+    }
+    if (!window.libraryData.issues[issue].books[posterNum]) {
+        window.libraryData.issues[issue].books[posterNum] = {};
+    }
+    const books = window.libraryData.issues[issue].books[posterNum];
 
-  for (let i = 1; i <= 9; i++) {
-    const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
-    let book = books[i] || {
-      id: bookId,
-      issue: issue.toString(),
-      posterNum: posterNum.toString(),
-      bookNum: i.toString(),
-      callNo: '待編輯',
-      title: '新書' + i,
-      classCode: '000',
-      author: '待編輯',
-      intro: '待編輯',
-      suitable: '待編輯',
-      status: 'in',
-      cover: `https://via.placeholder.com/100x150?text=新書${i}`
-    };
-    book.id = bookId;
-    books[i] = book;
-    window.libraryData.issues[issue].books[posterNum][i] = book;
-    
-    const card = createBookCard(book);
-    card.dataset.group = Math.ceil(i / 3);
-    container.appendChild(card);
-  }
-  collectAllBooks();
-  await saveData(); // 加 await，等待保存完成
+    for (let i = 1; i <= 9; i++) {
+        // 强制生成标准格式的书籍数据
+        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+        let book = books[i] || {
+            id: bookId, // 使用标准化ID
+            issue: issue.toString(), // 确保是字符串类型
+            posterNum: posterNum.toString(), // 确保是字符串类型
+            bookNum: i.toString(),
+            callNo: '待編輯',
+            title: '新書' + i,
+            classCode: '000',
+            author: '待編輯',
+            intro: '待編輯',
+            suitable: '待編輯',
+            status: 'in',
+            cover: `https://via.placeholder.com/100x150?text=新書${i}`
+        };
+        // 强制更新ID为标准格式
+        book.id = bookId;
+        books[i] = book;
+        window.libraryData.issues[issue].books[posterNum][i] = book;
+        
+        // 创建卡片时绑定正确的ID
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil(i / 3);
+        container.appendChild(card);
+    }
+    collectAllBooks(); // 重新收集书籍
+    saveData();
 }
 
         // 渲染當前視圖
@@ -669,47 +666,47 @@ window.getRandomSoftColor = function() {
 }
 
         // 上傳海報
-// 上傳海報
-window.uploadPoster = async function() { // 加 async
-  const issue = document.getElementById('posterIssueSelect').value;
-  const num = document.getElementById('posterNumSelect').value;
-  const file = document.getElementById('posterUpload').files[0];
-  
-  if (!file) {
-    alert('請選擇圖片');
-    return;
-  }
+        window.uploadPoster = function() {
+            const issue = document.getElementById('posterIssueSelect').value;
+            const num = document.getElementById('posterNumSelect').value;
+            const file = document.getElementById('posterUpload').files[0];
+            
+            if (!file) {
+                alert('請選擇圖片');
+                return;
+            }
 
-  const reader = new FileReader();
-  reader.onload = async function(e) { // 加 async
-    if (!window.libraryData.issues[issue]) {
-      window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
-    }
-    window.libraryData.issues[issue].posters[num] = e.target.result;
-    await saveData(); // 加 await
-    renderPosterThumbs(issue);
-    alert('上傳成功');
-    document.getElementById('posterUpload').value = '';
-  };
-  reader.readAsDataURL(file);
-}
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (!window.libraryData.issues[issue]) {
+                    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+                }
+                window.libraryData.issues[issue].posters[num] = e.target.result;
+                saveData();
+                renderPosterThumbs(issue);
+                alert('上傳成功');
+                document.getElementById('posterUpload').value = '';
+            };
+            reader.readAsDataURL(file);
+        }
 
         // 刪除單張海報
-window.deleteSinglePoster = async function() { // 加 async
-  const issue = document.getElementById('posterIssueSelect').value;
-  const num = document.getElementById('posterNumSelect').value;
-  
-  if (!window.libraryData.issues[issue]?.posters[num]) {
-    alert('該海報不存在');
-    return;
-  }
+        window.deleteSinglePoster = function() {
+            const issue = document.getElementById('posterIssueSelect').value;
+            const num = document.getElementById('posterNumSelect').value;
+            
+            if (!window.libraryData.issues[issue]?.posters[num]) {
+                alert('該海報不存在');
+                return;
+            }
 
-  if (confirm(`確定要刪除第${issue}期第${num}張海報嗎？`)) {
-    window.libraryData.issues[issue].posters[num] = '';
-    await saveData(); // 加 await
-    renderPosterThumbs(issue);
-  }
-}
+            if (confirm(`確定要刪除第${issue}期第${num}張海報嗎？`)) {
+                window.libraryData.issues[issue].posters[num] = '';
+                saveData();
+                renderPosterThumbs(issue);
+            }
+        }
+
         // 刪除整期
         window.deleteWholeIssue = async function() {
             const issue = document.getElementById('posterIssueSelect').value;
@@ -743,66 +740,58 @@ window.deleteSinglePoster = async function() { // 加 async
         }
 
         // 保存書籍信息
-     // 保存書籍信息
-window.saveBookInfo = function() {
-  const title = document.getElementById('bookTitle').value.trim();
-  if (!title) {
-    alert('請輸入書名');
-    return;
-  }
+        window.saveBookInfo = function() {
+            const title = document.getElementById('bookTitle').value.trim();
+            if (!title) {
+                alert('請輸入書名');
+                return;
+            }
 
-  const issue = document.getElementById('bookIssueSelect').value;
-  const posterNum = document.getElementById('bookPosterSelect').value;
-  const bookNum = document.getElementById('bookNumSelect').value;
+            const issue = document.getElementById('bookIssueSelect').value;
+            const posterNum = document.getElementById('bookPosterSelect').value;
+            const bookNum = document.getElementById('bookNumSelect').value;
 
-  if (!window.libraryData.issues[issue]) {
-    window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
-  }
-  if (!window.libraryData.issues[issue].books[posterNum]) {
-    window.libraryData.issues[issue].books[posterNum] = {};
-  }
+            if (!window.libraryData.issues[issue]) {
+                window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+            }
+            if (!window.libraryData.issues[issue].books[posterNum]) {
+                window.libraryData.issues[issue].books[posterNum] = {};
+            }
 
-  let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
-  const coverFile = document.getElementById('bookCoverUpload').files[0];
-  
-  // 改为 async 函数
-  const saveBookData = async function(cover) { // 加 async
-    window.libraryData.issues[issue].books[posterNum][bookNum] = {
-      id: `issue-${issue}-poster-${posterNum}-book-${bookNum}`, // 强制加ID
-      issue: issue.toString(),
-      posterNum: posterNum.toString(),
-      bookNum: bookNum.toString(),
-      callNo: document.getElementById('bookCallNo').value,
-      title: title,
-      classCode: document.getElementById('bookClassCode').value,
-      author: document.getElementById('bookAuthor').value,
-      intro: document.getElementById('bookIntro').value,
-      suitable: document.getElementById('bookSuitable').value,
-      status: document.getElementById('bookStatus').value,
-      cover: cover
-    };
-    await saveData(); // 加 await
-    await renderBooks(issue, posterNum); // 加 await
-    alert('儲存成功');
-    document.getElementById('bookCoverUpload').value = '';
-  }
+            let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
+            const coverFile = document.getElementById('bookCoverUpload').files[0];
+            
+            if (coverFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    coverUrl = e.target.result;
+                    saveBookData(coverUrl);
+                };
+                reader.readAsDataURL(coverFile);
+            } else {
+                saveBookData(coverUrl);
+            }
 
-  if (coverFile) {
-    const reader = new FileReader();
-    reader.onload = async function(e) { // 加 async
-      coverUrl = e.target.result;
-      await saveBookData(coverUrl); // 加 await
-    };
-    reader.readAsDataURL(coverFile);
-  } else {
-    saveBookData(coverUrl);
-  }
-}
-
-    
+            function saveBookData(cover) {
+                window.libraryData.issues[issue].books[posterNum][bookNum] = {
+                    callNo: document.getElementById('bookCallNo').value,
+                    title: title,
+                    classCode: document.getElementById('bookClassCode').value,
+                    author: document.getElementById('bookAuthor').value,
+                    intro: document.getElementById('bookIntro').value,
+                    suitable: document.getElementById('bookSuitable').value,
+                    status: document.getElementById('bookStatus').value,
+                    cover: cover
+                };
+                saveData();
+                renderBooks(issue, posterNum);
+                alert('儲存成功');
+                document.getElementById('bookCoverUpload').value = '';
+            }
+        }
 
         // 刪除書籍
-        window.deleteBookInfo = async function() {
+        window.deleteBookInfo = function() {
             const issue = document.getElementById('bookIssueSelect').value;
             const posterNum = document.getElementById('bookPosterSelect').value;
             const bookNum = document.getElementById('bookNumSelect').value;
@@ -814,8 +803,8 @@ window.saveBookInfo = function() {
 
             if (confirm('確定要刪除此書籍嗎？')) {
                 delete window.libraryData.issues[issue].books[posterNum][bookNum];
-                async saveData();
-                async renderBooks(issue, posterNum);
+                saveData();
+                renderBooks(issue, posterNum);
             }
         }
 
@@ -1289,20 +1278,15 @@ window.saveBookInfo = function() {
 
     <!-- 頂部區域 -->
 <div class="header-divider" style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;"></div>
-<div class="header">
-    <h1>中學圖書館 | 每週新書速遞</h1>
-    <!-- 新增的小字 -->
-    <div style="font-size: 12px; color: #8e8e93; margin: 5px 0 10px; letter-spacing: 0.5px;">
-        建議使用電腦瀏覽
+    <div class="header">
+        <h1>中學圖書館 | 每週新書速遞</h1>
+        <div class="issue-selector">
+            <label>選擇期數: </label>
+            <select id="issueSelect" onchange="switchIssue(this.value)">
+                <option value="1">第1期</option>
+            </select>
+        </div>
     </div>
-    <!-- 原有的期数选择器 -->
-    <div class="issue-selector">
-        <label>選擇期數: </label>
-        <select id="issueSelect" onchange="switchIssue(this.value)">
-            <option value="1">第1期</option>
-        </select>
-    </div>
-</div>
 
     <!-- 導航欄 -->
     <div class="nav-bar">
@@ -1517,3 +1501,5 @@ window.saveBookInfo = function() {
     <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
 </html>
+
+我想在「中學圖書館|每周新書速遞」加一行很小的字 類似建議用電腦瀏覽之類的，加在哪裡
