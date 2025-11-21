@@ -5,30 +5,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中學圖書館 | 每週新書速遞</title>
-<script type="module">
-    // 引入 Firebase 模組
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-    
+    <script type="module">
+        // 引入 Firebase 模組
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-    // Firebase 配置
-    const firebaseConfig = {
-        apiKey: "AIzaSyAdNZnrW2xEh6AYFs5osZ0Zi-Tl5ZPbqfs",
-        authDomain: "newbookf-a73de-5a312-47013.firebaseapp.com",
-        projectId: "newbookf-a73de-5a312-47013",
-        storageBucket: "newbookf-a73de-5a312-47013.firebasestorage.app",
-        messagingSenderId: "1022548977720",
-        appId: "1:1022548977720:web:b713d061247b81b98d1ecd"
-    };
 
-    // 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);  // ← 改成 Firestore
-    
-// 測試 Firebase 連線
-console.log("🔥 Firebase 連線測試開始...");
-console.log("專案ID:", firebaseConfig.projectId);
-console.log("Database:", db);
+        // Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyAdNZnrW2xEh6AYFs5osZ0Zi-Tl5ZPbqfs",
+            authDomain: "newbookf-a73de-5a312-47013.firebaseapp.com",
+            projectId: "newbookf-a73de-5a312-47013",
+            storageBucket: "newbookf-a73de-5a312-47013.firebasestorage.app",
+            messagingSenderId: "1022548977720",
+            appId: "1:1022548977720:web:b713d061247b81b98d1ecd"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);  // ← 改成 Firestore
+
+        // 測試 Firebase 連線
+        console.log("🔥 Firebase 連線測試開始...");
+        console.log("專案ID:", firebaseConfig.projectId);
+        console.log("Database:", db);
 
 
 
@@ -41,72 +41,72 @@ console.log("Database:", db);
             allBooks: []
         };
 
-       // 從 Firebase 載入資料
+        // 從 Firebase 載入資料
 
-async function loadData() {
-    try {
-        document.getElementById('loadingIndicator').style.display = 'block';
-
-        // 先嘗試清理過大的資料
-    //    console.log("開始清理過大資料...");
-      //  await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
-        //console.log("資料清理完成");
-
-        // 載入期數資料 - Firestore 版本
-        const issuesCollection = collection(db, "issues");
-        const issuesSnapshot = await getDocs(issuesCollection);
-        window.libraryData.issues = {};
-        issuesSnapshot.forEach((doc) => {
-            window.libraryData.issues[doc.id] = doc.data();
-        });
-
-        // 載入預約記錄 - Firestore 版本
-        const reservesCollection = collection(db, "reserves");
-        const reservesSnapshot = await getDocs(reservesCollection);
-        window.libraryData.reserveRecords = [];
-        reservesSnapshot.forEach((doc) => {
-            window.libraryData.reserveRecords.push({ ...doc.data(), id: doc.id });
-        });
-
-        // 載入推薦記錄 - Firestore 版本
-        const recommendsCollection = collection(db, "recommends");
-        const recommendsSnapshot = await getDocs(recommendsCollection);
-        window.libraryData.recommendRecords = [];
-        recommendsSnapshot.forEach((doc) => {
-            window.libraryData.recommendRecords.push({ ...doc.data(), id: doc.id });
-        });
-
-        // 載入系統設定 - Firestore 版本
-        const settingsDoc = await getDoc(doc(db, "settings", "system"));
-        window.libraryData.latestIssue = settingsDoc.exists() ? settingsDoc.data().latestIssue : 1;
-
-        collectAllBooks();
-        init();
-        document.getElementById('loadingIndicator').style.display = 'none';
-        
-    } catch (err) {
-        console.error("載入失敗:", err);
-        
-        // 如果是資料太大的錯誤，清理並重新初始化
-        if (err.message.includes('exceeds the maximum allowed size')) {
-            console.log("檢測到資料過大，進行清理...");
-            // 強制刪除有問題的文件
+        async function loadData() {
             try {
-                await deleteDoc(doc(db, "issues", "1"));
-            } catch (e) {
-                console.log("刪除文件失敗:", e);
+                document.getElementById('loadingIndicator').style.display = 'block';
+
+                // 先嘗試清理過大的資料
+                //    console.log("開始清理過大資料...");
+                //  await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
+                //console.log("資料清理完成");
+
+                // 載入期數資料 - Firestore 版本
+                const issuesCollection = collection(db, "issues");
+                const issuesSnapshot = await getDocs(issuesCollection);
+                window.libraryData.issues = {};
+                issuesSnapshot.forEach((doc) => {
+                    window.libraryData.issues[doc.id] = doc.data();
+                });
+
+                // 載入預約記錄 - Firestore 版本
+                const reservesCollection = collection(db, "reserves");
+                const reservesSnapshot = await getDocs(reservesCollection);
+                window.libraryData.reserveRecords = [];
+                reservesSnapshot.forEach((doc) => {
+                    window.libraryData.reserveRecords.push({ ...doc.data(), id: doc.id });
+                });
+
+                // 載入推薦記錄 - Firestore 版本
+                const recommendsCollection = collection(db, "recommends");
+                const recommendsSnapshot = await getDocs(recommendsCollection);
+                window.libraryData.recommendRecords = [];
+                recommendsSnapshot.forEach((doc) => {
+                    window.libraryData.recommendRecords.push({ ...doc.data(), id: doc.id });
+                });
+
+                // 載入系統設定 - Firestore 版本
+                const settingsDoc = await getDoc(doc(db, "settings", "system"));
+                window.libraryData.latestIssue = settingsDoc.exists() ? settingsDoc.data().latestIssue : 1;
+
+                collectAllBooks();
+                init();
+                document.getElementById('loadingIndicator').style.display = 'none';
+
+            } catch (err) {
+                console.error("載入失敗:", err);
+
+                // 如果是資料太大的錯誤，清理並重新初始化
+                if (err.message.includes('exceeds the maximum allowed size')) {
+                    console.log("檢測到資料過大，進行清理...");
+                    // 強制刪除有問題的文件
+                    try {
+                        await deleteDoc(doc(db, "issues", "1"));
+                    } catch (e) {
+                        console.log("刪除文件失敗:", e);
+                    }
+                    window.libraryData.issues = {};
+                    await saveData(); // 保存空的資料
+                    alert("資料庫已重置，請重新上傳資料");
+                    location.reload(); // 重新整理頁面
+                } else {
+                    alert("資料載入失敗，請重新整理頁面");
+                }
+
+                document.getElementById('loadingIndicator').style.display = 'none';
             }
-            window.libraryData.issues = {};
-            await saveData(); // 保存空的資料
-            alert("資料庫已重置，請重新上傳資料");
-            location.reload(); // 重新整理頁面
-        } else {
-            alert("資料載入失敗，請重新整理頁面");
         }
-        
-        document.getElementById('loadingIndicator').style.display = 'none';
-    }
-}
         // 收集所有書籍（确保海報书籍被正确收录）
         function collectAllBooks() {
             window.libraryData.allBooks = [];
@@ -131,180 +131,180 @@ async function loadData() {
         }
 
 
-// 儲存資料到 Firebase - Firestore 版本
-async function saveData() {
-    try {
-        // 檢查每個期數的大小
-        for (const issueId in window.libraryData.issues) {
-            const issueData = window.libraryData.issues[issueId];
-            const dataSize = JSON.stringify(issueData).length;
-            console.log(`第${issueId}期資料大小:`, Math.round(dataSize / 1024), 'KB');
-            
-            if (dataSize > 900 * 1024) {
-                console.warn(`警告：第${issueId}期資料接近大小限制`);
+        // 儲存資料到 Firebase - Firestore 版本
+        async function saveData() {
+            try {
+                // 檢查每個期數的大小
+                for (const issueId in window.libraryData.issues) {
+                    const issueData = window.libraryData.issues[issueId];
+                    const dataSize = JSON.stringify(issueData).length;
+                    console.log(`第${issueId}期資料大小:`, Math.round(dataSize / 1024), 'KB');
+
+                    if (dataSize > 900 * 1024) {
+                        console.warn(`警告：第${issueId}期資料接近大小限制`);
+                    }
+
+                    await setDoc(doc(db, "issues", issueId), issueData);
+                }
+
+                // 保存系統設定
+                await setDoc(doc(db, "settings", "system"), {
+                    latestIssue: window.libraryData.latestIssue
+                });
+
+                console.log('保存成功');
+                collectAllBooks();
+            } catch (err) {
+                console.error("儲存失敗:", err);
+                alert("儲存失敗，請重試");
             }
-            
-            await setDoc(doc(db, "issues", issueId), issueData);
         }
-        
-        // 保存系統設定
-        await setDoc(doc(db, "settings", "system"), { 
-            latestIssue: window.libraryData.latestIssue 
-        });
-        
-        console.log('保存成功');
-        collectAllBooks();
-    } catch (err) {
-        console.error("儲存失敗:", err);
-        alert("儲存失敗，請重試");
-    }
-}
 
 
-// 儲存預約記錄 - Firestore 版本
-window.saveReserveRecord = async function(record) {
-    try {
-        const recordRef = doc(collection(db, "reserves"));
-        await setDoc(recordRef, record);
-        record.id = recordRef.id;
-        window.libraryData.reserveRecords.push(record);
-        
-        // 解析標準化ID
-        const idParts = record.bookId.split('-');
-        const issue = idParts[1];
-        const poster = idParts[3];
-        const bookNum = idParts[5];
+        // 儲存預約記錄 - Firestore 版本
+        window.saveReserveRecord = async function (record) {
+            try {
+                const recordRef = doc(collection(db, "reserves"));
+                await setDoc(recordRef, record);
+                record.id = recordRef.id;
+                window.libraryData.reserveRecords.push(record);
 
-        // 更新書籍狀態為"已被預約"
-        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-            window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
-            await saveData();
-            collectAllBooks();
-            renderCurrentView();
+                // 解析標準化ID
+                const idParts = record.bookId.split('-');
+                const issue = idParts[1];
+                const poster = idParts[3];
+                const bookNum = idParts[5];
+
+                // 更新書籍狀態為"已被預約"
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
+                    await saveData();
+                    collectAllBooks();
+                    renderCurrentView();
+                }
+                renderReserveRecords();
+            } catch (err) {
+                console.error("預約失敗:", err);
+                alert("預約失敗，請重試");
+            }
         }
-        renderReserveRecords();
-    } catch (err) {
-        console.error("預約失敗:", err);
-        alert("預約失敗，請重試");
-    }
-}
 
-      
-// 更新預約狀態 - Firestore 版本
-window.updateReserveStatus = async function(index, status) {
-    try {
-        const record = window.libraryData.reserveRecords[index];
-        record.status = status;
-        await updateDoc(doc(db, "reserves", record.id), { status });
-        
-        // 解析標準化ID
-        const idParts = record.bookId.split('-');
-        const issue = idParts[1];
-        const poster = idParts[3];
-        const bookNum = idParts[5];
 
-        // 根據不同狀態更新書籍狀態
-        if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-            let bookStatus;
-            if (status === '已還書' || status === '找不到') {
-                bookStatus = 'in';
-            } else if (status === '借走了') {
-                bookStatus = 'out';
+        // 更新預約狀態 - Firestore 版本
+        window.updateReserveStatus = async function (index, status) {
+            try {
+                const record = window.libraryData.reserveRecords[index];
+                record.status = status;
+                await updateDoc(doc(db, "reserves", record.id), { status });
+
+                // 解析標準化ID
+                const idParts = record.bookId.split('-');
+                const issue = idParts[1];
+                const poster = idParts[3];
+                const bookNum = idParts[5];
+
+                // 根據不同狀態更新書籍狀態
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    let bookStatus;
+                    if (status === '已還書' || status === '找不到') {
+                        bookStatus = 'in';
+                    } else if (status === '借走了') {
+                        bookStatus = 'out';
+                    } else {
+                        bookStatus = 'reserved';
+                    }
+
+                    window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
+                    await saveData();
+                    collectAllBooks();
+                    renderCurrentView();
+                }
+                renderReserveRecords();
+            } catch (err) {
+                console.error("更新失敗:", err);
+                alert("更新失敗");
+            }
+        }
+
+
+        // 儲存推薦記錄 - Firestore 版本
+        window.saveRecommendRecord = async function (record) {
+            try {
+                const recordRef = doc(collection(db, "recommends"));
+                await setDoc(recordRef, record);
+                record.id = recordRef.id;
+                window.libraryData.recommendRecords.push(record);
+                renderRecommendRecords();
+                renderUserRecommendList();
+            } catch (err) {
+                alert("推薦失敗");
+            }
+        }
+
+        // 更新推薦狀態 - Firestore 版本
+        window.updateRecommendStatus = async function (index, status) {
+            try {
+                const record = window.libraryData.recommendRecords[index];
+                record.status = status;
+                await updateDoc(doc(db, "recommends", record.id), { status });
+                renderUserRecommendList();
+            } catch (err) {
+                alert("更新失敗");
+            }
+        }
+
+
+
+        // 新增自動加載書籍資料函數
+        window.loadBookData = function () {
+            const issue = document.getElementById('bookIssueSelect').value;
+            const posterNum = document.getElementById('bookPosterSelect').value;
+            const bookNum = document.getElementById('bookNumSelect').value;
+
+            // 檢查該書籍是否存在
+            const book = window.libraryData.issues[issue]?.books[posterNum]?.[bookNum];
+
+            if (book) {
+                // 自動填充表單，如果是"待編輯"就清空
+                document.getElementById('bookCallNo').value = book.callNo !== '待編輯' ? book.callNo : '';
+                document.getElementById('bookTitle').value = book.title !== '新書' + bookNum && book.title !== '待編輯' ? book.title : '';
+                document.getElementById('bookClassCode').value = book.classCode || '000';
+                document.getElementById('bookAuthor').value = book.author !== '待編輯' ? book.author : '';
+                document.getElementById('bookIntro').value = book.intro !== '待編輯' ? book.intro : '';
+                document.getElementById('bookSuitable').value = book.suitable !== '待編輯' ? book.suitable : '';
+                document.getElementById('bookStatus').value = book.status || 'in';
             } else {
-                bookStatus = 'reserved';
+                // 如果書籍不存在，清空所有欄位
+                clearBookForm();
             }
-
-            window.libraryData.issues[issue].books[poster][bookNum].status = bookStatus;
-            await saveData();
-            collectAllBooks();
-            renderCurrentView();
         }
-        renderReserveRecords();
-    } catch (err) {
-        console.error("更新失敗:", err);
-        alert("更新失敗");
-    }
-}
 
+        // 清空表單函數
+        function clearBookForm() {
+            document.getElementById('bookCallNo').value = '';
+            document.getElementById('bookTitle').value = '';
+            document.getElementById('bookClassCode').value = '000';
+            document.getElementById('bookAuthor').value = '';
+            document.getElementById('bookIntro').value = '';
+            document.getElementById('bookSuitable').value = '';
+            document.getElementById('bookStatus').value = 'in';
+        }
 
-// 儲存推薦記錄 - Firestore 版本
-window.saveRecommendRecord = async function(record) {
-    try {
-        const recordRef = doc(collection(db, "recommends"));
-        await setDoc(recordRef, record);
-        record.id = recordRef.id;
-        window.libraryData.recommendRecords.push(record);
-        renderRecommendRecords();
-        renderUserRecommendList();
-    } catch (err) {
-        alert("推薦失敗");
-    }
-}
+        // 初始化頁面
+        function init() {
+            renderIssueSelectors();
+            showLatestIssue();
+            initCategoryDropdown();
+            renderUserRecommendList();
+            // 顯示海報容器
+            document.getElementById('posterThumbContainer').style.display = 'flex';
+            document.querySelector('.nav-item').classList.add('active');
 
-// 更新推薦狀態 - Firestore 版本
-window.updateRecommendStatus = async function(index, status) {
-    try {
-        const record = window.libraryData.recommendRecords[index];
-        record.status = status;
-        await updateDoc(doc(db, "recommends", record.id), { status });
-        renderUserRecommendList();
-    } catch (err) {
-        alert("更新失敗");
-    }
-}
-
-
-
-// 新增自動加載書籍資料函數
-window.loadBookData = function() {
-    const issue = document.getElementById('bookIssueSelect').value;
-    const posterNum = document.getElementById('bookPosterSelect').value;
-    const bookNum = document.getElementById('bookNumSelect').value;
-    
-    // 檢查該書籍是否存在
-    const book = window.libraryData.issues[issue]?.books[posterNum]?.[bookNum];
-    
-    if (book) {
-        // 自動填充表單，如果是"待編輯"就清空
-        document.getElementById('bookCallNo').value = book.callNo !== '待編輯' ? book.callNo : '';
-        document.getElementById('bookTitle').value = book.title !== '新書' + bookNum && book.title !== '待編輯' ? book.title : '';
-        document.getElementById('bookClassCode').value = book.classCode || '000';
-        document.getElementById('bookAuthor').value = book.author !== '待編輯' ? book.author : '';
-        document.getElementById('bookIntro').value = book.intro !== '待編輯' ? book.intro : '';
-        document.getElementById('bookSuitable').value = book.suitable !== '待編輯' ? book.suitable : '';
-        document.getElementById('bookStatus').value = book.status || 'in';
-    } else {
-        // 如果書籍不存在，清空所有欄位
-        clearBookForm();
-    }
-}
-
-// 清空表單函數
-function clearBookForm() {
-    document.getElementById('bookCallNo').value = '';
-    document.getElementById('bookTitle').value = '';
-    document.getElementById('bookClassCode').value = '000';
-    document.getElementById('bookAuthor').value = '';
-    document.getElementById('bookIntro').value = '';
-    document.getElementById('bookSuitable').value = '';
-    document.getElementById('bookStatus').value = 'in';
-}
-
-      // 初始化頁面
-function init() {
-    renderIssueSelectors();
-    showLatestIssue();
-    initCategoryDropdown();
-    renderUserRecommendList();
-    // 顯示海報容器
-    document.getElementById('posterThumbContainer').style.display = 'flex';
-    document.querySelector('.nav-item').classList.add('active');
-    
-    // 新增：為書籍選擇下拉菜單添加事件監聽器
-    document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
-    document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
-    document.getElementById('bookNumSelect').addEventListener('change', loadBookData);
-}
+            // 新增：為書籍選擇下拉菜單添加事件監聽器
+            document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
+            document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
+            document.getElementById('bookNumSelect').addEventListener('change', loadBookData);
+        }
 
         // 渲染期數選擇器
         function renderIssueSelectors() {
@@ -470,59 +470,59 @@ function init() {
 
             return card;
         }
-        
-// 渲染書籍列表 - 修復資料初始化問題
-window.renderBooks = function(issue, posterNum) {
-    console.log('渲染書籍 - 期數:', issue, '海報:', posterNum);
-    
-    const container = document.getElementById('booksContainer');
-    container.innerHTML = '';
-    
-    // 加強初始化邏輯
-    if (!window.libraryData.issues[issue]) {
-        window.libraryData.issues[issue] = { 
-            posters: {1: '', 2: ''}, 
-            books: {1: {}, 2: {}} 
-        };
-    }
-    if (!window.libraryData.issues[issue].books[posterNum]) {
-        window.libraryData.issues[issue].books[posterNum] = {};
-    }
-    
-    const books = window.libraryData.issues[issue].books[posterNum];
-    console.log('當前資料結構:', books);
 
-    for (let i = 1; i <= 9; i++) {
-        const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
-        
-   // 在 renderBooks 函數中，確保新書的預設值正確
-let book = books[i] ? { ...books[i] } : {
-    id: bookId,
-    issue: issue.toString(),
-    posterNum: posterNum.toString(),
-    bookNum: i.toString(),
-    callNo: '待編輯',  // 統一使用'待編輯'
-    title: '新書' + i, // 使用有意義的預設值
-    classCode: '000',
-    author: '待編輯',
-    intro: '待編輯',
-    suitable: '待編輯',
-    status: 'in',
-    cover: ''
-};
-        
-        // 確保ID正確
-        book.id = bookId;
-        books[i] = book;
-        window.libraryData.issues[issue].books[posterNum][i] = book;
-        
-        const card = createBookCard(book);
-        card.dataset.group = Math.ceil(i / 3);
-        container.appendChild(card);
-    }
-    collectAllBooks();
-    saveData();
-}
+        // 渲染書籍列表 - 修復資料初始化問題
+        window.renderBooks = function (issue, posterNum) {
+            console.log('渲染書籍 - 期數:', issue, '海報:', posterNum);
+
+            const container = document.getElementById('booksContainer');
+            container.innerHTML = '';
+
+            // 加強初始化邏輯
+            if (!window.libraryData.issues[issue]) {
+                window.libraryData.issues[issue] = {
+                    posters: { 1: '', 2: '' },
+                    books: { 1: {}, 2: {} }
+                };
+            }
+            if (!window.libraryData.issues[issue].books[posterNum]) {
+                window.libraryData.issues[issue].books[posterNum] = {};
+            }
+
+            const books = window.libraryData.issues[issue].books[posterNum];
+            console.log('當前資料結構:', books);
+
+            for (let i = 1; i <= 9; i++) {
+                const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
+
+                // 在 renderBooks 函數中，確保新書的預設值正確
+                let book = books[i] ? { ...books[i] } : {
+                    id: bookId,
+                    issue: issue.toString(),
+                    posterNum: posterNum.toString(),
+                    bookNum: i.toString(),
+                    callNo: '待編輯',  // 統一使用'待編輯'
+                    title: '新書' + i, // 使用有意義的預設值
+                    classCode: '000',
+                    author: '待編輯',
+                    intro: '待編輯',
+                    suitable: '待編輯',
+                    status: 'in',
+                    cover: ''
+                };
+
+                // 確保ID正確
+                book.id = bookId;
+                books[i] = book;
+                window.libraryData.issues[issue].books[posterNum][i] = book;
+
+                const card = createBookCard(book);
+                card.dataset.group = Math.ceil(i / 3);
+                container.appendChild(card);
+            }
+            collectAllBooks();
+            saveData();
+        }
 
 
         // 渲染當前視圖
@@ -734,7 +734,7 @@ let book = books[i] ? { ...books[i] } : {
         window.adminLogin = function () {
             const user = document.getElementById('adminUser').value;
             const pass = document.getElementById('adminPass').value;
-            if (user === '123' && pass === '123') {
+            if (user === 'kakihara' && pass === 'naotoki') {
                 window.closeAllModals();
                 document.getElementById('adminPanel').classList.remove('hidden');
                 renderReserveRecords();
@@ -766,49 +766,49 @@ let book = books[i] ? { ...books[i] } : {
         }
         // 生成隨機柔和顏色（用於推薦書籍序號）
         window.getRandomSoftColor = function () {
-    // 預定柔和色譜，避免刺眼顏色
-    const colors = [
-        '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
-        '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
-    ];
-    // 隨機返回一種顏色
-    return colors[Math.floor(Math.random() * colors.length)];
-}
-
-
-
-// 上傳海報函數
-window.uploadPoster = async function() {
-    const issue = document.getElementById('posterIssueSelect').value;
-    const num = document.getElementById('posterNumSelect').value;
-    const file = document.getElementById('posterUpload').files[0];
-    
-    if (!file) {
-        alert('請選擇圖片');
-        return;
-    }
-
-    console.log('上傳海報 - 期數:', issue, '海報:', num);
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        if (!window.libraryData.issues[issue]) {
-            window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+            // 預定柔和色譜，避免刺眼顏色
+            const colors = [
+                '#0071e3', '#34c759', '#ff9500', '#5856d6', '#af52de',
+                '#ff3b30', '#00c6ff', '#ff2d55', '#32ade6', '#4cd964'
+            ];
+            // 隨機返回一種顏色
+            return colors[Math.floor(Math.random() * colors.length)];
         }
-        window.libraryData.issues[issue].posters[num] = e.target.result;
-        
-        console.log('海報資料設置完成，準備保存');
-        console.log('當前期數資料:', window.libraryData.issues[issue]);
-        
-        saveData().then(() => {
-            console.log('保存完成，重新渲染海報');
-            renderPosterThumbs(issue);
-            alert('上傳成功');
-            document.getElementById('posterUpload').value = '';
-        });
-    };
-    reader.readAsDataURL(file);
-}
+
+
+
+        // 上傳海報函數
+        window.uploadPoster = async function () {
+            const issue = document.getElementById('posterIssueSelect').value;
+            const num = document.getElementById('posterNumSelect').value;
+            const file = document.getElementById('posterUpload').files[0];
+
+            if (!file) {
+                alert('請選擇圖片');
+                return;
+            }
+
+            console.log('上傳海報 - 期數:', issue, '海報:', num);
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                if (!window.libraryData.issues[issue]) {
+                    window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
+                }
+                window.libraryData.issues[issue].posters[num] = e.target.result;
+
+                console.log('海報資料設置完成，準備保存');
+                console.log('當前期數資料:', window.libraryData.issues[issue]);
+
+                saveData().then(() => {
+                    console.log('保存完成，重新渲染海報');
+                    renderPosterThumbs(issue);
+                    alert('上傳成功');
+                    document.getElementById('posterUpload').value = '';
+                });
+            };
+            reader.readAsDataURL(file);
+        }
         // 刪除單張海報
         window.deleteSinglePoster = function () {
             const issue = document.getElementById('posterIssueSelect').value;
@@ -826,25 +826,25 @@ window.uploadPoster = async function() {
             }
         }
 
- 
-// 刪除整期 - Firestore 版本
-window.deleteWholeIssue = async function() {
-    const issue = document.getElementById('posterIssueSelect').value;
-    if (!window.libraryData.issues[issue]) {
-        alert('該期不存在');
-        return;
-    }
 
-    if (confirm(`確定要刪除第${issue}期所有內容嗎？`)) {
-        await deleteDoc(doc(db, "issues", issue));
-        delete window.libraryData.issues[issue];
-        const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => b - a);
-        window.libraryData.latestIssue = issues.length > 0 ? issues[0] : 1;
-        await saveData();
-        renderIssueSelectors();
-        showLatestIssue();
-    }
-}
+        // 刪除整期 - Firestore 版本
+        window.deleteWholeIssue = async function () {
+            const issue = document.getElementById('posterIssueSelect').value;
+            if (!window.libraryData.issues[issue]) {
+                alert('該期不存在');
+                return;
+            }
+
+            if (confirm(`確定要刪除第${issue}期所有內容嗎？`)) {
+                await deleteDoc(doc(db, "issues", issue));
+                delete window.libraryData.issues[issue];
+                const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => b - a);
+                window.libraryData.latestIssue = issues.length > 0 ? issues[0] : 1;
+                await saveData();
+                renderIssueSelectors();
+                showLatestIssue();
+            }
+        }
         // 新增期數
         window.addNewIssue = async function () {
             const newIssue = window.libraryData.latestIssue + 1;
@@ -880,17 +880,17 @@ window.deleteWholeIssue = async function() {
             let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
 
-// 在 saveBookInfo 函數中修改封面處理部分
-if (coverFile) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        coverUrl = e.target.result;
-        saveBookData(coverUrl);
-    };
-    reader.readAsDataURL(coverFile);
-} else {
-    saveBookData(coverUrl);
-}
+            // 在 saveBookInfo 函數中修改封面處理部分
+            if (coverFile) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    coverUrl = e.target.result;
+                    saveBookData(coverUrl);
+                };
+                reader.readAsDataURL(coverFile);
+            } else {
+                saveBookData(coverUrl);
+            }
 
             function saveBookData(cover) {
                 window.libraryData.issues[issue].books[posterNum][bookNum] = {
