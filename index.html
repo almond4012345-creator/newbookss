@@ -8,7 +8,7 @@
     <script type="module">
         // 引入 Firebase 模組
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getDatabase, ref, set, get, update, remove } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-storage.js";
 
         // 新的 Firebase 配置
@@ -23,7 +23,7 @@
 
         // 初始化 Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+        const db = getFirestore(app);  // ← 改成 Firestore
         const storage = getStorage(app);
 // 測試 Firebase 連線
 console.log("🔥 Firebase 連線測試開始...");
@@ -52,8 +52,8 @@ console.log("Firestore:", firestore);
                 document.getElementById('loadingIndicator').style.display = 'block';
 
                 // 載入期數資料
-                const issuesSnapshot = await get(ref(db, "issues"));
-                window.libraryData.issues = issuesSnapshot.exists() ? issuesSnapshot.val() : {};
+               // const issuesSnapshot = await get(ref(db, "issues"));
+                // window.libraryData.issues = issuesSnapshot.exists() ? issuesSnapshot.val() : {};
 
                 // 載入預約記錄
                 const reservesSnapshot = await get(ref(db, "reserves"));
