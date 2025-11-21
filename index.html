@@ -332,10 +332,9 @@ function renderIssueSelectors() {
     const selectors = [
         document.getElementById('issueSelect'),
         document.getElementById('posterIssueSelect'),
-        document.getElementById('bookIssueSelect')
- document.getElementById('deleteIssueSelect') // 新增這個
+        document.getElementById('bookIssueSelect'),  // ← 這裡加上逗號
+        document.getElementById('deleteIssueSelect') // 新增這個
     ];
-
     selectors.forEach(sel => {
           if (sel) { // 添加 null 檢查
             sel.innerHTML = '';
