@@ -291,20 +291,20 @@
         }
 
         // 初始化頁面
-        function init() {
-            renderIssueSelectors();
-            showLatestIssue();
-            initCategoryDropdown();
-            renderUserRecommendList();
-            // 顯示海報容器
-            document.getElementById('posterThumbContainer').style.display = 'flex';
-            document.querySelector('.nav-item').classList.add('active');
+function init() {
+    renderIssueSelectors();
+    showLatestIssue();
+    initCategoryDropdown();
+    renderUserRecommendList();
+    // 顯示海報按鈕容器
+    document.getElementById('posterButtonsContainer').style.display = 'flex';
+    document.querySelector('.nav-item').classList.add('active');
 
-            // 新增：為書籍選擇下拉菜單添加事件監聽器
-            document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
-            document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
-            document.getElementById('bookNumSelect').addEventListener('change', loadBookData);
-        }
+    // 新增：為書籍選擇下拉菜單添加事件監聽器
+    document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
+    document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
+    document.getElementById('bookNumSelect').addEventListener('change', loadBookData);
+}
 
         // 渲染期數選擇器
         function renderIssueSelectors() {
@@ -324,22 +324,28 @@
             });
         }
 
-        // 切換期數
-        window.switchIssue = function (issue) {
-            const issueNum = Number(issue);
-            document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
-            renderPosterThumbs(issueNum);
-            renderBooks(issueNum, 1);
-            // 顯示海報
-            document.getElementById('posterThumbContainer').style.display = 'flex';
-            showSection('posterSection');
-        }
+// 切換期數
+window.switchIssue = function (issue) {
+    const issueNum = Number(issue);
+    currentIssue = issueNum; // 更新全局變量
+    document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
+    // 重置海報按鈕狀態
+    document.querySelectorAll('.poster-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    // 默認激活第一個按鈕
+    document.querySelector('.poster-btn[data-poster="1"]').classList.add('active');
+    renderBooks(issueNum, 1);
+    // 顯示海報按鈕容器
+    document.getElementById('posterButtonsContainer').style.display = 'flex';
+    showSection('posterSection');
+}
 
-        // 顯示最新一期
-        window.showLatestIssue = function () {
-            window.switchIssue(window.libraryData.latestIssue);
-            document.getElementById('issueSelect').value = window.libraryData.latestIssue;
-        }
+ // 顯示最新一期
+window.showLatestIssue = function () {
+    window.switchIssue(window.libraryData.latestIssue);
+    document.getElementById('issueSelect').value = window.libraryData.latestIssue;
+}
 
         // 初始化分類下拉
         function initCategoryDropdown() {
@@ -369,27 +375,27 @@
             });
         }
 
-        // 分類篩選（修復預約無法送出的問題）
-        function filterByCategory(category) {
-            const books = window.libraryData.allBooks;
-            const container = document.getElementById('booksContainer');
-            container.innerHTML = '';
-            // 隱藏海報
-            document.getElementById('posterThumbContainer').style.display = 'none';
+ // 分類篩選（修復預約無法送出的問題）
+function filterByCategory(category) {
+    const books = window.libraryData.allBooks;
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報按鈕
+    document.getElementById('posterButtonsContainer').style.display = 'none';
 
-            const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
+    const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
 
-            filtered.forEach((book, index) => {
-                const card = createBookCard(book);
-                card.dataset.group = Math.ceil((index + 1) / 3);
-                container.appendChild(card);
-            });
+    filtered.forEach((book, index) => {
+        const card = createBookCard(book);
+        card.dataset.group = Math.ceil((index + 1) / 3);
+        container.appendChild(card);
+    });
 
-            showSection('posterSection');
-            document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
-            // 確保數據同步
-            collectAllBooks();
-        }
+    showSection('posterSection');
+    document.getElementById('currentIssueTitle').textContent = category === 'all' ? '全部書籍' : `${category} 分類書籍`;
+    // 確保數據同步
+    collectAllBooks();
+}
 
         // 渲染用戶推薦列表
         function renderUserRecommendList() {
@@ -417,20 +423,7 @@
             });
         }
 
-        // 渲染海報
-        function renderPosterThumbs(issue) {
-            const container = document.getElementById('posterThumbContainer');
-            container.innerHTML = '';
 
-            for (let i = 1; i <= 2; i++) {
-                const url = window.libraryData.issues[issue]?.posters[i] || '';
-                if (url) {
-                    container.innerHTML += `<img src="${url}" class="poster-thumb" data-poster="${i}" onclick="renderBooks(${issue}, ${i})">`;
-                } else {
-                    container.innerHTML += `<div class="poster-thumb placeholder" data-poster="${i}" onclick="renderBooks(${issue}, ${i})">海報${i}<br>[暫未上傳]</div>`;
-                }
-            }
-        }
 
         // 创建书籍卡片（修复预约按钮ID绑定）
         function createBookCard(book) {
@@ -681,18 +674,20 @@
             document.getElementById('recommendReason').value = '';
         }
 
-        // 搜索書籍（修復預約無法送出的問題）
-        window.searchBooks = function () {
-            const keyword = document.getElementById('keywordInput').value.toLowerCase();
-            const container = document.getElementById('booksContainer');
-            container.innerHTML = '';
-            // 隱藏海報
-            document.getElementById('posterThumbContainer').style.display = 'none';
+        
+ // 搜索書籍（修復預約無法送出的問題）
+window.searchBooks = function () {
+    const keyword = document.getElementById('keywordInput').value.toLowerCase();
+    const container = document.getElementById('booksContainer');
+    container.innerHTML = '';
+    // 隱藏海報按鈕
+    document.getElementById('posterButtonsContainer').style.display = 'none';
 
-            if (!keyword) {
-                showLatestIssue();
-                return;
-            }
+    if (!keyword) {
+        showLatestIssue();
+        return;
+    }
+   
 
             // 重新收集所有書籍，確保匹配數據最新
             collectAllBooks();
@@ -775,56 +770,21 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
+// 設置當前活躍海報按鈕
+window.setActivePoster = function(button) {
+    // 移除所有按鈕的活躍狀態
+    document.querySelectorAll('.poster-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    // 添加當前按鈕的活躍狀態
+    button.classList.add('active');
+}
 
+// 全局變量追蹤當前期數
+let currentIssue = 1;
 
-        // 上傳海報函數
-        window.uploadPoster = async function () {
-            const issue = document.getElementById('posterIssueSelect').value;
-            const num = document.getElementById('posterNumSelect').value;
-            const file = document.getElementById('posterUpload').files[0];
-
-            if (!file) {
-                alert('請選擇圖片');
-                return;
-            }
-
-            console.log('上傳海報 - 期數:', issue, '海報:', num);
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                if (!window.libraryData.issues[issue]) {
-                    window.libraryData.issues[issue] = { posters: {}, books: { 1: {}, 2: {} } };
-                }
-                window.libraryData.issues[issue].posters[num] = e.target.result;
-
-                console.log('海報資料設置完成，準備保存');
-                console.log('當前期數資料:', window.libraryData.issues[issue]);
-
-                saveData().then(() => {
-                    console.log('保存完成，重新渲染海報');
-                    renderPosterThumbs(issue);
-                    alert('上傳成功');
-                    document.getElementById('posterUpload').value = '';
-                });
-            };
-            reader.readAsDataURL(file);
-        }
-        // 刪除單張海報
-        window.deleteSinglePoster = function () {
-            const issue = document.getElementById('posterIssueSelect').value;
-            const num = document.getElementById('posterNumSelect').value;
-
-            if (!window.libraryData.issues[issue]?.posters[num]) {
-                alert('該海報不存在');
-                return;
-            }
-
-            if (confirm(`確定要刪除第${issue}期第${num}張海報嗎？`)) {
-                window.libraryData.issues[issue].posters[num] = '';
-                saveData();
-                renderPosterThumbs(issue);
-            }
-        }
+      
+       
 
 
         // 刪除整期 - Firestore 版本
@@ -1197,6 +1157,125 @@
             font-size: 1.2em;
         }
 
+/* 海報按鈕容器 */
+.poster-buttons-container {
+    display: flex;
+    gap: 20px;
+    margin: 40px 0;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* 海報按鈕 */
+.poster-btn {
+    flex: 1;
+    min-width: 280px;
+    max-width: 400px;
+    padding: 30px 25px;
+    border: 2px solid var(--gray);
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.poster-btn::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--primary) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 18px;
+}
+
+.poster-btn:hover::before,
+.poster-btn.active::before {
+    opacity: 0.05;
+}
+
+.poster-btn:hover {
+    transform: translateY(-8px) scale(1.02);
+    border-color: var(--primary);
+    box-shadow: 0 20px 40px rgba(0, 113, 227, 0.15);
+}
+
+.poster-btn.active {
+    transform: translateY(-5px) scale(1.01);
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #f8faff 0%, #ffffff 100%);
+    box-shadow: 0 15px 30px rgba(0, 113, 227, 0.1);
+}
+
+.poster-btn-icon {
+    font-size: 3em;
+    transition: transform 0.3s ease;
+    position: relative;
+    z-index: 2;
+}
+
+.poster-btn:hover .poster-btn-icon,
+.poster-btn.active .poster-btn-icon {
+    transform: scale(1.2);
+}
+
+.poster-btn-text {
+    font-size: 1.4em;
+    font-weight: 600;
+    color: var(--text);
+    position: relative;
+    z-index: 2;
+    transition: color 0.3s ease;
+}
+
+.poster-btn:hover .poster-btn-text,
+.poster-btn.active .poster-btn-text {
+    color: var(--primary);
+}
+
+.poster-btn-subtext {
+    font-size: 0.9em;
+    color: var(--text-light);
+    position: relative;
+    z-index: 2;
+    transition: color 0.3s ease;
+}
+
+.poster-btn:hover .poster-btn-subtext,
+.poster-btn.active .poster-btn-subtext {
+    color: var(--primary);
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+    .poster-buttons-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .poster-btn {
+        min-width: 100%;
+        max-width: 100%;
+    }
+    
+    .poster-btn:hover {
+        transform: translateY(-4px) scale(1.01);
+    }
+    
+    .poster-btn.active {
+        transform: translateY(-2px) scale(1.005);
+    }
+}
         /* 書籍資料格（固定3列） */
         .books-grid {
             display: grid;
@@ -1600,20 +1679,25 @@
     </div>
 
     <!-- 海報區 -->
-    <div class="poster-section content-section" id="posterSection">
-        <h2 id="currentIssueTitle">第1期海報</h2>
-        <div class="poster-thumbnails" id="posterThumbContainer">
-            <div class="poster-thumb placeholder" data-poster="1">
-                海報1<br>[暫未上傳]
-            </div>
-            <div class="poster-thumb placeholder" data-poster="2">
-                海報2<br>[暫未上傳]
-            </div>
-        </div>
-        <div id="booksContainer" class="books-grid">
-            <!-- 書籍卡片將動態生成 -->
-        </div>
+ <!-- 海報區 -->
+<div class="poster-section content-section" id="posterSection">
+    <h2 id="currentIssueTitle">第1期海報</h2>
+    <div class="poster-buttons-container" id="posterButtonsContainer">
+        <button class="poster-btn active" data-poster="1" onclick="renderBooks(currentIssue, 1); setActivePoster(this)">
+            <span class="poster-btn-icon">📚</span>
+            <span class="poster-btn-text">海報 1</span>
+            <span class="poster-btn-subtext">9本精選書籍</span>
+        </button>
+        <button class="poster-btn" data-poster="2" onclick="renderBooks(currentIssue, 2); setActivePoster(this)">
+            <span class="poster-btn-icon">📖</span>
+            <span class="poster-btn-text">海報 2</span>
+            <span class="poster-btn-subtext">9本精選書籍</span>
+        </button>
     </div>
+    <div id="booksContainer" class="books-grid">
+        <!-- 書籍卡片將動態生成 -->
+    </div>
+</div>
 
     <!-- 預約彈窗 -->
     <div class="modal hidden" id="reserveModal">
@@ -1679,23 +1763,12 @@
             <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
         </div>
 
-        <!-- 2. 海報管理 -->
-        <div class="form-group">
-            <h3>2. 海報管理</h3>
-            <label>選擇期數: </label>
-            <select id="posterIssueSelect" onchange="renderPosterThumbs(this.value)">
-                <option value="1">第1期</option>
-            </select>
-            <label>選擇序號: </label>
-            <select id="posterNumSelect">
-                <option value="1">海報1</option>
-                <option value="2">海報2</option>
-            </select>
-            <input type="file" id="posterUpload" accept="image/*">
-            <button class="btn-primary" onclick="uploadPoster()">上傳海報</button>
-            <button class="btn-danger" onclick="deleteSinglePoster()">刪除此海報</button>
-            <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
-        </div>
+   <!-- 2. 海報管理 -->
+<div class="form-group">
+    <h3>2. 海報管理</h3>
+    <p>海報功能已改為按鈕切換，無需上傳圖片</p>
+    <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+</div>
 
         <!-- 3. 書籍資訊編輯 -->
         <div class="form-group">
