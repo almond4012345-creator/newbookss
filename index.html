@@ -140,19 +140,26 @@ async function saveData() {
             const dataSize = JSON.stringify(issueData).length;
             console.log(`第${issueId}期資料大小:`, Math.round(dataSize / 1024), 'KB');
             
-            if (dataSize > 900 * 1024) { // 900KB 警告
+            if (dataSize > 900 * 1024) {
                 console.warn(`警告：第${issueId}期資料接近大小限制`);
             }
             
             await setDoc(doc(db, "issues", issueId), issueData);
         }
         
-        // ... 其他保存邏輯
+        // 保存系統設定
+        await setDoc(doc(db, "settings", "system"), { 
+            latestIssue: window.libraryData.latestIssue 
+        });
+        
+        console.log('保存成功');
+        collectAllBooks();
     } catch (err) {
         console.error("儲存失敗:", err);
         alert("儲存失敗，請重試");
     }
 }
+
 
 // 儲存預約記錄 - Firestore 版本
 window.saveReserveRecord = async function(record) {
@@ -738,16 +745,24 @@ window.uploadPoster = async function() {
         return;
     }
 
+    console.log('上傳海報 - 期數:', issue, '海報:', num);
+    
     const reader = new FileReader();
     reader.onload = function(e) {
         if (!window.libraryData.issues[issue]) {
             window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
         }
         window.libraryData.issues[issue].posters[num] = e.target.result;
-        saveData();
-        renderPosterThumbs(issue);
-        alert('上傳成功');
-        document.getElementById('posterUpload').value = '';
+        
+        console.log('海報資料設置完成，準備保存');
+        console.log('當前期數資料:', window.libraryData.issues[issue]);
+        
+        saveData().then(() => {
+            console.log('保存完成，重新渲染海報');
+            renderPosterThumbs(issue);
+            alert('上傳成功');
+            document.getElementById('posterUpload').value = '';
+        });
     };
     reader.readAsDataURL(file);
 }
