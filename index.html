@@ -31,10 +31,7 @@ console.log("專案ID:", firebaseConfig.projectId);
 console.log("Database:", db);
 console.log("Storage:", storage);
 
-// 測試 Firestore 連線（如果要用 Firestore）
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-const firestore = getFirestore(app);
-console.log("Firestore:", firestore);
+
 
         // 全域資料（掛載到window確保所有地方可訪問）
         window.libraryData = {
