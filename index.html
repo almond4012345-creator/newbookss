@@ -737,28 +737,18 @@ window.uploadPoster = async function() {
         return;
     }
 
-    try {
-        // 上傳到 Firebase Storage
-        const posterRef = storageRef(storage, `posters/issue-${issue}-poster-${num}`);
-        await uploadBytes(posterRef, file);
-        
-        // 獲取下載 URL
-        const downloadURL = await getDownloadURL(posterRef);
-        
-        // 只保存 URL 到 Firestore
+    const reader = new FileReader();
+    reader.onload = function(e) {
         if (!window.libraryData.issues[issue]) {
             window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
         }
-        window.libraryData.issues[issue].posters[num] = downloadURL;
-        
-        await saveData();
+        window.libraryData.issues[issue].posters[num] = e.target.result;
+        saveData();
         renderPosterThumbs(issue);
         alert('上傳成功');
         document.getElementById('posterUpload').value = '';
-    } catch (err) {
-        console.error("上傳失敗:", err);
-        alert('上傳失敗');
-    }
+    };
+    reader.readAsDataURL(file);
 }
         // 刪除單張海報
         window.deleteSinglePoster = function () {
