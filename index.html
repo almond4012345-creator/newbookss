@@ -43,9 +43,15 @@ console.log("Storage:", storage);
         };
 
        // 從 Firebase 載入資料
+
 async function loadData() {
     try {
         document.getElementById('loadingIndicator').style.display = 'block';
+
+        // 先嘗試清理過大的資料
+        console.log("開始清理過大資料...");
+        await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
+        console.log("資料清理完成");
 
         // 載入期數資料 - Firestore 版本
         const issuesCollection = collection(db, "issues");
@@ -78,9 +84,27 @@ async function loadData() {
         collectAllBooks();
         init();
         document.getElementById('loadingIndicator').style.display = 'none';
+        
     } catch (err) {
         console.error("載入失敗:", err);
-        alert("資料載入失敗，請重新整理頁面");
+        
+        // 如果是資料太大的錯誤，清理並重新初始化
+        if (err.message.includes('exceeds the maximum allowed size')) {
+            console.log("檢測到資料過大，進行清理...");
+            // 強制刪除有問題的文件
+            try {
+                await deleteDoc(doc(db, "issues", "1"));
+            } catch (e) {
+                console.log("刪除文件失敗:", e);
+            }
+            window.libraryData.issues = {};
+            await saveData(); // 保存空的資料
+            alert("資料庫已重置，請重新上傳資料");
+            location.reload(); // 重新整理頁面
+        } else {
+            alert("資料載入失敗，請重新整理頁面");
+        }
+        
         document.getElementById('loadingIndicator').style.display = 'none';
     }
 }
@@ -108,12 +132,12 @@ async function loadData() {
         }
 
 
-      // 儲存資料到 Firebase - Firestore 版本
+// 儲存資料到 Firebase - Firestore 版本
 async function saveData() {
     try {
         console.log('準備保存的資料:', window.libraryData.issues);
         
-        // 保存期數資料
+        // 保存期數資料 - 每個期數存成單獨文件
         for (const issueId in window.libraryData.issues) {
             await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]);
         }
@@ -130,7 +154,6 @@ async function saveData() {
         alert("儲存失敗，請重試");
     }
 }
-
 // 儲存預約記錄 - Firestore 版本
 window.saveReserveRecord = async function(record) {
     try {
@@ -384,7 +407,7 @@ window.updateRecommendStatus = async function(index, status) {
             }
 
             card.innerHTML = `
-        <img src="${book.cover || 'https://via.placeholder.com/100x150?text=封面'}" class="book-cover">
+        <img src="${book.cover || 'https://via.placeholder.com/100x150/0071e3/ffffff?text=Cover'}" class="book-cover">
         <h3 class="book-title">${book.title}</h3>
         <p>作者: ${book.author || '待編輯'}</p>
         <p>簡介: ${book.intro || '待編輯'}</p>
