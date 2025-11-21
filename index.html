@@ -387,7 +387,11 @@ window.renderBooks = function(issue, posterNum) {
     for (let i = 1; i <= 9; i++) {
         // 强制生成标准格式的书籍数据
         const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
+
+
         let book = books[i] || {
+let book = books[i] ? { ...books[i] } : {  // 只有完全不存在時才用預設值
+
             id: bookId, // 使用标准化ID
             issue: issue.toString(), // 确保是字符串类型
             posterNum: posterNum.toString(), // 确保是字符串类型
@@ -1501,5 +1505,3 @@ window.getRandomSoftColor = function() {
     <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
 </html>
-
-我想在「中學圖書館|每周新書速遞」加一行很小的字 類似建議用電腦瀏覽之類的，加在哪裡
