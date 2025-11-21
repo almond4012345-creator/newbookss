@@ -48,9 +48,9 @@ async function loadData() {
         document.getElementById('loadingIndicator').style.display = 'block';
 
         // 先嘗試清理過大的資料
-        console.log("開始清理過大資料...");
-        await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
-        console.log("資料清理完成");
+    //    console.log("開始清理過大資料...");
+      //  await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
+        //console.log("資料清理完成");
 
         // 載入期數資料 - Firestore 版本
         const issuesCollection = collection(db, "issues");
@@ -107,47 +107,28 @@ async function loadData() {
         document.getElementById('loadingIndicator').style.display = 'none';
     }
 }
-       // 收集所有書籍（修復ID生成和資料同步）
-function collectAllBooks() {
-    window.libraryData.allBooks = [];
-    console.log("開始收集所有書籍...");
-    
-    // 遍歷所有期數
-    for (const issue in window.libraryData.issues) {
-        const issueData = window.libraryData.issues[issue];
-        
-        // 確保書籍資料結構存在
-        if (!issueData.books) {
-            issueData.books = {1: {}, 2: {}};
-            continue;
-        }
-        
-        // 遍歷所有海報
-        for (const poster in issueData.books) {
-            const posterBooks = issueData.books[poster];
-            
-            // 遍歷所有書籍
-            for (const bookNum in posterBooks) {
-                const book = { ...posterBooks[bookNum] };
-                
-                // 強制設置標準化ID（修復關鍵問題）
-                book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
-                book.issue = issue;
-                book.posterNum = poster;
-                book.bookNum = bookNum;
-                
-                // 確保必要欄位存在
-                book.status = book.status || 'in';
-                book.title = book.title || `新書${bookNum}`;
-                book.callNo = book.callNo || '待編輯';
-                
-                window.libraryData.allBooks.push(book);
+        // 收集所有書籍（确保海報书籍被正确收录）
+        function collectAllBooks() {
+            window.libraryData.allBooks = [];
+            // 遍历所有期数
+            for (const issue in window.libraryData.issues) {
+                const issueData = window.libraryData.issues[issue];
+                // 遍历所有海報
+                for (const poster in issueData.books) {
+                    const posterBooks = issueData.books[poster];
+                    // 遍历所有书籍
+                    for (const bookNum in posterBooks) {
+                        const book = { ...posterBooks[bookNum] };
+                        // 强制设置标准ID
+                        book.id = `issue-${issue}-poster-${poster}-book-${bookNum}`;
+                        book.issue = issue;
+                        book.posterNum = poster;
+                        book.bookNum = bookNum;
+                        window.libraryData.allBooks.push(book);
+                    }
+                }
             }
         }
-    }
-    
-    console.log(`書籍收集完成，共 ${window.libraryData.allBooks.length} 本書`);
-}
 
 
 // 儲存資料到 Firebase - Firestore 版本
@@ -414,8 +395,7 @@ window.updateRecommendStatus = async function(index, status) {
             const card = document.createElement('div');
             card.className = 'book-card';
             card.dataset.classCode = book.classCode;
-            card.dataset.id = book.id;
-card.id = `book-card-${book.id.replace(/[^a-zA-Z0-9]/g, '-')}`; // 绑定标准ID
+            card.dataset.id = book.id; // 绑定标准ID
 
             let statusText, statusClass, reserveBtn;
             if (book.status === 'in') {
@@ -451,70 +431,56 @@ card.id = `book-card-${book.id.replace(/[^a-zA-Z0-9]/g, '-')}`; // 绑定标准I
         
 // 渲染書籍列表 - 修復資料初始化問題
 window.renderBooks = function(issue, posterNum) {
-    console.log('🔍 渲染書籍 - 期數:', issue, '海報:', posterNum);
+    console.log('渲染書籍 - 期數:', issue, '海報:', posterNum);
     
     const container = document.getElementById('booksContainer');
     container.innerHTML = '';
     
-    // 徹底初始化資料結構
+    // 加強初始化邏輯
     if (!window.libraryData.issues[issue]) {
         window.libraryData.issues[issue] = { 
             posters: {1: '', 2: ''}, 
             books: {1: {}, 2: {}} 
         };
     }
-    if (!window.libraryData.issues[issue].books) {
-        window.libraryData.issues[issue].books = {1: {}, 2: {}};
-    }
     if (!window.libraryData.issues[issue].books[posterNum]) {
         window.libraryData.issues[issue].books[posterNum] = {};
     }
     
     const books = window.libraryData.issues[issue].books[posterNum];
-    console.log('📚 當前海報書籍數量:', Object.keys(books).length);
+    console.log('當前資料結構:', books);
 
-    // 確保有9本書的資料
     for (let i = 1; i <= 9; i++) {
         const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
         
-        let book = books[i];
-        if (!book) {
-            // 創建新書籍資料
-            book = {
-                id: bookId,
-                issue: issue.toString(),
-                posterNum: posterNum.toString(),
-                bookNum: i.toString(),
-                callNo: '待編輯',
-                title: '新書' + i,
-                classCode: '000',
-                author: '待編輯',
-                intro: '待編輯',
-                suitable: '待編輯',
-                status: 'in',
-                cover: ''
-            };
-            books[i] = book;
-        } else {
-            // 確保現有書籍的ID正確
-            book.id = bookId;
-            book.issue = issue.toString();
-            book.posterNum = posterNum.toString();
-            book.bookNum = i.toString();
-        }
+        let book = books[i] ? { ...books[i] } : {
+            id: bookId,
+            issue: issue.toString(),
+            posterNum: posterNum.toString(),
+            bookNum: i.toString(),
+            callNo: '待編輯',
+            title: '新書' + i,
+            classCode: '000',
+            author: '待編輯',
+            intro: '待編輯',
+            suitable: '待編輯',
+            status: 'in',
+            cover: ''
+        };
         
-        // 創建書籍卡片
+        // 確保ID正確
+        book.id = bookId;
+        books[i] = book;
+        window.libraryData.issues[issue].books[posterNum][i] = book;
+        
         const card = createBookCard(book);
         card.dataset.group = Math.ceil(i / 3);
         container.appendChild(card);
     }
-    
-    // 立即保存並更新全域資料
-    saveData().then(() => {
-        console.log('✅ 書籍資料保存完成');
-        collectAllBooks(); // 重新收集所有書籍
-    });
+    collectAllBooks();
+    saveData();
 }
+
 
         // 渲染當前視圖
         function renderCurrentView() {
@@ -579,50 +545,24 @@ window.renderBooks = function(issue, posterNum) {
         }
 
         // 顯示預約彈窗（修复找不到书籍的问题）
-     // 顯示預約彈窗（徹底修復書籍查找問題）
-window.showReserveModal = function (bookId) {
-    console.log('🔍 尋找書籍:', bookId);
-    
-    // 方法1: 從 allBooks 查找
-    let book = window.libraryData.allBooks.find(b => b.id === bookId);
-    
-    // 方法2: 如果找不到，解析ID從原始資料查找
-    if (!book) {
-        console.log('❌ 從allBooks找不到，嘗試解析ID...');
-        const idParts = bookId.split('-');
-        if (idParts.length === 6) {
-            const issue = idParts[1];
-            const poster = idParts[3];
-            const bookNum = idParts[5];
-            
-            console.log(`解析結果: 期數${issue} 海報${poster} 書籍${bookNum}`);
-            
-            if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
-                book = window.libraryData.issues[issue].books[poster][bookNum];
-                console.log('✅ 從原始資料找到書籍:', book.title);
+        window.showReserveModal = function (bookId) {
+            // 双重检查：先从allBooks找，找不到则直接从原数据解析
+            let book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                // 直接从bookId解析出书的位置并读取
+                const [issue, poster, bookNum] = bookId.split('-');
+                if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
+                    book = window.libraryData.issues[issue].books[poster][bookNum];
+                }
             }
+            if (!book) {
+                alert('未找到這本書的資訊，請刷新頁面重試');
+                return;
+            }
+            document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
+            document.getElementById('reserveBookId').value = bookId;
+            document.getElementById('reserveModal').classList.remove('hidden');
         }
-    }
-   
-
-    if (!book) {
-        console.log('🔄 重新收集書籍資料...');
-        collectAllBooks();
-        book = window.libraryData.allBooks.find(b => b.id === bookId);
-    }
-    
-    if (!book) {
-        alert('❌ 未找到這本書的資訊，請刷新頁面重試');
-        console.error('書籍查找失敗，ID:', bookId);
-        console.error('當前allBooks:', window.libraryData.allBooks);
-        return;
-    }
-    
-    console.log('✅ 找到書籍:', book.title);
-    document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
-    document.getElementById('reserveBookId').value = bookId;
-    document.getElementById('reserveModal').classList.remove('hidden');
-}
 
         // 提交預約
         window.submitReserve = function () {
