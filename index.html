@@ -376,6 +376,8 @@ function createBookCard(book) {
 }
 // 渲染書籍列表（统一ID格式）
 window.renderBooks = function(issue, posterNum) {
+console.log('渲染書籍 - 期數:', issue, '海報:', posterNum);
+console.log('當前資料結構:', window.libraryData.issues[issue]?.books[posterNum]);
     const container = document.getElementById('booksContainer');
     container.innerHTML = '';
     // 确保基础数据结构存在
