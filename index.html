@@ -97,15 +97,18 @@ function collectAllBooks() {
 }
 
         // 儲存資料到 Firebase
-        async function saveData() {
-            try {
-                await set(ref(db, "issues"), window.libraryData.issues);
-                await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
-                collectAllBooks();
-            } catch (err) {
-                alert("儲存失敗，請重試");
-            }
-        }
+async function saveData() {
+    try {
+        console.log('準備保存的資料:', window.libraryData.issues);
+        await set(ref(db, "issues"), window.libraryData.issues);
+        await set(ref(db, "settings/system"), { latestIssue: window.libraryData.latestIssue });
+        console.log('保存成功');
+        collectAllBooks();
+    } catch (err) {
+        console.error("儲存失敗:", err);
+        alert("儲存失敗，請重試");
+    }
+}
 
 // 儲存預約記錄（修复状态同步）
 window.saveReserveRecord = async function(record) {
