@@ -1043,7 +1043,7 @@
             if (book.status === 'in') {
                 statusText = '可預約';
                 statusClass = 'status-in';
-                reserveBtn = `<button class="mobile-reserve-btn" onclick="event.stopPropagation(); showReserveModal('${book.id}')">預約</button>`;
+                reserveBtn = `<button class="mobile-reserve-btn" id="reserve-btn-${book.id}">預約</button>`;
             } else if (book.status === 'out') {
                 statusText = '不在架';
                 statusClass = 'status-out';
@@ -1065,9 +1065,22 @@
     `;
 
             // 點擊卡片顯示詳情
-            card.addEventListener('click', function () {
+            card.addEventListener('click', function (e) {
+                // 如果點擊的是預約按鈕，不顯示詳情
+                if (e.target.classList.contains('mobile-reserve-btn')) {
+                    return;
+                }
                 showMobileBookDetail(book.id);
             });
+
+            // 為預約按鈕添加點擊事件
+            const reserveBtnElement = card.querySelector('.mobile-reserve-btn');
+            if (reserveBtnElement) {
+                reserveBtnElement.addEventListener('click', function (e) {
+                    e.stopPropagation(); // 防止事件冒泡到卡片
+                    showReserveModal(book.id);
+                });
+            }
 
             return card;
         }
@@ -1179,6 +1192,7 @@
         window.showMobileRecommendPage = function () {
             document.querySelector('.mobile-main-content').style.display = 'none';
             document.getElementById('mobileRecommendPage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none'; // 隱藏底部按鈕
             renderMobileUserRecommendList();
         }
 
@@ -1186,6 +1200,7 @@
         window.hideMobileRecommendPage = function () {
             document.getElementById('mobileRecommendPage').style.display = 'none';
             document.querySelector('.mobile-main-content').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'block'; // 顯示底部按鈕
         }
 
         // 渲染手機版用戶推薦列表
@@ -2245,6 +2260,16 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding: 0 10px;
+        }
+
+        .mobile-recommend-header h3 {
+            margin: 0;
+        }
+
+        .mobile-recommend-header .btn-primary {
+            padding: 8px 16px;
+            font-size: 0.9em;
         }
 
         /* 響應式顯示控制 */
@@ -2372,6 +2397,7 @@
                 <!-- 動態生成 -->
             </div>
         </div>
+
         <!-- 手機版推薦頁面 -->
         <div class="mobile-recommend-page" id="mobileRecommendPage">
             <div class="mobile-nav">
@@ -2383,13 +2409,14 @@
                         <span>新書推薦</span>
                     </div>
                     <div class="mobile-nav-right">
-                        <button class="mobile-nav-btn" onclick="showRecommendForm()">＋</button>
+                        <!-- 刪除加號按鈕 -->
                     </div>
                 </div>
             </div>
 
             <div class="mobile-recommend-header">
                 <h3>大家推薦的新書</h3>
+                <button class="btn-primary" onclick="showRecommendForm()">我要推薦</button>
             </div>
 
             <div class="recommend-list" id="mobileUserRecommendList">
