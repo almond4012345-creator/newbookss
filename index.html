@@ -253,16 +253,58 @@ window.updateRecommendStatus = async function(index, status) {
     }
 }
 
-        // 初始化頁面
-        function init() {
-            renderIssueSelectors();
-            showLatestIssue();
-            initCategoryDropdown();
-            renderUserRecommendList();
-            // 顯示海報容器
-            document.getElementById('posterThumbContainer').style.display = 'flex';
-            document.querySelector('.nav-item').classList.add('active');
-        }
+
+
+// 新增自動加載書籍資料函數
+window.loadBookData = function() {
+    const issue = document.getElementById('bookIssueSelect').value;
+    const posterNum = document.getElementById('bookPosterSelect').value;
+    const bookNum = document.getElementById('bookNumSelect').value;
+    
+    // 檢查該書籍是否存在
+    const book = window.libraryData.issues[issue]?.books[posterNum]?.[bookNum];
+    
+    if (book) {
+        // 自動填充表單，如果是"待編輯"就清空
+        document.getElementById('bookCallNo').value = book.callNo !== '待編輯' ? book.callNo : '';
+        document.getElementById('bookTitle').value = book.title !== '新書' + bookNum && book.title !== '待編輯' ? book.title : '';
+        document.getElementById('bookClassCode').value = book.classCode || '000';
+        document.getElementById('bookAuthor').value = book.author !== '待編輯' ? book.author : '';
+        document.getElementById('bookIntro').value = book.intro !== '待編輯' ? book.intro : '';
+        document.getElementById('bookSuitable').value = book.suitable !== '待編輯' ? book.suitable : '';
+        document.getElementById('bookStatus').value = book.status || 'in';
+    } else {
+        // 如果書籍不存在，清空所有欄位
+        clearBookForm();
+    }
+}
+
+// 清空表單函數
+function clearBookForm() {
+    document.getElementById('bookCallNo').value = '';
+    document.getElementById('bookTitle').value = '';
+    document.getElementById('bookClassCode').value = '000';
+    document.getElementById('bookAuthor').value = '';
+    document.getElementById('bookIntro').value = '';
+    document.getElementById('bookSuitable').value = '';
+    document.getElementById('bookStatus').value = 'in';
+}
+
+      // 初始化頁面
+function init() {
+    renderIssueSelectors();
+    showLatestIssue();
+    initCategoryDropdown();
+    renderUserRecommendList();
+    // 顯示海報容器
+    document.getElementById('posterThumbContainer').style.display = 'flex';
+    document.querySelector('.nav-item').classList.add('active');
+    
+    // 新增：為書籍選擇下拉菜單添加事件監聽器
+    document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
+    document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
+    document.getElementById('bookNumSelect').addEventListener('change', loadBookData);
+}
 
         // 渲染期數選擇器
         function renderIssueSelectors() {
@@ -453,20 +495,21 @@ window.renderBooks = function(issue, posterNum) {
     for (let i = 1; i <= 9; i++) {
         const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
         
-        let book = books[i] ? { ...books[i] } : {
-            id: bookId,
-            issue: issue.toString(),
-            posterNum: posterNum.toString(),
-            bookNum: i.toString(),
-            callNo: '待編輯',
-            title: '新書' + i,
-            classCode: '000',
-            author: '待編輯',
-            intro: '待編輯',
-            suitable: '待編輯',
-            status: 'in',
-            cover: ''
-        };
+   // 在 renderBooks 函數中，確保新書的預設值正確
+let book = books[i] ? { ...books[i] } : {
+    id: bookId,
+    issue: issue.toString(),
+    posterNum: posterNum.toString(),
+    bookNum: i.toString(),
+    callNo: '待編輯',  // 統一使用'待編輯'
+    title: '新書' + i, // 使用有意義的預設值
+    classCode: '000',
+    author: '待編輯',
+    intro: '待編輯',
+    suitable: '待編輯',
+    status: 'in',
+    cover: ''
+};
         
         // 確保ID正確
         book.id = bookId;
