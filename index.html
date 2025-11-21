@@ -40,6 +40,8 @@
             latestIssue: 1,
             allBooks: []
         };
+// 全局變量追蹤當前期數
+let currentIssue = 1;
 
         // 從 Firebase 載入資料
 
@@ -781,7 +783,7 @@ window.setActivePoster = function(button) {
 }
 
 // 全局變量追蹤當前期數
-let currentIssue = 1;
+// let currentIssue = 1;
 
       
        
@@ -1169,9 +1171,9 @@ let currentIssue = 1;
 /* 海報按鈕 */
 .poster-btn {
     flex: 1;
-    min-width: 280px;
-    max-width: 400px;
-    padding: 30px 25px;
+    min-width: 200px;
+    max-width: 300px;
+    padding: 25px 20px;
     border: 2px solid var(--gray);
     border-radius: 20px;
     background: white;
@@ -1181,7 +1183,7 @@ let currentIssue = 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
     position: relative;
     overflow: hidden;
 }
@@ -1217,18 +1219,6 @@ let currentIssue = 1;
     box-shadow: 0 15px 30px rgba(0, 113, 227, 0.1);
 }
 
-.poster-btn-icon {
-    font-size: 3em;
-    transition: transform 0.3s ease;
-    position: relative;
-    z-index: 2;
-}
-
-.poster-btn:hover .poster-btn-icon,
-.poster-btn.active .poster-btn-icon {
-    transform: scale(1.2);
-}
-
 .poster-btn-text {
     font-size: 1.4em;
     font-weight: 600;
@@ -1243,19 +1233,6 @@ let currentIssue = 1;
     color: var(--primary);
 }
 
-.poster-btn-subtext {
-    font-size: 0.9em;
-    color: var(--text-light);
-    position: relative;
-    z-index: 2;
-    transition: color 0.3s ease;
-}
-
-.poster-btn:hover .poster-btn-subtext,
-.poster-btn.active .poster-btn-subtext {
-    color: var(--primary);
-}
-
 /* 響應式調整 */
 @media (max-width: 768px) {
     .poster-buttons-container {
@@ -1266,6 +1243,7 @@ let currentIssue = 1;
     .poster-btn {
         min-width: 100%;
         max-width: 100%;
+        padding: 20px 15px;
     }
     
     .poster-btn:hover {
@@ -1274,6 +1252,10 @@ let currentIssue = 1;
     
     .poster-btn.active {
         transform: translateY(-2px) scale(1.005);
+    }
+    
+    .poster-btn-text {
+        font-size: 1.2em;
     }
 }
         /* 書籍資料格（固定3列） */
@@ -1678,20 +1660,15 @@ let currentIssue = 1;
         </div>
     </div>
 
-    <!-- 海報區 -->
- <!-- 海報區 -->
+<!-- 海報區 -->
 <div class="poster-section content-section" id="posterSection">
     <h2 id="currentIssueTitle">第1期海報</h2>
     <div class="poster-buttons-container" id="posterButtonsContainer">
         <button class="poster-btn active" data-poster="1" onclick="renderBooks(currentIssue, 1); setActivePoster(this)">
-            <span class="poster-btn-icon">📚</span>
             <span class="poster-btn-text">海報 1</span>
-            <span class="poster-btn-subtext">9本精選書籍</span>
         </button>
         <button class="poster-btn" data-poster="2" onclick="renderBooks(currentIssue, 2); setActivePoster(this)">
-            <span class="poster-btn-icon">📖</span>
             <span class="poster-btn-text">海報 2</span>
-            <span class="poster-btn-subtext">9本精選書籍</span>
         </button>
     </div>
     <div id="booksContainer" class="books-grid">
