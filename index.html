@@ -612,7 +612,7 @@
             });
         }
 
-        // 顯示預約彈窗（修复找不到书籍的问题）
+        // 顯示預約彈窗（修復手機版問題）
         window.showReserveModal = function (bookId) {
             // 双重检查：先从allBooks找，找不到则直接从原数据解析
             let book = window.libraryData.allBooks.find(b => b.id === bookId);
@@ -629,7 +629,11 @@
             }
             document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
             document.getElementById('reserveBookId').value = bookId;
-            document.getElementById('reserveModal').classList.remove('hidden');
+
+            // 確保彈窗顯示
+            const modal = document.getElementById('reserveModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex'; // 強制顯示
         }
 
         // 提交預約
@@ -671,12 +675,14 @@
             document.getElementById('studentName').value = '';
         }
 
-        // 顯示推薦表單
+        // 顯示推薦表單（修復手機版問題）
         window.showRecommendForm = function () {
-            document.getElementById('recommendModal').classList.remove('hidden');
+            const modal = document.getElementById('recommendModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex'; // 強制顯示
         }
 
-        // 提交推薦
+        // 提交推薦（修復手機版問題）
         window.submitRecommend = function () {
             const bookName = document.getElementById('recommendBookName').value.trim();
             const reason = document.getElementById('recommendReason').value.trim();
@@ -776,12 +782,14 @@
             document.getElementById('adminPanel').classList.add('hidden');
         }
 
-        // 關閉所有彈窗
+        // 關閉所有彈窗（修復手機版問題）
         window.closeAllModals = function () {
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.classList.add('hidden');
+                modal.style.display = 'none'; // 強制隱藏
             });
         }
+
         // 设置导航项活跃状态
         window.setActiveNav = function (element) {
             // 移除所有导航项的活跃状态
@@ -1798,6 +1806,10 @@
             backdrop-filter: blur(2px);
         }
 
+        .modal.hidden {
+            display: none !important;
+        }
+
         .modal-content {
             background: white;
             padding: 30px;
@@ -2287,6 +2299,13 @@
             }
         }
 
+        /* 手機版隱藏管理員入口 */
+        @media (max-width: 768px) {
+            .hidden-admin-entry {
+                display: none !important;
+            }
+        }
+
         @media (min-width: 769px) {
             .mobile-content {
                 display: none !important;
@@ -2651,8 +2670,8 @@
             </div>
         </div>
 
-        <!-- 隱藏的管理員入口 -->
-        <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
+        <!-- 隱藏的管理員入口（僅電腦版顯示） -->
+        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin()">®</div>
     </div> <!-- 添加這行，結束 desktop-content -->
 </body>
 
