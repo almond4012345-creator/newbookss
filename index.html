@@ -41,29 +41,47 @@
             allBooks: []
         };
 // 全局變量追蹤當前期數
-let currentIssue = 1;
+window.currentIssue = 1;
 
         // 從 Firebase 載入資料
 
-        async function loadData() {
-            try {
-                document.getElementById('loadingIndicator').style.display = 'block';
+   async function loadData() {
+    try {
+        document.getElementById('loadingIndicator').style.display = 'block';
 
-                // 先嘗試清理過大的資料
-                //    console.log("開始清理過大資料...");
-                //  await deleteDoc(doc(db, "issues", "1")); // 刪除第1期資料
-                //console.log("資料清理完成");
+        // 載入期數資料 - Firestore 版本
+        const issuesCollection = collection(db, "issues");
+        const issuesSnapshot = await getDocs(issuesCollection);
+        window.libraryData.issues = {};
+        issuesSnapshot.forEach((doc) => {
+            window.libraryData.issues[doc.id] = doc.data();
+        });
 
-                // 載入期數資料 - Firestore 版本
-                const issuesCollection = collection(db, "issues");
-                const issuesSnapshot = await getDocs(issuesCollection);
-                window.libraryData.issues = {};
-                issuesSnapshot.forEach((doc) => {
-                    window.libraryData.issues[doc.id] = doc.data();
-                });
+        // 清理過時的海報資料
+        let needCleanup = false;
+        for (const issueId in window.libraryData.issues) {
+            if (window.libraryData.issues[issueId].posters) {
+                // 檢查是否有海報圖片資料（Base64格式）
+                const poster1 = window.libraryData.issues[issueId].posters[1];
+                const poster2 = window.libraryData.issues[issueId].posters[2];
+                
+                // 如果有 Base64 圖片資料，需要清理
+                if (poster1 && poster1.startsWith('data:image') || 
+                    poster2 && poster2.startsWith('data:image')) {
+                    window.libraryData.issues[issueId].posters = { 1: '', 2: '' };
+                    needCleanup = true;
+                }
+            }
+        }
+        
+        // 如果有清理資料，保存到 Firebase
+        if (needCleanup) {
+            console.log('清理海報圖片資料...');
+            await saveData();
+        }
 
-                // 載入預約記錄 - Firestore 版本
-                const reservesCollection = collection(db, "reserves");
+        // 載入預約記錄 - Firestore 版本
+        const reservesCollection = collection(db, "reserves");
                 const reservesSnapshot = await getDocs(reservesCollection);
                 window.libraryData.reserveRecords = [];
                 reservesSnapshot.forEach((doc) => {
@@ -309,27 +327,29 @@ function init() {
 }
 
         // 渲染期數選擇器
-        function renderIssueSelectors() {
-            const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
-            const selectors = [
-                document.getElementById('issueSelect'),
-                document.getElementById('posterIssueSelect'),
-                document.getElementById('bookIssueSelect')
-            ];
+function renderIssueSelectors() {
+    const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
+    const selectors = [
+        document.getElementById('issueSelect'),
+        document.getElementById('posterIssueSelect'),
+        document.getElementById('bookIssueSelect')
+    ];
 
-            selectors.forEach(sel => {
-                sel.innerHTML = '';
-                issues.forEach(issue => {
-                    sel.innerHTML += `<option value="${issue}">第${issue}期</option>`;
-                });
-                sel.value = window.libraryData.latestIssue;
+    selectors.forEach(sel => {
+        if (sel) { // 添加 null 檢查
+            sel.innerHTML = '';
+            issues.forEach(issue => {
+                sel.innerHTML += `<option value="${issue}">第${issue}期</option>`;
             });
+            sel.value = window.libraryData.latestIssue;
         }
+    });
+}
 
 // 切換期數
 window.switchIssue = function (issue) {
     const issueNum = Number(issue);
-    currentIssue = issueNum; // 更新全局變量
+    window.currentIssue = issueNum; // 更新全局變量
     document.getElementById('currentIssueTitle').textContent = `第${issueNum}期海報`;
     // 重置海報按鈕狀態
     document.querySelectorAll('.poster-btn').forEach(btn => {
@@ -1664,12 +1684,12 @@ window.setActivePoster = function(button) {
 <div class="poster-section content-section" id="posterSection">
     <h2 id="currentIssueTitle">第1期海報</h2>
     <div class="poster-buttons-container" id="posterButtonsContainer">
-        <button class="poster-btn active" data-poster="1" onclick="renderBooks(currentIssue, 1); setActivePoster(this)">
-            <span class="poster-btn-text">海報 1</span>
-        </button>
-        <button class="poster-btn" data-poster="2" onclick="renderBooks(currentIssue, 2); setActivePoster(this)">
-            <span class="poster-btn-text">海報 2</span>
-        </button>
+      <button class="poster-btn active" data-poster="1" onclick="renderBooks(window.currentIssue, 1); setActivePoster(this)">
+    <span class="poster-btn-text">海報 1</span>
+</button>
+<button class="poster-btn" data-poster="2" onclick="renderBooks(window.currentIssue, 2); setActivePoster(this)">
+    <span class="poster-btn-text">海報 2</span>
+</button>
     </div>
     <div id="booksContainer" class="books-grid">
         <!-- 書籍卡片將動態生成 -->
