@@ -1078,7 +1078,7 @@
                 if (e.target.classList.contains('mobile-reserve-btn')) {
                     return;
                 }
-                showMobileBookDetail(book.id);
+                showMobileReservePage(book.id);
             });
 
             // 為預約按鈕添加點擊事件
@@ -1086,7 +1086,7 @@
             if (reserveBtnElement) {
                 reserveBtnElement.addEventListener('click', function (e) {
                     e.stopPropagation(); // 防止事件冒泡到卡片
-                    showReserveModal(book.id);
+                    showMobileReservePage(book.id);
                 });
             }
 
@@ -1109,7 +1109,7 @@
             <p><strong>索書號:</strong> ${book.callNo || '待編輯'}</p>
         </div>
         <div style="text-align: center; margin-top: 20px;">
-            ${book.status === 'in' ? `<button class="btn-primary" onclick="showReserveModal('${book.id}')">預約書籍</button>` : ''}
+            ${book.status === 'in' ? `<button class="btn-primary" onclick="showMobileReservePage('${book.id}')">預約書籍</button>` : ''}
             <button class="btn-text" onclick="hideMobileBookDetail()" style="margin-left: 10px;">關閉</button>
         </div>
     `;
@@ -1235,6 +1235,77 @@
             </div>
         `;
             });
+        }
+
+
+        // 顯示手機版預約頁面
+        window.showMobileReservePage = function (bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('未找到書籍資訊');
+                return;
+            }
+
+            // 填充書籍資訊
+            document.getElementById('mobileReserveBookInfo').innerHTML = `
+        <h4 style="margin-bottom: 10px; color: #1d1d1f;">${book.title}</h4>
+        <p style="margin: 5px 0; color: #6e6e73;">作者: ${book.author || '待編輯'}</p>
+        <p style="margin: 5px 0; color: #6e6e73;">索書號: ${book.callNo || '待編輯'}</p>
+    `;
+
+            // 設置書籍ID
+            document.getElementById('mobileReserveBookId').value = bookId;
+
+            // 清空表單
+            document.getElementById('mobileClassName').value = '';
+            document.getElementById('mobileStudentName').value = '';
+
+            // 顯示預約頁面，隱藏主內容
+            document.querySelector('.mobile-main-content').style.display = 'none';
+            document.getElementById('mobileReservePage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none';
+        }
+
+        // 隱藏手機版預約頁面
+        window.hideMobileReservePage = function () {
+            document.getElementById('mobileReservePage').style.display = 'none';
+            document.querySelector('.mobile-main-content').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'block';
+        }
+
+        // 提交手機版預約
+        window.submitMobileReserve = function () {
+            const bookId = document.getElementById('mobileReserveBookId').value;
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('書籍資訊不存在');
+                return;
+            }
+
+            const className = document.getElementById('mobileClassName').value.trim();
+            const studentName = document.getElementById('mobileStudentName').value.trim();
+
+            if (!className) {
+                alert('請填寫班級');
+                return;
+            }
+            if (!studentName) {
+                alert('請填寫姓名');
+                return;
+            }
+
+            const newReserve = {
+                bookId,
+                bookTitle: book.title,
+                className,
+                studentName,
+                time: new Date().toLocaleString(),
+                status: '已預約'
+            };
+
+            window.saveReserveRecord(newReserve);
+            hideMobileReservePage();
+            alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
         }
 
         // 滾動到頂部
@@ -2315,6 +2386,25 @@
                 display: block;
             }
         }
+
+        /* 手機版預約頁面 */
+        .mobile-reserve-page {
+            display: none;
+            margin-top: 60px;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1003;
+        }
+
+        .mobile-reserve-content {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
     </style>
 </head>
 
@@ -2417,6 +2507,48 @@
             </div>
         </div>
 
+        <!-- 手機版預約頁面 -->
+        <div class="mobile-reserve-page" id="mobileReservePage">
+            <div class="mobile-nav">
+                <div class="mobile-nav-content">
+                    <div class="mobile-nav-left">
+                        <button class="mobile-nav-btn" onclick="hideMobileReservePage()">← 回上頁</button>
+                    </div>
+                    <div class="mobile-nav-center">
+                        <span>預約書籍</span>
+                    </div>
+                    <div class="mobile-nav-right">
+                        <!-- 空白 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-reserve-content" style="padding: 20px;">
+                <div id="mobileReserveBookInfo"
+                    style="background: #f5f5f7; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                    <!-- 書籍資訊將動態生成 -->
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">班級:</label>
+                    <input type="text" id="mobileClassName" placeholder="請輸入班級"
+                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
+                </div>
+
+                <div style="margin-bottom: 25px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">姓名:</label>
+                    <input type="text" id="mobileStudentName" placeholder="請輸入姓名"
+                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
+                </div>
+
+                <button class="btn-primary" onclick="submitMobileReserve()"
+                    style="width: 100%; padding: 15px; font-size: 1.1em;">提交預約</button>
+
+                <input type="hidden" id="mobileReserveBookId">
+            </div>
+        </div>
+
+
         <!-- 手機版推薦頁面 -->
         <div class="mobile-recommend-page" id="mobileRecommendPage">
             <div class="mobile-nav">
@@ -2492,7 +2624,7 @@
         <div class="user-recommends content-section hidden" id="userRecommendsSection">
             <div class="recommend-header">
                 <h3>大家推薦的書籍</h3>
-                <button class="btn-primary" onclick="showRecommendForm()">推薦新書</button>
+                <button class="btn-primary" onclick="showRecommendForm()">我要新書</button>
             </div>
             <div class="recommend-list" id="userRecommendList">
                 <!-- 動態生成 -->
