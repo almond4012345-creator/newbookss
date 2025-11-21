@@ -389,8 +389,8 @@ window.renderBooks = function(issue, posterNum) {
         const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`; // 标准化ID格式
 
 
-        let book = books[i] || {
-let book = books[i] ? { ...books[i] } : {  // 只有完全不存在時才用預設值
+      
+let book = books[i] ? { ...books[i] } : {  
 
             id: bookId, // 使用标准化ID
             issue: issue.toString(), // 确保是字符串类型
