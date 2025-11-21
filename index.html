@@ -333,15 +333,19 @@ function renderIssueSelectors() {
         document.getElementById('issueSelect'),
         document.getElementById('posterIssueSelect'),
         document.getElementById('bookIssueSelect')
+ document.getElementById('deleteIssueSelect') // 新增這個
     ];
 
     selectors.forEach(sel => {
-        if (sel) { // 添加 null 檢查
+          if (sel) { // 添加 null 檢查
             sel.innerHTML = '';
             issues.forEach(issue => {
                 sel.innerHTML += `<option value="${issue}">第${issue}期</option>`;
             });
-            sel.value = window.libraryData.latestIssue;
+            // 只有前三個選擇器設置最新期數，刪除選擇器不設置
+            if (sel.id !== 'deleteIssueSelect') {
+                sel.value = window.libraryData.latestIssue;
+            }
         }
     });
 }
@@ -511,32 +515,39 @@ function filterByCategory(category) {
                 const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
 
                 // 在 renderBooks 函數中，確保新書的預設值正確
-                let book = books[i] ? { ...books[i] } : {
-                    id: bookId,
-                    issue: issue.toString(),
-                    posterNum: posterNum.toString(),
-                    bookNum: i.toString(),
-                    callNo: '待編輯',  // 統一使用'待編輯'
-                    title: '新書' + i, // 使用有意義的預設值
-                    classCode: '000',
-                    author: '待編輯',
-                    intro: '待編輯',
-                    suitable: '待編輯',
-                    status: 'in',
-                    cover: ''
-                };
+          let book;
+if (books[i]) {
+    // 如果書籍已存在，保留現有資料，只確保ID正確
+    book = { ...books[i] };
+    book.id = bookId;
+} else {
+    // 如果書籍不存在，創建新書
+    book = {
+        id: bookId,
+        issue: issue.toString(),
+        posterNum: posterNum.toString(),
+        bookNum: i.toString(),
+        callNo: '待編輯',
+        title: '新書' + i,
+        classCode: '000',
+        author: '待編輯',
+        intro: '待編輯',
+        suitable: '待編輯',
+        status: 'in',
+        cover: ''
+    };
+}
 
-                // 確保ID正確
-                book.id = bookId;
-                books[i] = book;
-                window.libraryData.issues[issue].books[posterNum][i] = book;
+// 更新資料
+books[i] = book;
+window.libraryData.issues[issue].books[posterNum][i] = book;
 
                 const card = createBookCard(book);
                 card.dataset.group = Math.ceil(i / 3);
                 container.appendChild(card);
             }
             collectAllBooks();
-            saveData();
+        
         }
 
 
@@ -810,23 +821,32 @@ window.setActivePoster = function(button) {
 
 
         // 刪除整期 - Firestore 版本
-        window.deleteWholeIssue = async function () {
-            const issue = document.getElementById('posterIssueSelect').value;
-            if (!window.libraryData.issues[issue]) {
-                alert('該期不存在');
-                return;
-            }
+    window.deleteWholeIssue = async function () {
+    const issue = document.getElementById('deleteIssueSelect').value;
+    if (!window.libraryData.issues[issue]) {
+        alert('該期不存在');
+        return;
+    }
 
-            if (confirm(`確定要刪除第${issue}期所有內容嗎？`)) {
-                await deleteDoc(doc(db, "issues", issue));
-                delete window.libraryData.issues[issue];
-                const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => b - a);
-                window.libraryData.latestIssue = issues.length > 0 ? issues[0] : 1;
-                await saveData();
-                renderIssueSelectors();
-                showLatestIssue();
-            }
+    if (confirm(`確定要刪除第${issue}期所有內容嗎？此操作無法復原！`)) {
+        try {
+            await deleteDoc(doc(db, "issues", issue));
+            delete window.libraryData.issues[issue];
+            
+            // 更新最新期數
+            const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => b - a);
+            window.libraryData.latestIssue = issues.length > 0 ? issues[0] : 1;
+            
+            await saveData();
+            renderIssueSelectors(); // 重新渲染所有選擇器
+            showLatestIssue();
+            alert(`第${issue}期已成功刪除`);
+        } catch (err) {
+            console.error("刪除失敗:", err);
+            alert("刪除失敗，請重試");
         }
+    }
+}
         // 新增期數
         window.addNewIssue = async function () {
             const newIssue = window.libraryData.latestIssue + 1;
@@ -859,7 +879,7 @@ window.setActivePoster = function(button) {
                 window.libraryData.issues[issue].books[posterNum] = {};
             }
 
-            let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || 'https://via.placeholder.com/100x150?text=封面';
+           let coverUrl = window.libraryData.issues[issue].books[posterNum][bookNum]?.cover || '';
             const coverFile = document.getElementById('bookCoverUpload').files[0];
 
             // 在 saveBookInfo 函數中修改封面處理部分
@@ -1760,13 +1780,18 @@ window.setActivePoster = function(button) {
             <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
         </div>
 
-   <!-- 2. 海報管理 -->
+<!-- 2. 海報管理 -->
 <div class="form-group">
     <h3>2. 海報管理</h3>
     <p>海報功能已改為按鈕切換，無需上傳圖片</p>
-    <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+    <div>
+        <label>選擇要刪除的期數: </label>
+        <select id="deleteIssueSelect">
+            <option value="1">第1期</option>
+        </select>
+        <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+    </div>
 </div>
-
         <!-- 3. 書籍資訊編輯 -->
         <div class="form-group">
             <h3>3. 書籍資訊管理</h3>
