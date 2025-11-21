@@ -402,23 +402,27 @@ window.updateRecommendStatus = async function(index, status) {
 // 渲染書籍列表 - 修復資料初始化問題
 window.renderBooks = function(issue, posterNum) {
     console.log('渲染書籍 - 期數:', issue, '海報:', posterNum);
-    console.log('當前資料結構:', window.libraryData.issues[issue]?.books[posterNum]);
     
     const container = document.getElementById('booksContainer');
     container.innerHTML = '';
     
+    // 加強初始化邏輯
     if (!window.libraryData.issues[issue]) {
-        window.libraryData.issues[issue] = { posters: {}, books: {1: {}, 2: {}} };
+        window.libraryData.issues[issue] = { 
+            posters: {1: '', 2: ''}, 
+            books: {1: {}, 2: {}} 
+        };
     }
     if (!window.libraryData.issues[issue].books[posterNum]) {
         window.libraryData.issues[issue].books[posterNum] = {};
     }
+    
     const books = window.libraryData.issues[issue].books[posterNum];
+    console.log('當前資料結構:', books);
 
     for (let i = 1; i <= 9; i++) {
         const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
         
-        // 修復：只有完全不存在時才用預設值
         let book = books[i] ? { ...books[i] } : {
             id: bookId,
             issue: issue.toString(),
@@ -431,7 +435,7 @@ window.renderBooks = function(issue, posterNum) {
             intro: '待編輯',
             suitable: '待編輯',
             status: 'in',
-            cover: `https://via.placeholder.com/100x150?text=新書${i}`
+            cover: `https://via.placeholder.com/100x150/0071e3/ffffff?text=Book${i}`
         };
         
         // 確保ID正確
