@@ -407,7 +407,7 @@ window.updateRecommendStatus = async function(index, status) {
             }
 
             card.innerHTML = `
-        <img src="${book.cover || 'https://via.placeholder.com/100x150/0071e3/ffffff?text=Cover'}" class="book-cover">
+        <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
         <h3 class="book-title">${book.title}</h3>
         <p>作者: ${book.author || '待編輯'}</p>
         <p>簡介: ${book.intro || '待編輯'}</p>
@@ -458,7 +458,7 @@ window.renderBooks = function(issue, posterNum) {
             intro: '待編輯',
             suitable: '待編輯',
             status: 'in',
-            cover: `https://via.placeholder.com/100x150/0071e3/ffffff?text=Book${i}`
+            cover: ''
         };
         
         // 確保ID正確
