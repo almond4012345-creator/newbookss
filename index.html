@@ -677,9 +677,15 @@
 
         // 顯示推薦表單（修復手機版問題）
         window.showRecommendForm = function () {
-            const modal = document.getElementById('recommendModal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex'; // 強制顯示
+            // 在手機端使用頁面跳轉
+            if (window.innerWidth <= 768) {
+                showMobileRecommendFormPage();
+            } else {
+                // 電腦端保持彈窗
+                const modal = document.getElementById('recommendModal');
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex'; // 強制顯示
+            }
         }
 
         // 提交推薦（修復手機版問題）
@@ -1306,6 +1312,52 @@
             window.saveReserveRecord(newReserve);
             hideMobileReservePage();
             alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
+        }
+
+        // 顯示手機版推薦表單頁面
+        window.showMobileRecommendFormPage = function () {
+            // 清空表單
+            document.getElementById('mobileRecommendBookName').value = '';
+            document.getElementById('mobileRecommendReason').value = '';
+
+            // 顯示推薦表單頁面，隱藏其他內容
+            document.querySelector('.mobile-main-content').style.display = 'none';
+            document.getElementById('mobileRecommendPage').style.display = 'none';
+            document.getElementById('mobileRecommendFormPage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none';
+        }
+
+        // 隱藏手機版推薦表單頁面
+        window.hideMobileRecommendFormPage = function () {
+            document.getElementById('mobileRecommendFormPage').style.display = 'none';
+            document.getElementById('mobileRecommendPage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none';
+        }
+
+        // 提交手機版推薦
+        window.submitMobileRecommend = function () {
+            const bookName = document.getElementById('mobileRecommendBookName').value.trim();
+            const reason = document.getElementById('mobileRecommendReason').value.trim();
+
+            if (!bookName) {
+                alert('請填寫書名');
+                return;
+            }
+            if (!reason) {
+                alert('請填寫推薦理由，可填[無]');
+                return;
+            }
+
+            const newRecommend = {
+                bookName,
+                reason,
+                time: new Date().toLocaleString(),
+                status: '已推薦'
+            };
+
+            window.saveRecommendRecord(newRecommend);
+            hideMobileRecommendFormPage();
+            alert('推薦成功，感謝你的建議！');
         }
 
         // 滾動到頂部
@@ -2405,6 +2457,44 @@
             height: calc(100% - 60px);
             overflow-y: auto;
         }
+
+        /* 手機版預約頁面 */
+        .mobile-reserve-page {
+            display: none;
+            margin-top: 60px;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1003;
+        }
+
+        .mobile-reserve-content {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+
+        /* 手機版推薦表單頁面 */
+        .mobile-recommend-form-page {
+            display: none;
+            margin-top: 60px;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1004;
+        }
+
+        .mobile-recommend-form-content {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
     </style>
 </head>
 
@@ -2549,6 +2639,42 @@
         </div>
 
 
+        <!-- 手機版推薦表單頁面 -->
+        <div class="mobile-recommend-form-page" id="mobileRecommendFormPage">
+            <div class="mobile-nav">
+                <div class="mobile-nav-content">
+                    <div class="mobile-nav-left">
+                        <button class="mobile-nav-btn" onclick="hideMobileRecommendFormPage()">← 回上頁</button>
+                    </div>
+                    <div class="mobile-nav-center">
+                        <span>推薦新書</span>
+                    </div>
+                    <div class="mobile-nav-right">
+                        <!-- 空白 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-recommend-form-content" style="padding: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">書名:</label>
+                    <input type="text" id="mobileRecommendBookName" placeholder="請輸入書名"
+                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
+                </div>
+
+                <div style="margin-bottom: 25px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">推薦理由,可填[無]:</label>
+                    <textarea id="mobileRecommendReason" placeholder="請輸入推薦理由"
+                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px; height: 120px;"></textarea>
+                </div>
+
+                <button class="btn-primary" onclick="submitMobileRecommend()"
+                    style="width: 100%; padding: 15px; font-size: 1.1em;">提交推薦</button>
+            </div>
+        </div>
+
+
+
         <!-- 手機版推薦頁面 -->
         <div class="mobile-recommend-page" id="mobileRecommendPage">
             <div class="mobile-nav">
@@ -2567,7 +2693,7 @@
 
             <div class="mobile-recommend-header">
                 <h3>大家推薦的新書</h3>
-                <button class="btn-primary" onclick="showRecommendForm()">我要推薦</button>
+                <button class="btn-primary" onclick="showMobileRecommendFormPage()">我要推薦</button>
             </div>
 
             <div class="recommend-list" id="mobileUserRecommendList">
@@ -2575,6 +2701,7 @@
             </div>
         </div>
     </div> <!-- 結束整個 mobile-content -->
+
 
     <!-- 電腦版內容開始 -->
     <div class="desktop-content">
