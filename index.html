@@ -1150,29 +1150,30 @@
 </div>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
     <div class="mobile-book-title">${book.title}</div>
-    <!-- 愛心在左，數字在愛心左邊，尺寸縮小 -->
-    <div style="display: flex; align-items: center; gap: 2px;">
-        <span style="font-size: 0.6em; color: #6e6e73;">${likeCount}</span>
-        <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.7em; cursor: pointer; padding: 0;">
+</div>
+<!-- 作者和按鈕平行排列：作者在左，愛心+留言在右 -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <div class="mobile-book-author">${book.author || '待編輯'}</div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <!-- 點讚數字在愛心左側 -->
+        <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.8em; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 2px;">
+            <span style="font-size: 0.8em; color: #6e6e73;">${likeCount}</span>
             ${likeCount > 0 ? '❤️' : '🤍'}
         </button>
-        <!-- 留言按鈕在愛心右邊，尺寸縮小 -->
-        <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 2px 4px; border-radius: 6px; font-size: 0.6em; margin-left: 3px;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
+        <!-- 留言按鈕在愛心右側 -->
+        <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 2px 6px; border-radius: 6px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
     </div>
 </div>
-<div style="display: flex; justify-content: space-between; align-items: center;">
-    <div class="mobile-book-author">${book.author || '待編輯'}</div>
-</div>
-<div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+<div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
     <span class="mobile-book-status ${statusClass}">${statusText}</span>
     ${reserveBtn}
 </div>
 `;
 
-            // 确保点赞按钮样式正确
+            // 确保点赞按钮初始样式正确（无需额外添加数字，按钮内已包含）
             const likeBtn = card.querySelector('.mobile-like-btn');
             if (likeBtn && likeCount > 0) {
-                likeBtn.innerHTML = `❤️<span style="font-size: 0.7em;">${likeCount}</span>`;
+                likeBtn.innerHTML = `<span style="font-size: 0.8em; color: #6e6e73;">${likeCount}</span> ❤️`;
                 likeBtn.classList.add('liked');
             }
 
@@ -1491,7 +1492,7 @@
                 likeBtn.classList.add('liked');
             }
             if (mobileLikeBtn) {
-                mobileLikeBtn.innerHTML = `❤️<span style="font-size: 0.7em;">${window.libraryData.bookLikes[bookId]}</span>`;
+                mobileLikeBtn.innerHTML = `<span style="font-size: 0.8em; color: #6e6e73;">${window.libraryData.bookLikes[bookId]}</span> ❤️`;
                 mobileLikeBtn.classList.add('liked');
             }
             // 保存到Firebase
