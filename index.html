@@ -126,8 +126,9 @@
                 });
                 collectAllBooks();
                 init();
+                // 加載公告
+                loadAnnouncement();
                 document.getElementById('loadingIndicator').style.display = 'none';
-
 
             } catch (err) {
                 console.error("載入失敗:", err);
@@ -1030,6 +1031,10 @@
                 document.querySelector('.mobile-nav').style.display = 'block';
                 initMobile();
             }
+            // 確保公告能顯示
+            setTimeout(() => {
+                loadAnnouncement();
+            }, 500);
         }
 
         // 初始化手機版
@@ -1863,6 +1868,79 @@
         }
         // 頁面加載完成後載入數據
         window.onload = loadData;
+        // ====== 公告功能 ======
+        // 加載公告
+        async function loadAnnouncement() {
+            try {
+                const announcementDoc = await getDoc(doc(db, "settings", "announcement"));
+                if (announcementDoc.exists()) {
+                    const announcement = announcementDoc.data();
+                    if (announcement.title && announcement.content) {
+                        // 顯示公告彈窗
+                        document.getElementById('announcementTitle').textContent = announcement.title;
+                        document.getElementById('announcementContent').textContent = announcement.content;
+                        document.getElementById('announcementModal').style.display = 'flex';
+
+                        // 填充到管理後台表單
+                        document.getElementById('announcementTitleInput').value = announcement.title;
+                        document.getElementById('announcementContentInput').value = announcement.content;
+                    }
+                }
+            } catch (err) {
+                console.error("加載公告失敗:", err);
+            }
+        }
+
+        // 保存公告
+        window.saveAnnouncement = async function () {
+            const title = document.getElementById('announcementTitleInput').value.trim();
+            const content = document.getElementById('announcementContentInput').value.trim();
+
+            if (!title || !content) {
+                alert('請輸入公告標題和內容！');
+                return;
+            }
+
+            try {
+                await setDoc(doc(db, "settings", "announcement"), {
+                    title: title,
+                    content: content,
+                    createTime: new Date().toLocaleString()
+                });
+                alert('公告保存成功！');
+                // 重新加載公告（立即生效）
+                loadAnnouncement();
+            } catch (err) {
+                console.error("保存公告失敗:", err);
+                alert('保存公告失敗，請重試');
+            }
+        }
+
+        // 刪除公告
+        window.deleteAnnouncement = async function () {
+            if (!confirm('確定要刪除公告嗎？刪除後用戶將不會再看到這個公告。')) {
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "settings", "announcement"));
+                // 清空表單
+                document.getElementById('announcementTitleInput').value = '';
+                document.getElementById('announcementContentInput').value = '';
+                // 隱藏公告彈窗
+                document.getElementById('announcementModal').style.display = 'none';
+                alert('公告已刪除！');
+            } catch (err) {
+                console.error("刪除公告失敗:", err);
+                alert('刪除公告失敗，請重試');
+            }
+        }
+
+        // 關閉公告彈窗
+        window.closeAnnouncement = function () {
+            document.getElementById('announcementModal').style.display = 'none';
+        }
+
     </script>
     <style>
         /* 基礎樣式 */
@@ -3346,6 +3424,16 @@
         正在載入圖書館資料...
     </div>
 
+    <!-- 公告彈窗 -->
+    <div class="modal" id="announcementModal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <h3 id="announcementTitle" style="margin-bottom: 20px; color: #1d1d1f; font-size: 1.3em;"></h3>
+            <div id="announcementContent" style="margin-bottom: 30px; line-height: 1.6; color: #1d1d1f;"></div>
+            <button class="btn-primary" onclick="closeAnnouncement()"
+                style="width: 100%; padding: 10px; font-size: 1em;">知道了</button>
+        </div>
+    </div>
+
     <!-- 手機版內容 -->
     <div class="mobile-content">
         <!-- 手機版導航欄 -->
@@ -3851,9 +3939,28 @@
                     <!-- 留言列表動態生成 -->
                 </div>
             </div>
+
+            <!-- 7. 公告管理 -->
+            <div class="form-group">
+                <h3>7. 公告管理</h3>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">公告標題:</label>
+                    <input type="text" id="announcementTitleInput" placeholder="輸入公告標題"
+                        style="width: 100%; padding: 10px; margin: 5px 0;">
+
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; margin-top: 15px;">公告內容:</label>
+                    <textarea id="announcementContentInput" placeholder="輸入公告內容"
+                        style="width: 100%; padding: 10px; margin: 5px 0; min-height: 100px;"></textarea>
+
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
+                        <button class="btn-danger" onclick="deleteAnnouncement()">刪除公告</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 隱藏的管理員入口（僅電腦版顯示） -->
+    
         <!-- 隱藏的管理員入口（僅電腦版顯示） -->
         <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();"
             style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3; z-index: 9999; position: fixed; bottom: 10px; right: 10px;">
