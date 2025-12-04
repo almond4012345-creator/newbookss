@@ -518,7 +518,7 @@
                 statusText = '在架（可預約）';
                 statusClass = 'status-in';
                 // 确保预约按钮使用正确的ID
-                reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
+                reserveBtn = `<button class="reserve-btn" style="background: #0071e3; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; cursor: pointer;" onclick="showReserveModal('${book.id}')">預約</button>`;
             } else if (book.status === 'out') {
                 statusText = '不在架';
                 statusClass = 'status-out';
@@ -532,23 +532,32 @@
             // 获取該書點讚數
             const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
-        <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
+        <div style="position: relative;">
+            <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
+            <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 5px;">
+                🤍<span style="font-size: 0.8em; margin-left: 2px;">${likeCount}</span>
+            </button>
+        </div>
         <h3 class="book-title">${book.title}</h3>
         <p>作者: ${book.author || '待編輯'}</p>
         <p>簡介: ${book.intro || '待編輯'}</p>
         <p>適合: ${book.suitable || '待編輯'}</p>
         <div class="book-status-bar">
             <span class="book-status ${statusClass}">${statusText}</span>
-            <div style="display:flex; align-items:center;">
-                <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}')">
-                    ${likeCount > 0 ? `❤️ ${likeCount}` : '🤍 點讚'}
-                </button>
-                <button class="comment-btn" onclick="showCommentModal('${book.id}')">💬 留言</button>
+            <div style="display:flex; align-items:center; gap: 8px;">
+                <button class="comment-btn" onclick="showCommentModal('${book.id}'); event.stopPropagation();" style="background: #ff9500; color: white; border: none; padding: 4px 8px; border-radius: 15px; font-size: 0.8em; cursor: pointer;">💬</button>
                 ${reserveBtn}
             </div>
         </div>
         <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
     `;
+
+            // 确保点赞按钮样式正确
+            const likeBtn = card.querySelector('.like-btn');
+            if (likeBtn && likeCount > 0) {
+                likeBtn.innerHTML = `❤️<span style="font-size: 0.8em; margin-left: 2px;">${likeCount}</span>`;
+                likeBtn.classList.add('liked');
+            }
 
             return card;
         }
@@ -1121,7 +1130,7 @@
             if (book.status === 'in') {
                 statusText = '可預約';
                 statusClass = 'status-in';
-                reserveBtn = `<button class="mobile-reserve-btn" id="reserve-btn-${book.id}">預約</button>`;
+                reserveBtn = `<button class="mobile-reserve-btn" style="background: #0071e3; color: white; border: none; padding: 5px 10px; border-radius: 12px; font-size: 0.75em;" onclick="showMobileReservePage('${book.id}'); event.stopPropagation();">預約</button>`;
             } else if (book.status === 'out') {
                 statusText = '不在架';
                 statusClass = 'status-out';
@@ -1135,27 +1144,36 @@
             // 获取該書點讚數
             const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
-        <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
+        <div style="position: relative;">
+            <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
+        </div>
         <div class="mobile-book-title">${book.title}</div>
         <div class="mobile-book-author">${book.author || '待編輯'}</div>
-        <div class="mobile-book-status-bar">
+        <div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center;">
             <span class="mobile-book-status ${statusClass}">${statusText}</span>
-            <div style="display:flex; align-items:center;">
-                <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}')">
-                    ${likeCount > 0 ? `❤️ ${likeCount}` : '🤍 讚'}
-                </button>
-                <button class="mobile-comment-btn" onclick="showMobileCommentModal('${book.id}')">💬</button>
-                ${reserveBtn}
-            </div>
+            ${reserveBtn}
+        </div>
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 5px; gap: 5px;">
+            <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 3px 6px; border-radius: 10px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
+            <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.9em; cursor: pointer;">
+                🤍<span style="font-size: 0.7em;">${likeCount}</span>
+            </button>
         </div>
     `;
 
-            // 點擊卡片顯示詳情（除了預約按鈕）
+            // 确保点赞按钮样式正确
+            const likeBtn = card.querySelector('.mobile-like-btn');
+            if (likeBtn && likeCount > 0) {
+                likeBtn.innerHTML = `❤️<span style="font-size: 0.7em;">${likeCount}</span>`;
+                likeBtn.classList.add('liked');
+            }
+
+            // 點擊卡片顯示詳情（除了按鈕）
             card.addEventListener('click', function (e) {
-                // 如果點擊的是預約按鈕，不顯示詳情
-                if (e.target.classList.contains('mobile-reserve-btn')) {
-                    e.stopPropagation();
-                    showMobileReservePage(book.id);
+                // 如果點擊的是按鈕，不顯示詳情
+                if (e.target.classList.contains('mobile-reserve-btn') ||
+                    e.target.classList.contains('mobile-comment-btn') ||
+                    e.target.classList.contains('mobile-like-btn')) {
                     return;
                 }
                 showMobileBookDetail(book.id);
@@ -1163,7 +1181,6 @@
 
             return card;
         }
-
         // 顯示手機版書籍詳情
         window.showMobileBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
@@ -1462,11 +1479,11 @@
             const likeBtn = document.querySelector(`[data-book-id="${bookId}"].like-btn`);
             const mobileLikeBtn = document.querySelector(`[data-book-id="${bookId}"].mobile-like-btn`);
             if (likeBtn) {
-                likeBtn.innerHTML = `❤️ ${window.libraryData.bookLikes[bookId]}`;
+                likeBtn.innerHTML = `❤️<span style="font-size: 0.8em; margin-left: 2px;">${window.libraryData.bookLikes[bookId]}</span>`;
                 likeBtn.classList.add('liked');
             }
             if (mobileLikeBtn) {
-                mobileLikeBtn.innerHTML = `❤️ ${window.libraryData.bookLikes[bookId]}`;
+                mobileLikeBtn.innerHTML = `❤️<span style="font-size: 0.7em;">${window.libraryData.bookLikes[bookId]}</span>`;
                 mobileLikeBtn.classList.add('liked');
             }
             // 保存到Firebase
@@ -3008,75 +3025,75 @@
         /* ====== 新增：點讚+留言樣式（Apple風格）====== */
         /* 書籍點讚按鈕 */
         .like-btn {
-            background: #f5f5f7;
-            color: #1d1d1f;
+            background: none;
+            color: #ff3b30;
             border: none;
-            border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 0.9em;
+            border-radius: 50%;
+            padding: 5px;
+            font-size: 1.2em;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
         .like-btn.liked {
-            background: #ff3b30;
-            color: white;
+            color: #ff3b30;
         }
 
         .like-btn:hover {
-            background: #e2e2e7;
-            transform: translateY(-1px);
-        }
-
-        .like-btn.liked:hover {
-            background: #ff2d55;
+            transform: scale(1.1);
         }
 
         /* 手機版點讚按鈕 */
         .mobile-like-btn {
-            background: #f5f5f7;
-            color: #1d1d1f;
+            background: none;
+            color: #ff3b30;
             border: none;
-            border-radius: 12px;
-            padding: 4px 8px;
-            font-size: 0.75em;
+            border-radius: 50%;
+            padding: 3px;
+            font-size: 0.9em;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
         .mobile-like-btn.liked {
-            background: #ff3b30;
-            color: white;
+            color: #ff3b30;
+        }
+
+        .mobile-like-btn:hover {
+            transform: scale(1.1);
         }
 
         /* 留言按鈕 */
         .comment-btn {
-            background: #0071e3;
+            background: #ff9500;
             color: white;
             border: none;
-            border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 0.9em;
+            border-radius: 15px;
+            padding: 4px 8px;
+            font-size: 0.8em;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-left: 8px;
         }
 
         .comment-btn:hover {
-            background: #0077ed;
+            background: #ff7800;
             transform: translateY(-1px);
         }
 
         /* 手機版留言按鈕 */
         .mobile-comment-btn {
-            background: #0071e3;
+            background: #ff9500;
             color: white;
             border: none;
-            border-radius: 12px;
-            padding: 4px 8px;
-            font-size: 0.75em;
+            border-radius: 10px;
+            padding: 3px 6px;
+            font-size: 0.7em;
             cursor: pointer;
-            margin-left: 5px;
+        }
+
+        .mobile-comment-btn:hover {
+            background: #ff7800;
+            transform: scale(1.05);
         }
 
         /* 留言彈窗樣式 */
@@ -3509,7 +3526,8 @@
                 </div>
             </div>
 
-            <div class="mobile-ranking-header">按讚率最高熱門新書</div>
+            <div class="mobile-ranking-header">按讚率最高熱門新書<span
+                    style="font-size:0.8em; color:#8e8e93; margin-left:8px;">（點擊書名查看詳情）</span></div>
             <div class="ranking-list" id="mobileRankingList">
                 <!-- 排行榜動態生成 -->
             </div>
@@ -3606,7 +3624,8 @@
 
         <!-- 新增：排行榜展示區 -->
         <div class="ranking-section content-section hidden" id="rankingSection">
-            <div class="ranking-header">按讚率最高熱門新書</div>
+            <div class="ranking-header">按讚率最高熱門新書<span
+                    style="font-size:0.8em; color:#8e8e93; margin-left:8px;">（點擊書名查看詳情）</span></div>
             <div class="ranking-list" id="rankingList">
                 <!-- 排行榜動態生成 -->
             </div>
@@ -3808,7 +3827,9 @@
         </div>
 
         <!-- 隱藏的管理員入口（僅電腦版顯示） -->
-        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin()">®</div>
+        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin()"
+            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 1;">
+            管理</div>
     </div> <!-- 添加這行，結束 desktop-content -->
 </body>
 
