@@ -128,6 +128,7 @@
                 init();
                 document.getElementById('loadingIndicator').style.display = 'none';
 
+
             } catch (err) {
                 console.error("載入失敗:", err);
 
@@ -1144,22 +1145,26 @@
             // 获取該書點讚數
             const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
-        <div style="position: relative;">
-            <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
-        </div>
-        <div class="mobile-book-title">${book.title}</div>
-        <div class="mobile-book-author">${book.author || '待編輯'}</div>
-        <div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="mobile-book-status ${statusClass}">${statusText}</span>
-            ${reserveBtn}
-        </div>
-        <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 5px; gap: 5px;">
-            <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 3px 6px; border-radius: 10px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
-            <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.9em; cursor: pointer;">
-                🤍<span style="font-size: 0.7em;">${likeCount}</span>
-            </button>
-        </div>
-    `;
+<div style="position: relative;">
+    <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+    <div class="mobile-book-title">${book.title}</div>
+    <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.9em; cursor: pointer;">
+        🤍<span style="font-size: 0.7em;">${likeCount}</span>
+    </button>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="mobile-book-author">${book.author || '待編輯'}</div>
+</div>
+<div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+    <span class="mobile-book-status ${statusClass}">${statusText}</span>
+    ${reserveBtn}
+</div>
+<div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 5px;">
+    <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 3px 6px; border-radius: 10px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
+</div>
+`;
 
             // 确保点赞按钮样式正确
             const likeBtn = card.querySelector('.mobile-like-btn');
@@ -1624,12 +1629,15 @@
             rankedBooks.forEach((book, index) => {
                 const randomColor = window.getRandomSoftColor();
                 rankingList.innerHTML += `
-            <div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
-                <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
-                <span class="ranking-bookname">${book.title}</span>
-                <span class="ranking-likes">❤️ ${book.likeCount}</span>
-            </div>
-        `;
+<div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
+    <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
+    <span class="ranking-bookname">${book.title}</span>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: #ff9500; font-size: 1em;">💬</span>
+        <span class="ranking-likes">❤️ ${book.likeCount}</span>
+    </div>
+</div>
+`;
             });
 
             showSection('rankingSection');
@@ -1637,11 +1645,21 @@
 
         // ====== 新增：跳轉到書籍對應期數 ======
         window.jumpToBookIssue = function (issue, posterNum) {
-            window.switchIssue(issue); // 切換到期數
-            window.renderBooks(issue, posterNum); // 顯示對應海報
-            // 手機版同步
+            // 電腦版處理
+            window.switchIssue(issue);
+            window.renderBooks(issue, posterNum);
+
+            // 手機版處理（新增可見性切換）
             window.mobileSwitchIssue(issue);
             window.mobileRenderBooks(issue, posterNum);
+
+            // 檢查是否在手機版排行榜頁面，若是則返回主頁
+            const mobileRankingPage = document.getElementById('mobileRankingPage');
+            if (mobileRankingPage && mobileRankingPage.style.display !== 'none') {
+                hideMobileRankingPage();
+                // 確保手機版主內容顯示
+                document.querySelector('.mobile-main-content').style.display = 'block';
+            }
         }
 
         // ====== 新增：管理後台加載所有留言 ======
@@ -1822,12 +1840,15 @@
             rankedBooks.forEach((book, index) => {
                 const randomColor = window.getRandomSoftColor();
                 mobileRankingList.innerHTML += `
-            <div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
-                <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
-                <span class="ranking-bookname">${book.title}</span>
-                <span class="ranking-likes">❤️ ${book.likeCount}</span>
-            </div>
-        `;
+<div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
+    <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
+    <span class="ranking-bookname">${book.title}</span>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: #ff9500; font-size: 1em;">💬</span>
+        <span class="ranking-likes">❤️ ${book.likeCount}</span>
+    </div>
+</div>
+`;
             });
             // 顯示手機版排行榜
             document.querySelector('.mobile-main-content').style.display = 'none';
@@ -3827,9 +3848,9 @@
         </div>
 
         <!-- 隱藏的管理員入口（僅電腦版顯示） -->
-        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin()"
-            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 1;">
-            管理</div>
+        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();"
+            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3;">
+            C</div>
     </div> <!-- 添加這行，結束 desktop-content -->
 </body>
 
