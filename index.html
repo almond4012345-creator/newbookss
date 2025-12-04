@@ -1150,9 +1150,15 @@
 </div>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
     <div class="mobile-book-title">${book.title}</div>
-    <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.9em; cursor: pointer;">
-        🤍<span style="font-size: 0.7em;">${likeCount}</span>
-    </button>
+    <!-- 愛心在左，數字在愛心左邊，尺寸縮小 -->
+    <div style="display: flex; align-items: center; gap: 2px;">
+        <span style="font-size: 0.6em; color: #6e6e73;">${likeCount}</span>
+        <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.7em; cursor: pointer; padding: 0;">
+            ${likeCount > 0 ? '❤️' : '🤍'}
+        </button>
+        <!-- 留言按鈕在愛心右邊，尺寸縮小 -->
+        <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 2px 4px; border-radius: 6px; font-size: 0.6em; margin-left: 3px;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
+    </div>
 </div>
 <div style="display: flex; justify-content: space-between; align-items: center;">
     <div class="mobile-book-author">${book.author || '待編輯'}</div>
@@ -1160,9 +1166,6 @@
 <div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
     <span class="mobile-book-status ${statusClass}">${statusText}</span>
     ${reserveBtn}
-</div>
-<div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 5px;">
-    <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 3px 6px; border-radius: 10px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
 </div>
 `;
 
@@ -1633,7 +1636,8 @@
     <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
     <span class="ranking-bookname">${book.title}</span>
     <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #ff9500; font-size: 1em;">💬</span>
+        <!-- 留言圖標：點擊打開留言彈窗 -->
+        <span style="color: #ff9500; font-size: 1em; cursor: pointer;" onclick="showCommentModal('${book.id}'); event.stopPropagation();">💬</span>
         <span class="ranking-likes">❤️ ${book.likeCount}</span>
     </div>
 </div>
@@ -1844,7 +1848,8 @@
     <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
     <span class="ranking-bookname">${book.title}</span>
     <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #ff9500; font-size: 1em;">💬</span>
+        <!-- 留言圖標：點擊打開手機版留言頁 -->
+        <span style="color: #ff9500; font-size: 1em; cursor: pointer;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</span>
         <span class="ranking-likes">❤️ ${book.likeCount}</span>
     </div>
 </div>
@@ -3848,8 +3853,9 @@
         </div>
 
         <!-- 隱藏的管理員入口（僅電腦版顯示） -->
+        <!-- 隱藏的管理員入口（僅電腦版顯示） -->
         <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();"
-            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3;">
+            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3; z-index: 9999; position: fixed; bottom: 10px; right: 10px;">
             C</div>
     </div> <!-- 添加這行，結束 desktop-content -->
 </body>
