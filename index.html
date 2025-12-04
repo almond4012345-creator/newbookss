@@ -99,7 +99,31 @@
                 // 載入系統設定 - Firestore 版本
                 const settingsDoc = await getDoc(doc(db, "settings", "system"));
                 window.libraryData.latestIssue = settingsDoc.exists() ? settingsDoc.data().latestIssue : 1;
+                // 載入書籍點讚記錄 - Firestore 版本
+                const likesCollection = collection(db, "bookLikes");
+                const likesSnapshot = await getDocs(likesCollection);
+                window.libraryData.bookLikes = {};
+                likesSnapshot.forEach((doc) => {
+                    window.libraryData.bookLikes[doc.id] = doc.data().count || 0;
+                });
 
+                // 載入書籍留言記錄 - Firestore 版本
+                const commentsCollection = collection(db, "bookComments");
+                const commentsSnapshot = await getDocs(commentsCollection);
+                window.libraryData.bookComments = {};
+                commentsSnapshot.forEach((doc) => {
+                    const commentData = doc.data();
+                    if (!window.libraryData.bookComments[commentData.bookId]) {
+                        window.libraryData.bookComments[commentData.bookId] = [];
+                    }
+                    window.libraryData.bookComments[commentData.bookId].push({
+                        id: doc.id,
+                        content: commentData.content,
+                        likeCount: commentData.likeCount || 0,
+                        isTop: commentData.isTop || false,
+                        time: commentData.time || new Date().toLocaleString()
+                    });
+                });
                 collectAllBooks();
                 init();
                 document.getElementById('loadingIndicator').style.display = 'none';
@@ -172,6 +196,38 @@
                     latestIssue: window.libraryData.latestIssue
                 });
 
+                // 保存書籍點讚數據
+                for (const bookId in window.libraryData.bookLikes) {
+                    await setDoc(doc(db, "bookLikes", bookId), {
+                        count: window.libraryData.bookLikes[bookId] || 0
+                    });
+                }
+
+                // 保存書籍留言數據
+                const allComments = [];
+                for (const bookId in window.libraryData.bookComments) {
+                    window.libraryData.bookComments[bookId].forEach(comment => {
+                        allComments.push({
+                            ...comment,
+                            bookId: bookId
+                        });
+                    });
+                }
+                // 先清空舊留言，再重新保存（簡化版）
+                const commentsCol = collection(db, "bookComments");
+                const oldCommentsSnapshot = await getDocs(commentsCol);
+                oldCommentsSnapshot.forEach(async (doc) => {
+                    await deleteDoc(doc.ref);
+                });
+                // 保存新留言
+                for (const comment of allComments) {
+                    if (comment.id) {
+                        await setDoc(doc(db, "bookComments", comment.id), comment);
+                    } else {
+                        const newRef = doc(collection(db, "bookComments"));
+                        await setDoc(newRef, { ...comment, id: newRef.id });
+                    }
+                }
                 console.log('保存成功');
                 collectAllBooks();
             } catch (err) {
@@ -473,6 +529,8 @@
                 reserveBtn = '';
             }
 
+            // 获取該書點讚數
+            const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
         <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
         <h3 class="book-title">${book.title}</h3>
@@ -481,7 +539,13 @@
         <p>適合: ${book.suitable || '待編輯'}</p>
         <div class="book-status-bar">
             <span class="book-status ${statusClass}">${statusText}</span>
-            ${reserveBtn}
+            <div style="display:flex; align-items:center;">
+                <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}')">
+                    ${likeCount > 0 ? `❤️ ${likeCount}` : '🤍 點讚'}
+                </button>
+                <button class="comment-btn" onclick="showCommentModal('${book.id}')">💬 留言</button>
+                ${reserveBtn}
+            </div>
         </div>
         <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
     `;
@@ -1068,13 +1132,21 @@
                 reserveBtn = '';
             }
 
+            // 获取該書點讚數
+            const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
         <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
         <div class="mobile-book-title">${book.title}</div>
         <div class="mobile-book-author">${book.author || '待編輯'}</div>
         <div class="mobile-book-status-bar">
             <span class="mobile-book-status ${statusClass}">${statusText}</span>
-            ${reserveBtn}
+            <div style="display:flex; align-items:center;">
+                <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}')">
+                    ${likeCount > 0 ? `❤️ ${likeCount}` : '🤍 讚'}
+                </button>
+                <button class="mobile-comment-btn" onclick="showMobileCommentModal('${book.id}')">💬</button>
+                ${reserveBtn}
+            </div>
         </div>
     `;
 
@@ -1378,7 +1450,373 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
             mobileShowLatestIssue();
         }
+        // ====== 新增：書籍點讚功能 ======
+        window.bookLike = async function (bookId) {
+            // 初始化點讚數
+            if (!window.libraryData.bookLikes[bookId]) {
+                window.libraryData.bookLikes[bookId] = 0;
+            }
+            // 點讚+1
+            window.libraryData.bookLikes[bookId] += 1;
+            // 更新UI
+            const likeBtn = document.querySelector(`[data-book-id="${bookId}"].like-btn`);
+            const mobileLikeBtn = document.querySelector(`[data-book-id="${bookId}"].mobile-like-btn`);
+            if (likeBtn) {
+                likeBtn.innerHTML = `❤️ ${window.libraryData.bookLikes[bookId]}`;
+                likeBtn.classList.add('liked');
+            }
+            if (mobileLikeBtn) {
+                mobileLikeBtn.innerHTML = `❤️ ${window.libraryData.bookLikes[bookId]}`;
+                mobileLikeBtn.classList.add('liked');
+            }
+            // 保存到Firebase
+            try {
+                await setDoc(doc(db, "bookLikes", bookId), {
+                    count: window.libraryData.bookLikes[bookId]
+                });
+            } catch (err) {
+                console.error("保存點讚失敗:", err);
+            }
+        }
 
+        // ====== 新增：打開留言彈窗 ======
+        window.showCommentModal = function (bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('未找到書籍資訊');
+                return;
+            }
+            // 填充書籍信息
+            document.getElementById('commentBookTitle').innerText = book.title || '未知書名';
+            document.getElementById('commentBookId').value = bookId;
+            // 加載留言列表
+            loadBookComments(bookId);
+            // 顯示彈窗
+            const modal = document.getElementById('commentModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        // ====== 新增：加載書籍留言 ======
+        function loadBookComments(bookId) {
+            const commentList = document.getElementById('commentList');
+            commentList.innerHTML = '';
+            // 获取該書留言，按頂置+點讚排序
+            let comments = window.libraryData.bookComments[bookId] || [];
+            // 排序：頂置在前，然後按點讚數降序
+            comments = comments.sort((a, b) => {
+                if (a.isTop && !b.isTop) return -1;
+                if (!a.isTop && b.isTop) return 1;
+                return b.likeCount - a.likeCount;
+            });
+
+            if (comments.length === 0) {
+                commentList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無留言，來搶首評吧～</p>';
+                return;
+            }
+
+            // 渲染留言
+            comments.forEach((comment, index) => {
+                const topTag = comment.isTop ? '<span class="top-tag">頂置</span>' : '';
+                commentList.innerHTML += `
+            <div class="comment-item" data-comment-id="${comment.id}">
+                ${topTag}
+                <div class="comment-content">${comment.content}</div>
+                <div class="comment-footer">
+                    <span class="comment-time">${comment.time}</span>
+                    <button class="comment-like-btn" onclick="commentLike('${bookId}', '${comment.id}')">
+                        ❤️ ${comment.likeCount || 0}
+                    </button>
+                </div>
+            </div>
+        `;
+            });
+        }
+
+        // ====== 新增：留言點讚 ======
+        window.commentLike = async function (bookId, commentId) {
+            const comments = window.libraryData.bookComments[bookId] || [];
+            const comment = comments.find(c => c.id === commentId);
+            if (!comment) return;
+
+            // 留言點讚+1
+            comment.likeCount = (comment.likeCount || 0) + 1;
+            // 更新UI
+            const likeBtn = document.querySelector(`.comment-item[data-comment-id="${commentId}"] .comment-like-btn`);
+            if (likeBtn) {
+                likeBtn.innerHTML = `❤️ ${comment.likeCount}`;
+                likeBtn.classList.add('liked');
+            }
+            // 保存到Firebase
+            await saveData();
+            // 重新加載留言
+            loadBookComments(bookId);
+        }
+
+        // ====== 新增：提交留言 ======
+        window.submitComment = async function () {
+            const bookId = document.getElementById('commentBookId').value;
+            const content = document.getElementById('commentContent').value.trim();
+            if (!content) {
+                alert('請輸入留言內容～');
+                return;
+            }
+            // 創建新留言
+            const newComment = {
+                id: 'comment_' + Date.now(), // 隨機ID
+                content: content,
+                likeCount: 0,
+                isTop: false,
+                time: new Date().toLocaleString()
+            };
+            // 添加到數據
+            if (!window.libraryData.bookComments[bookId]) {
+                window.libraryData.bookComments[bookId] = [];
+            }
+            window.libraryData.bookComments[bookId].push(newComment);
+            // 保存到Firebase
+            await saveData();
+            // 清空輸入框
+            document.getElementById('commentContent').value = '';
+            // 重新加載留言
+            loadBookComments(bookId);
+            alert('留言成功～');
+        }
+
+        // ====== 新增：加載排行榜 ======
+        window.loadRanking = function () {
+            // 收集所有書籍的點讚數
+            const rankedBooks = window.libraryData.allBooks.map(book => {
+                return {
+                    ...book,
+                    likeCount: window.libraryData.bookLikes[book.id] || 0
+                };
+            }).filter(book => book.likeCount > 0) // 只顯示有點讚的書
+                .sort((a, b) => b.likeCount - a.likeCount) // 按讚數降序
+                .slice(0, 10); // 只取前10名
+
+            const rankingList = document.getElementById('rankingList');
+            rankingList.innerHTML = '';
+
+            if (rankedBooks.length === 0) {
+                rankingList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無點讚數據～</p>';
+                return;
+            }
+
+            // 渲染排行榜（Apple風格）
+            rankedBooks.forEach((book, index) => {
+                const randomColor = window.getRandomSoftColor();
+                rankingList.innerHTML += `
+            <div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
+                <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
+                <span class="ranking-bookname">${book.title}</span>
+                <span class="ranking-likes">❤️ ${book.likeCount}</span>
+            </div>
+        `;
+            });
+
+            showSection('rankingSection');
+        }
+
+        // ====== 新增：跳轉到書籍對應期數 ======
+        window.jumpToBookIssue = function (issue, posterNum) {
+            window.switchIssue(issue); // 切換到期數
+            window.renderBooks(issue, posterNum); // 顯示對應海報
+            // 手機版同步
+            window.mobileSwitchIssue(issue);
+            window.mobileRenderBooks(issue, posterNum);
+        }
+
+        // ====== 新增：管理後台加載所有留言 ======
+        window.loadAllComments = function () {
+            const adminCommentList = document.getElementById('adminCommentList');
+            adminCommentList.innerHTML = '';
+            // 收集所有留言
+            const allComments = [];
+            for (const bookId in window.libraryData.bookComments) {
+                const book = window.libraryData.allBooks.find(b => b.id === bookId);
+                const bookTitle = book ? book.title : '未知書籍';
+                window.libraryData.bookComments[bookId].forEach(comment => {
+                    allComments.push({
+                        ...comment,
+                        bookId: bookId,
+                        bookTitle: bookTitle
+                    });
+                });
+            }
+            if (allComments.length === 0) {
+                adminCommentList.innerHTML = '<p>暫無留言記錄</p>';
+                return;
+            }
+            // 渲染管理後台留言列表
+            allComments.forEach(comment => {
+                const topChecked = comment.isTop ? 'checked' : '';
+                adminCommentList.innerHTML += `
+            <div class="record-item">
+                <div>
+                    <strong>${comment.bookTitle}</strong> | ${comment.content} 
+                    <br>點讚: ${comment.likeCount} | 時間: ${comment.time}
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <label>頂置: <input type="checkbox" ${topChecked} onchange="toggleCommentTop('${comment.bookId}', '${comment.id}', this.checked)"></label>
+                    <button class="btn-danger" onclick="deleteComment('${comment.bookId}', '${comment.id}')">刪除</button>
+                </div>
+            </div>
+        `;
+            });
+        }
+
+        // ====== 新增：切換留言頂置狀態 ======
+        window.toggleCommentTop = async function (bookId, commentId, isTop) {
+            const comments = window.libraryData.bookComments[bookId] || [];
+            const comment = comments.find(c => c.id === commentId);
+            if (comment) {
+                comment.isTop = isTop;
+                await saveData();
+                loadAllComments(); // 刷新管理後台
+                loadBookComments(bookId); // 刷新前端留言
+            }
+        }
+
+        // ====== 新增：刪除留言 ======
+        window.deleteComment = async function (bookId, commentId) {
+            if (!confirm('確定要刪除此留言嗎？')) return;
+            // 從數據中刪除
+            window.libraryData.bookComments[bookId] = window.libraryData.bookComments[bookId].filter(c => c.id !== commentId);
+            // 刪除Firebase中的留言
+            try {
+                await deleteDoc(doc(db, "bookComments", commentId));
+            } catch (err) {
+                console.error("刪除留言失敗:", err);
+            }
+            await saveData();
+            loadAllComments(); // 刷新管理後台
+            loadBookComments(bookId); // 刷新前端留言
+            alert('留言已刪除');
+        }
+
+        // ====== 手機版：打開留言彈窗 ======
+        window.showMobileCommentModal = function (bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('未找到書籍資訊');
+                return;
+            }
+            document.getElementById('mobileCommentBookTitle').innerText = book.title || '未知書名';
+            document.getElementById('mobileCommentBookId').value = bookId;
+            loadMobileBookComments(bookId);
+            // 顯示手機版留言頁
+            document.querySelector('.mobile-main-content').style.display = 'none';
+            document.getElementById('mobileCommentPage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none';
+        }
+
+        // ====== 手機版：加載書籍留言 ======
+        window.loadMobileBookComments = function (bookId) {
+            const commentList = document.getElementById('mobileCommentList');
+            commentList.innerHTML = '';
+            let comments = window.libraryData.bookComments[bookId] || [];
+            comments = comments.sort((a, b) => {
+                if (a.isTop && !b.isTop) return -1;
+                if (!a.isTop && b.isTop) return 1;
+                return b.likeCount - a.likeCount;
+            });
+
+            if (comments.length === 0) {
+                commentList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無留言，來搶首評吧～</p>';
+                return;
+            }
+
+            comments.forEach((comment, index) => {
+                const topTag = comment.isTop ? '<span class="top-tag">頂置</span>' : '';
+                commentList.innerHTML += `
+            <div class="comment-item" data-comment-id="${comment.id}">
+                ${topTag}
+                <div class="comment-content">${comment.content}</div>
+                <div class="comment-footer">
+                    <span class="comment-time">${comment.time}</span>
+                    <button class="comment-like-btn" onclick="commentLike('${bookId}', '${comment.id}')">
+                        ❤️ ${comment.likeCount || 0}
+                    </button>
+                </div>
+            </div>
+        `;
+            });
+        }
+
+        // ====== 手機版：提交留言 ======
+        window.submitMobileComment = async function () {
+            const bookId = document.getElementById('mobileCommentBookId').value;
+            const content = document.getElementById('mobileCommentContent').value.trim();
+            if (!content) {
+                alert('請輸入留言內容～');
+                return;
+            }
+            const newComment = {
+                id: 'comment_' + Date.now(),
+                content: content,
+                likeCount: 0,
+                isTop: false,
+                time: new Date().toLocaleString()
+            };
+            if (!window.libraryData.bookComments[bookId]) {
+                window.libraryData.bookComments[bookId] = [];
+            }
+            window.libraryData.bookComments[bookId].push(newComment);
+            await saveData();
+            document.getElementById('mobileCommentContent').value = '';
+            loadMobileBookComments(bookId);
+            alert('留言成功！');
+        }
+
+        // ====== 手機版：隱藏排行榜頁 ======
+        window.hideMobileRankingPage = function () {
+            document.getElementById('mobileRankingPage').style.display = 'none';
+            document.querySelector('.mobile-main-content').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'block';
+        }
+
+        // ====== 手機版：隱藏留言頁 ======
+        window.hideMobileCommentPage = function () {
+            document.getElementById('mobileCommentPage').style.display = 'none';
+            document.querySelector('.mobile-main-content').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'block';
+        }
+
+        // ====== 手機版：加載排行榜 ======
+        window.loadMobileRanking = function () {
+            const rankedBooks = window.libraryData.allBooks.map(book => {
+                return {
+                    ...book,
+                    likeCount: window.libraryData.bookLikes[book.id] || 0
+                };
+            }).filter(book => book.likeCount > 0)
+                .sort((a, b) => b.likeCount - a.likeCount)
+                .slice(0, 10);
+
+            const mobileRankingList = document.getElementById('mobileRankingList');
+            mobileRankingList.innerHTML = '';
+
+            if (rankedBooks.length === 0) {
+                mobileRankingList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無點讚數據～</p>';
+                return;
+            }
+
+            rankedBooks.forEach((book, index) => {
+                const randomColor = window.getRandomSoftColor();
+                mobileRankingList.innerHTML += `
+            <div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
+                <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
+                <span class="ranking-bookname">${book.title}</span>
+                <span class="ranking-likes">❤️ ${book.likeCount}</span>
+            </div>
+        `;
+            });
+            // 顯示手機版排行榜
+            document.querySelector('.mobile-main-content').style.display = 'none';
+            document.getElementById('mobileRankingPage').style.display = 'block';
+            document.querySelector('.mobile-recommend-btn').style.display = 'none';
+        }
         // 頁面加載完成後載入數據
         window.onload = loadData;
     </script>
@@ -2566,6 +3004,288 @@
             height: calc(100% - 60px);
             overflow-y: auto;
         }
+
+        /* ====== 新增：點讚+留言樣式（Apple風格）====== */
+        /* 書籍點讚按鈕 */
+        .like-btn {
+            background: #f5f5f7;
+            color: #1d1d1f;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .like-btn.liked {
+            background: #ff3b30;
+            color: white;
+        }
+
+        .like-btn:hover {
+            background: #e2e2e7;
+            transform: translateY(-1px);
+        }
+
+        .like-btn.liked:hover {
+            background: #ff2d55;
+        }
+
+        /* 手機版點讚按鈕 */
+        .mobile-like-btn {
+            background: #f5f5f7;
+            color: #1d1d1f;
+            border: none;
+            border-radius: 12px;
+            padding: 4px 8px;
+            font-size: 0.75em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mobile-like-btn.liked {
+            background: #ff3b30;
+            color: white;
+        }
+
+        /* 留言按鈕 */
+        .comment-btn {
+            background: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 8px;
+        }
+
+        .comment-btn:hover {
+            background: #0077ed;
+            transform: translateY(-1px);
+        }
+
+        /* 手機版留言按鈕 */
+        .mobile-comment-btn {
+            background: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 4px 8px;
+            font-size: 0.75em;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        /* 留言彈窗樣式 */
+        .comment-modal-content {
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .comment-book-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+
+        .comment-input-area {
+            margin: 20px 0;
+        }
+
+        .comment-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e2e7;
+            border-radius: 8px;
+            font-size: 1em;
+            resize: none;
+            min-height: 80px;
+            margin-bottom: 10px;
+        }
+
+        .comment-list {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .comment-item {
+            padding: 15px;
+            border: 1px solid #e2e2e7;
+            border-radius: 12px;
+            background: #f5f5f7;
+            position: relative;
+        }
+
+        .top-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff9500;
+            color: white;
+            font-size: 0.7em;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .comment-content {
+            margin-bottom: 10px;
+            line-height: 1.5;
+            color: #1d1d1f;
+        }
+
+        .comment-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85em;
+            color: #6e6e73;
+        }
+
+        .comment-like-btn {
+            background: transparent;
+            border: none;
+            color: #ff3b30;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .comment-like-btn:hover {
+            background: #fef2f2;
+        }
+
+        /* 排行榜樣式 */
+        .ranking-section {
+            margin: 0 20px 40px;
+            padding: 30px;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .ranking-header {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #1d1d1f;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f5f5f7;
+        }
+
+        .ranking-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .ranking-item {
+            padding: 15px 20px;
+            border: 1px solid #e2e2e7;
+            border-radius: 12px;
+            background: #f5f5f7;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .ranking-item:hover {
+            background: #eff0f2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .ranking-index {
+            width: 30px;
+            height: 30px;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 15px;
+            color: white;
+            border-radius: 50%;
+            font-weight: 600;
+        }
+
+        .ranking-bookname {
+            flex: 1;
+            font-weight: 500;
+            color: #1d1d1f;
+        }
+
+        .ranking-likes {
+            color: #ff3b30;
+            font-size: 0.9em;
+        }
+
+        /* 手機版排行榜樣式 */
+        .mobile-ranking-page {
+            display: none;
+            margin-top: 60px;
+            padding: 15px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1005;
+        }
+
+        .mobile-ranking-header {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f5f5f7;
+        }
+
+        /* 手機版留言頁面 */
+        .mobile-comment-page {
+            display: none;
+            margin-top: 60px;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1005;
+        }
+
+        .mobile-comment-content {
+            height: calc(100% - 60px);
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .mobile-comment-book-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+
+        .mobile-comment-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e2e7;
+            border-radius: 8px;
+            font-size: 1em;
+            resize: none;
+            min-height: 80px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
@@ -2594,6 +3314,7 @@
                     <button class="mobile-nav-btn" onclick="scrollToTop()">新書速遞</button>
                 </div>
                 <div class="mobile-nav-right">
+                    <button class="mobile-nav-btn" onclick="loadMobileRanking()">🏆</button>
                     <button class="mobile-nav-btn" onclick="showMobileSearch()">🔍</button>
                 </div>
             </div>
@@ -2771,6 +3492,59 @@
                 <!-- 動態生成 -->
             </div>
         </div>
+
+        <!-- 新增：手機版排行榜頁面 -->
+        <div class="mobile-ranking-page" id="mobileRankingPage">
+            <div class="mobile-nav">
+                <div class="mobile-nav-content">
+                    <div class="mobile-nav-left">
+                        <button class="mobile-nav-btn" onclick="hideMobileRankingPage()">← 回上頁</button>
+                    </div>
+                    <div class="mobile-nav-center">
+                        <span>熱門排行榜</span>
+                    </div>
+                    <div class="mobile-nav-right">
+                        <!-- 空白 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-ranking-header">按讚率最高熱門新書</div>
+            <div class="ranking-list" id="mobileRankingList">
+                <!-- 排行榜動態生成 -->
+            </div>
+        </div>
+
+        <!-- 新增：手機版留言頁面 -->
+        <div class="mobile-comment-page" id="mobileCommentPage">
+            <div class="mobile-nav">
+                <div class="mobile-nav-content">
+                    <div class="mobile-nav-left">
+                        <button class="mobile-nav-btn" onclick="hideMobileCommentPage()">← 回上頁</button>
+                    </div>
+                    <div class="mobile-nav-center">
+                        <span>書籍留言</span>
+                    </div>
+                    <div class="mobile-nav-right">
+                        <!-- 空白 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mobile-comment-content">
+                <div class="mobile-comment-book-title" id="mobileCommentBookTitle">書籍留言</div>
+                <div class="comment-input-area">
+                    <textarea id="mobileCommentContent" class="mobile-comment-input" placeholder="輸入你的留言..."></textarea>
+                    <button class="btn-primary" onclick="submitMobileComment()">提交留言</button>
+                </div>
+                <div id="mobileCommentList" class="comment-list">
+                    <!-- 留言列表動態生成 -->
+                </div>
+                <input type="hidden" id="mobileCommentBookId">
+            </div>
+        </div>
+
+
     </div> <!-- 結束整個 mobile-content -->
 
 
@@ -2811,6 +3585,7 @@
                 </div>
             </div>
             <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
+            <div class="nav-item" onclick="loadRanking(); setActiveNav(this)">排行榜</div>
             <div class="keyword-search">
                 <label>關鍵詞: </label>
                 <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
@@ -2829,6 +3604,13 @@
             </div>
         </div>
 
+        <!-- 新增：排行榜展示區 -->
+        <div class="ranking-section content-section hidden" id="rankingSection">
+            <div class="ranking-header">按讚率最高熱門新書</div>
+            <div class="ranking-list" id="rankingList">
+                <!-- 排行榜動態生成 -->
+            </div>
+        </div>
         <!-- 海報區 -->
         <div class="poster-section content-section" id="posterSection">
             <h2 id="currentIssueTitle">第1期海報</h2>
@@ -2900,6 +3682,22 @@
                     <input type="password" id="adminPass" required>
                 </div>
                 <button type="button" onclick="adminLogin()" class="btn-primary">登錄</button>
+            </div>
+        </div>
+
+        <!-- 新增：留言彈窗 -->
+        <div class="modal hidden" id="commentModal">
+            <div class="modal-content comment-modal-content">
+                <span class="close-modal" onclick="closeAllModals()">&times;</span>
+                <h3 class="comment-book-title" id="commentBookTitle">書籍留言</h3>
+                <div class="comment-input-area">
+                    <textarea id="commentContent" class="comment-input" placeholder="輸入你的留言..."></textarea>
+                    <button class="btn-primary" onclick="submitComment()">提交留言</button>
+                </div>
+                <div id="commentList" class="comment-list">
+                    <!-- 留言列表動態生成 -->
+                </div>
+                <input type="hidden" id="commentBookId">
             </div>
         </div>
 
@@ -2996,6 +3794,15 @@
                 <h3>5. 推薦購書記錄管理</h3>
                 <div id="recommendRecordsContainer">
                     <!-- 動態生成 -->
+                </div>
+            </div>
+
+            <!-- 6. 留言管理 -->
+            <div class="form-group">
+                <h3>6. 留言管理</h3>
+                <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
+                <div id="adminCommentList" style="margin-top:20px;">
+                    <!-- 留言列表動態生成 -->
                 </div>
             </div>
         </div>
