@@ -1944,6 +1944,12 @@
             modalContent.style.maxHeight = '85vh';
             modalContent.style.overflowY = 'auto';
 
+            // 綁定關閉按鈕事件
+            const closeBtn = modal.querySelector('.close-modal');
+            if (closeBtn) {
+                closeBtn.onclick = closeCarouselModal;
+            }
+
             // 綁定點讚按鈕事件
             document.getElementById('carouselLikeBtn').addEventListener('click', function () {
                 bookLikeFromCarousel(bookId);
