@@ -128,6 +128,8 @@
                 init();
                 // 加載公告
                 loadAnnouncement();
+                // 初始化輪播
+                initCarousel();
                 document.getElementById('loadingIndicator').style.display = 'none';
 
             } catch (err) {
@@ -869,8 +871,9 @@
                 modal.classList.add('hidden');
                 modal.style.display = 'none'; // 強制隱藏
             });
+            // 也關閉輪播書籍詳情彈窗
+            closeCarouselBookDetail();
         }
-
         // 设置导航项活跃状态
         window.setActiveNav = function (element) {
             // 移除所有导航项的活跃状态
@@ -1866,8 +1869,258 @@
             document.getElementById('mobileRankingPage').style.display = 'block';
             document.querySelector('.mobile-recommend-btn').style.display = 'none';
         }
-        // 頁面加載完成後載入數據
-        window.onload = loadData;
+        // ====== 輪播功能 ======
+        // 輪播相關變量
+        let carouselBooks = [];
+        let currentCarouselIndex = 0;
+        let carouselInterval;
+        const CAROUSEL_VISIBLE_COUNT = 5;
+        const CAROUSEL_TOTAL_COUNT = 15;
+        const CAROUSEL_AUTO_PLAY_INTERVAL = 5000; // 5秒
+
+        // 初始化輪播
+        function initCarousel() {
+            // 先清空現有輪播
+            const carouselTrack = document.getElementById('carouselTrack');
+            if (!carouselTrack) {
+                console.log("找不到輪播軌道元素");
+                return;
+            }
+
+            carouselTrack.innerHTML = '';
+
+            // 清除現有定時器
+            if (carouselInterval) {
+                clearInterval(carouselInterval);
+                carouselInterval = null;
+            }
+
+            // 重置索引
+            currentCarouselIndex = 0;
+
+            // 從所有書籍中隨機選取CAROUSEL_TOTAL_COUNT本書
+            const allBooks = window.libraryData.allBooks;
+            if (allBooks.length === 0) {
+                console.log("沒有書籍數據，無法初始化輪播");
+                return;
+            }
+
+            // 過濾有封面的書籍
+            const booksWithCover = allBooks.filter(book => book.cover && book.cover.trim() !== '');
+            if (booksWithCover.length === 0) {
+                console.log("沒有書籍封面，無法初始化輪播");
+                return;
+            }
+
+            // 隨機打亂並選取指定數量的書籍
+            const shuffled = [...booksWithCover].sort(() => Math.random() - 0.5);
+            carouselBooks = shuffled.slice(0, Math.min(CAROUSEL_TOTAL_COUNT, shuffled.length));
+            // 為了實現無限輪播效果，我們將前幾本書複製一份加到陣列末尾
+            // 確保至少有 CAROUSEL_VISIBLE_COUNT 本書籍可以輪播
+            const neededBooks = Math.max(CAROUSEL_VISIBLE_COUNT, carouselBooks.length);
+            const cloneCount = neededBooks;
+            for (let i = 0; i < cloneCount && i < carouselBooks.length; i++) {
+                carouselBooks.push(carouselBooks[i]);
+            }
+            // 生成輪播項目的HTML
+            carouselTrack.innerHTML = '';
+
+            carouselBooks.forEach(book => {
+                const item = document.createElement('div');
+                item.className = 'carousel-item';
+                item.dataset.bookId = book.id;
+                item.innerHTML = `
+            <img src="${book.cover}" alt="${book.title}">
+        `;
+                item.addEventListener('click', () => showCarouselBookDetail(book.id));
+                carouselTrack.appendChild(item);
+            });
+
+            // 鼠標懸停時暫停自動輪播
+            const carouselContainer = document.querySelector('.carousel-container');
+            if (carouselContainer) {
+                carouselContainer.addEventListener('mouseenter', () => {
+                    if (carouselInterval) {
+                        clearInterval(carouselInterval);
+                        carouselInterval = null;
+                    }
+                });
+
+                carouselContainer.addEventListener('mouseleave', () => {
+                    startAutoCarousel();
+                });
+            }
+
+            // 開始自動輪播
+            startAutoCarousel();
+        }
+
+        // 開始自動輪播
+        function startAutoCarousel() {
+            if (carouselInterval) {
+                clearInterval(carouselInterval);
+            }
+
+            carouselInterval = setInterval(() => {
+                carouselNext();
+            }, CAROUSEL_AUTO_PLAY_INTERVAL);
+        }
+
+        // 輪播向右切換（實現循環滾動）
+        function carouselNext() {
+            if (carouselBooks.length === 0) return;
+
+            const track = document.getElementById('carouselTrack');
+            const itemWidth = 140 + 20; // 寬度140px + 間距20px
+
+            // 計算新的索引
+            currentCarouselIndex++;
+
+            // 如果已經超過實際書籍數量，就跳回第一本
+            if (currentCarouselIndex >= carouselBooks.length) {
+                currentCarouselIndex = 1; // 注意這裡設為1，而不是0
+
+                // 先瞬間跳到第一本書的位置（無動畫）
+                track.style.transition = 'none';
+                track.style.transform = `translateX(0px)`;
+
+                // 強制瀏覽器重新計算樣式
+                setTimeout(() => {
+                    track.style.transition = 'transform 0.5s ease';
+                    const offset = currentCarouselIndex * itemWidth;
+                    track.style.transform = `translateX(-${offset}px)`;
+                }, 10);
+            } else {
+                // 正常滾動
+                const offset = currentCarouselIndex * itemWidth;
+                track.style.transform = `translateX(-${offset}px)`;
+            }
+
+            // 重置自動輪播計時器
+            startAutoCarousel();
+        }
+
+
+
+        // 輪播向左切換（實現循環滾動）
+        function carouselPrev() {
+            if (carouselBooks.length === 0) return;
+
+            const track = document.getElementById('carouselTrack');
+            const itemWidth = 140 + 20; // 寬度140px + 間距20px
+
+            // 計算新的索引
+            currentCarouselIndex--;
+
+            // 如果已經小於0，就跳到倒數第二本
+            if (currentCarouselIndex < 0) {
+                currentCarouselIndex = carouselBooks.length - 2;
+
+                // 先瞬間跳轉到最後
+                track.style.transition = 'none';
+                const lastOffset = (carouselBooks.length - 1) * itemWidth;
+                track.style.transform = `translateX(-${lastOffset}px)`;
+
+                // 再平滑滾動到目標位置
+                setTimeout(() => {
+                    track.style.transition = 'transform 0.5s ease';
+                    const offset = currentCarouselIndex * itemWidth;
+                    track.style.transform = `translateX(-${offset}px)`;
+                }, 10);
+            } else {
+                // 正常滾動
+                const offset = currentCarouselIndex * itemWidth;
+                track.style.transform = `translateX(-${offset}px)`;
+            }
+
+            // 重置自動輪播計時器
+            startAutoCarousel();
+        }
+
+        // 顯示輪播書籍詳情
+        function showCarouselBookDetail(bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('未找到書籍資訊');
+                return;
+            }
+
+            // 構建書籍詳情內容
+            let statusText, statusClass, reserveBtn;
+            if (book.status === 'in') {
+                statusText = '在架（可預約）';
+                statusClass = 'status-in';
+                reserveBtn = `<button class="btn-primary" onclick="showReserveModal('${book.id}'); closeCarouselBookDetail()">預約</button>`;
+            } else if (book.status === 'out') {
+                statusText = '不在架';
+                statusClass = 'status-out';
+                reserveBtn = '';
+            } else {
+                statusText = '已被預約';
+                statusClass = 'status-reserved';
+                reserveBtn = '';
+            }
+
+            const likeCount = window.libraryData.bookLikes[book.id] || 0;
+
+            const detailContent = `
+        <div class="carousel-book-detail">
+            <div class="carousel-book-detail-header">
+                <h3>${book.title}</h3>
+                <button class="close-modal" onclick="closeCarouselBookDetail()">&times;</button>
+            </div>
+            <div class="carousel-book-detail-content">
+                <div class="carousel-book-detail-cover">
+                    <img src="${book.cover || ''}" alt="${book.title}" onerror="this.style.display='none'">
+                </div>
+                <div class="carousel-book-detail-info">
+                    <p><strong>作者:</strong> ${book.author || '待編輯'}</p>
+                    <p><strong>簡介:</strong> ${book.intro || '待編輯'}</p>
+                    <p><strong>適合:</strong> ${book.suitable || '待編輯'}</p>
+                    <p><strong>索書號:</strong> ${book.callNo || '待編輯'}</p>
+                    <p><strong>狀態:</strong> <span class="book-status ${statusClass}">${statusText}</span></p>
+                    <p><strong>期數:</strong> 第${book.issue}期</p>
+                    <div class="carousel-book-detail-actions">
+                        <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}');">
+                            ${likeCount > 0 ? '❤️' : '🤍'} ${likeCount}
+                        </button>
+                        <button class="comment-btn" onclick="closeCarouselBookDetail(); setTimeout(() => showCommentModal('${book.id}'), 300)">💬 留言</button>
+                        ${reserveBtn}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+            // 創建或更新彈窗
+            let modal = document.getElementById('carouselBookModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'carouselBookModal';
+                modal.className = 'modal carousel-book-modal hidden';
+                modal.innerHTML = `
+            <div class="modal-content">
+                ${detailContent}
+            </div>
+        `;
+                document.body.appendChild(modal);
+            } else {
+                modal.querySelector('.modal-content').innerHTML = detailContent;
+            }
+
+            // 顯示彈窗
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        // 關閉輪播書籍詳情彈窗
+        function closeCarouselBookDetail() {
+            const modal = document.getElementById('carouselBookModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }
+        }
         // ====== 公告功能 ======
         // 加載公告
         async function loadAnnouncement() {
@@ -2616,6 +2869,7 @@
             right: 10px;
             font-size: 12px;
             cursor: pointer;
+            /* 添加這行 */
             opacity: 0.5;
             z-index: 4;
         }
@@ -3408,6 +3662,235 @@
             min-height: 80px;
             margin-bottom: 10px;
         }
+
+        /* 左上角小標題 */
+        .small-header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+        }
+
+        .small-header h1 {
+            font-size: 1.8rem;
+            color: var(--text);
+            margin: 0;
+            letter-spacing: -0.02em;
+            background: linear-gradient(90deg, #1d1d1f, #6e6e73);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            white-space: nowrap;
+        }
+
+        /* 輪播容器 */
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            margin: 80px auto 30px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(245, 245, 247, 0.8) 0%, rgba(255, 255, 255, 1) 100%);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-track {
+            display: flex;
+            transition: transform 0.5s ease;
+            height: 100%;
+            align-items: center;
+            gap: 20px;
+            padding: 0 20px;
+        }
+
+        .carousel-item {
+            flex: 0 0 auto;
+            width: 140px;
+            height: 200px;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .carousel-item:hover {
+            transform: translateY(-8px) scale(1.05);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .carousel-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .carousel-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.5rem;
+            color: var(--primary);
+            cursor: pointer;
+            z-index: 2;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-arrow:hover {
+            background: white;
+            border-color: var(--primary);
+            box-shadow: 0 6px 20px rgba(0, 113, 227, 0.2);
+            transform: translateY(-50%) scale(1.15);
+        }
+
+        .left-arrow {
+            left: 20px;
+        }
+
+        .right-arrow {
+            right: 20px;
+        }
+
+        /* 海報區標題和期數選擇器 */
+        .poster-header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            /* 改為向左對齊 */
+            margin: 0 20px 20px;
+            padding: 0 10px;
+            gap: 30px;
+            /* 增加間距 */
+        }
+
+        .poster-header h2 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .issue-selector-inline {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .issue-selector-inline label {
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .issue-selector-inline select {
+            padding: 8px 16px;
+            border: 1px solid var(--gray);
+            border-radius: var(--radius);
+            background: white;
+            color: var(--text);
+            font-size: 1rem;
+            min-width: 120px;
+        }
+
+        /* 輪播書籍詳情彈窗 */
+        .carousel-book-modal .modal-content {
+            max-width: 800px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .carousel-book-detail {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .carousel-book-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--gray-light);
+        }
+
+        .carousel-book-detail-header h3 {
+            margin: 0;
+            font-size: 1.5em;
+            color: var(--text);
+        }
+
+        .carousel-book-detail-content {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .carousel-book-detail-cover {
+            flex: 0 0 200px;
+            max-width: 200px;
+        }
+
+        .carousel-book-detail-cover img {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .carousel-book-detail-info {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .carousel-book-detail-info p {
+            margin: 12px 0;
+            font-size: 1em;
+            line-height: 1.5;
+        }
+
+        .carousel-book-detail-info strong {
+            color: var(--text);
+            display: inline-block;
+            min-width: 60px;
+        }
+
+        .carousel-book-detail-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* 鼠標懸停時暫停輪播 */
+        .carousel-container:hover .carousel-arrow {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 修復輪播書籍彈窗層級問題 */
+        .carousel-book-modal {
+            z-index: 101 !important;
+            /* 要比普通彈窗(100)高一層 */
+        }
     </style>
 </head>
 
@@ -3683,20 +4166,31 @@
 
     <!-- 電腦版內容開始 -->
     <div class="desktop-content">
-
-        <!-- 頂部區域 -->
-        <div class="header-divider"
-            style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;">
-        </div>
-        <div class="header">
+        <!-- 左上角小標題 -->
+        <div class="small-header">
             <h1>中學圖書館 | 每週新書速遞</h1>
-            <div class="issue-selector">
+        </div>
+
+        <!-- 輪播區域 -->
+        <div class="carousel-container">
+            <button class="carousel-arrow left-arrow" onclick="carouselPrev()">‹</button>
+            <div class="carousel-track" id="carouselTrack">
+                <!-- 動態生成輪播項目 -->
+            </div>
+            <button class="carousel-arrow right-arrow" onclick="carouselNext()">›</button>
+        </div>
+
+        <!-- 海報區標題和期數選擇器 -->
+        <div class="poster-header">
+            <h2 id="currentIssueTitle">第1期海報</h2>
+            <div class="issue-selector-inline">
                 <label>選擇期數: </label>
                 <select id="issueSelect" onchange="switchIssue(this.value)">
                     <option value="1">第1期</option>
                 </select>
             </div>
         </div>
+
 
         <!-- 導航欄 -->
         <div class="nav-bar">
@@ -3747,7 +4241,6 @@
         </div>
         <!-- 海報區 -->
         <div class="poster-section content-section" id="posterSection">
-            <h2 id="currentIssueTitle">第1期海報</h2>
             <p style="color: var(--gray-dark); font-size: 0.9em; margin-bottom: 20px;">
                 點擊按鈕切換書籍資訊，上面下拉選單切換期數
             </p>
@@ -3960,12 +4453,13 @@
             </div>
         </div>
 
-    
+
         <!-- 隱藏的管理員入口（僅電腦版顯示） -->
-        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();"
-            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3; z-index: 9999; position: fixed; bottom: 10px; right: 10px;">
-            ®</div>
-    </div> <!-- 添加這行，結束 desktop-content -->
+        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin();"
+            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3; z-index: 9999; position: fixed; bottom: 10px; right: 10px; cursor: pointer;">
+            ®
+        </div>
+    </div>
 </body>
 
 </html>
