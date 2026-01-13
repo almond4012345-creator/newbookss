@@ -1888,12 +1888,11 @@
                 return;
             }
 
-            // 創建書籍卡片內容（與網站下方卡片格式一致）
             let statusText, statusClass, reserveBtn;
             if (book.status === 'in') {
                 statusText = '在架（可預約）';
                 statusClass = 'status-in';
-                reserveBtn = `<button class="btn-primary" onclick="showReserveModalFromCarousel('${bookId}')" style="margin-top: 10px; padding: 8px 16px; font-size: 0.9em;">預約</button>`;
+                reserveBtn = `<button id="carouselReserveBtn" data-book-id="${bookId}" class="btn-primary" style="margin-top: 10px; padding: 8px 16px; font-size: 0.9em;">預約</button>`;
             } else if (book.status === 'out') {
                 statusText = '不在架';
                 statusClass = 'status-out';
@@ -1904,7 +1903,6 @@
                 reserveBtn = '';
             }
 
-            // 获取點讚數和留言數
             const likeCount = window.libraryData.bookLikes[bookId] || 0;
             const commentCount = window.libraryData.bookComments[bookId]?.length || 0;
 
@@ -1922,33 +1920,48 @@
             <p style="margin: 6px 0;"><strong>狀態:</strong> <span class="book-status ${statusClass}" style="font-size: 0.85em;">${statusText}</span></p>
         </div>
         
-        <!-- 功能按鈕區域 -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <div style="display: flex; gap: 8px;">
-                <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" onclick="bookLikeFromCarousel('${bookId}')" style="background: none; border: none; font-size: 1.1em; cursor: pointer; padding: 4px; display: flex; align-items: center; gap: 3px;">
-                    ${likeCount > 0 ? '❤️' : '🤍'} <span style="font-size: 0.9em;">${likeCount}</span>
+                <button id="carouselLikeBtn" data-book-id="${bookId}" style="background: none; border: none; font-size: 1.1em; cursor: pointer; padding: 4px; display: flex; align-items: center; gap: 3px;">
+                    ${likeCount > 0 ? '❤️' : '🤍'} <span id="carouselLikeCount" style="font-size: 0.9em;">${likeCount}</span>
                 </button>
-                <button class="comment-btn" onclick="showCommentModalFromCarousel('${bookId}')" style="background: #ff9500; color: white; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.85em; display: flex; align-items: center; gap: 3px;">
+                <button id="carouselCommentBtn" data-book-id="${bookId}" class="comment-btn" style="background: #ff9500; color: white; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.85em; display: flex; align-items: center; gap: 3px;">
                     💬 <span style="font-size: 0.85em;">${commentCount}</span>
                 </button>
             </div>
-            ${reserveBtn ? '<div>' + reserveBtn + '</div>' : ''}
+            ${reserveBtn}
         </div>
     `;
 
-            // 更新彈窗內容
             document.getElementById('carouselBookDetail').innerHTML = detailHtml;
 
-            // 顯示彈窗（確保關閉按鈕可見）
             const modal = document.getElementById('carouselBookModal');
             modal.classList.remove('hidden');
             modal.style.display = 'flex';
 
-            // 確保彈窗內容不會太大
             const modalContent = modal.querySelector('.modal-content');
             modalContent.style.maxWidth = '380px';
             modalContent.style.maxHeight = '85vh';
             modalContent.style.overflowY = 'auto';
+
+            // 綁定點讚按鈕事件
+            document.getElementById('carouselLikeBtn').addEventListener('click', function () {
+                bookLikeFromCarousel(bookId);
+            });
+
+            // 綁定留言按鈕事件
+            if (document.getElementById('carouselCommentBtn')) {
+                document.getElementById('carouselCommentBtn').addEventListener('click', function () {
+                    showCommentModalFromCarousel(bookId);
+                });
+            }
+
+            // 綁定預約按鈕事件
+            if (document.getElementById('carouselReserveBtn')) {
+                document.getElementById('carouselReserveBtn').addEventListener('click', function () {
+                    showReserveModalFromCarousel(bookId);
+                });
+            }
         }
 
         function bookLikeFromCarousel(bookId) {
@@ -1988,10 +2001,16 @@
 
         function closeCarouselModal() {
             const modal = document.getElementById('carouselBookModal');
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+                // 停止動畫（如果正在運行）
+                if (carouselAnimationId) {
+                    cancelAnimationFrame(carouselAnimationId);
+                    carouselAnimationId = null;
+                }
+            }
         }
-
         function updateCarousel() {
             const container = document.getElementById('carouselBooks');
             container.innerHTML = '';
@@ -4057,7 +4076,7 @@
         <div class="modal hidden" id="carouselBookModal">
             <div class="modal-content" style="max-width: 400px; max-height: 85vh; overflow-y: auto;">
                 <span class="close-modal" onclick="closeCarouselModal()"
-                    style="position: absolute; top: 15px; right: 20px; font-size: 1.5em; z-index: 10;">&times;</span>
+                    style="position: absolute; top: 15px; right: 20px; font-size: 1.5em; z-index: 10; cursor: pointer;">&times;</span>
                 <div id="carouselBookDetail" style="padding: 20px; padding-top: 10px;">
                     <!-- 動態生成書籍詳情 -->
                 </div>
