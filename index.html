@@ -1934,11 +1934,6 @@
             </div>
             ${reserveBtn ? '<div>' + reserveBtn + '</div>' : ''}
         </div>
-        
-        <!-- 查看詳情按鈕 -->
-        <div style="text-align: center; margin-top: 10px;">
-            <button class="btn-text" onclick="jumpToBookIssueFromCarousel('${book.issue}', '${book.posterNum}')" style="font-size: 0.85em; padding: 6px 12px;">查看完整詳情</button>
-        </div>
     `;
 
             // 更新彈窗內容
@@ -1989,16 +1984,6 @@
             setTimeout(() => {
                 showReserveModal(bookId);
             }, 50);
-        }
-
-        function jumpToBookIssueFromCarousel(issue, posterNum) {
-            // 關閉巡迴展示欄彈窗
-            closeCarouselModal();
-
-            // 跳轉到書籍對應期數
-            setTimeout(() => {
-                jumpToBookIssue(issue, posterNum);
-            }, 100);
         }
 
         function closeCarouselModal() {
