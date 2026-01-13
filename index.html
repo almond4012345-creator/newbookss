@@ -1873,19 +1873,95 @@
         let carouselSpeed = 0.5; // 每秒移動的像素數
 
         function initCarousel() {
-            // 綁定箭頭按鈕事件
-            document.getElementById('carouselPrev').addEventListener('click', () => {
-                moveCarouselByClick(-1);
-            });
-            document.getElementById('carouselNext').addEventListener('click', () => {
-                moveCarouselByClick(1);
-            });
-
             // 初始渲染
             updateCarousel();
 
             // 開始自動滑動動畫
             startCarouselAnimation();
+        }
+
+        // 顯示巡迴展示欄書籍詳情彈窗
+        function showCarouselBookDetail(bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) {
+                alert('未找到書籍資訊');
+                return;
+            }
+
+            // 創建書籍卡片內容（與網站下方卡片格式一致）
+            let statusText, statusClass, reserveBtn;
+            if (book.status === 'in') {
+                statusText = '在架（可預約）';
+                statusClass = 'status-in';
+                reserveBtn = `<button class="btn-primary" onclick="showReserveModal('${bookId}'); closeCarouselModal()" style="margin-top: 10px;">預約</button>`;
+            } else if (book.status === 'out') {
+                statusText = '不在架';
+                statusClass = 'status-out';
+                reserveBtn = '';
+            } else {
+                statusText = '已被預約';
+                statusClass = 'status-reserved';
+                reserveBtn = '';
+            }
+
+            // 获取點讚數和留言數
+            const likeCount = window.libraryData.bookLikes[bookId] || 0;
+            const commentCount = window.libraryData.bookComments[bookId]?.length || 0;
+
+            const detailHtml = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${book.cover || ''}" style="width: 150px; height: 225px; object-fit: cover; border-radius: 8px; margin: 0 auto 15px;" onerror="this.style.display='none'">
+            <h3 style="margin: 0 0 10px; font-size: 1.3em; color: #1d1d1f;">${book.title}</h3>
+            <p style="margin: 5px 0; color: #6e6e73;">作者: ${book.author || '待編輯'}</p>
+        </div>
+        
+        <div style="background: #f5f5f7; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <p style="margin: 8px 0;"><strong>簡介:</strong> ${book.intro || '待編輯'}</p>
+            <p style="margin: 8px 0;"><strong>適合:</strong> ${book.suitable || '待編輯'}</p>
+            <p style="margin: 8px 0;"><strong>索書號:</strong> ${book.callNo || '待編輯'}</p>
+            <p style="margin: 8px 0;"><strong>狀態:</strong> <span class="book-status ${statusClass}">${statusText}</span></p>
+        </div>
+        
+        <!-- 功能按鈕區域 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px;">
+                <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" onclick="bookLike('${bookId}'); updateCarouselDetail('${bookId}')" style="background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 5px;">
+                    ${likeCount > 0 ? '❤️' : '🤍'} ${likeCount}
+                </button>
+                <button class="comment-btn" onclick="showCommentModal('${bookId}'); closeCarouselModal()" style="background: #ff9500; color: white; border: none; padding: 5px 12px; border-radius: 15px; cursor: pointer;">
+                    💬 ${commentCount}
+                </button>
+            </div>
+            ${reserveBtn ? '<div>' + reserveBtn + '</div>' : ''}
+        </div>
+        
+        <!-- 查看詳情按鈕 -->
+        <div style="text-align: center; margin-top: 15px;">
+            <button class="btn-text" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}'); closeCarouselModal()">查看完整詳情</button>
+        </div>
+    `;
+
+            // 更新彈窗內容
+            document.getElementById('carouselBookDetail').innerHTML = detailHtml;
+
+            // 顯示彈窗
+            document.getElementById('carouselBookModal').classList.remove('hidden');
+        }
+
+        // 更新彈窗內的點讚數
+        function updateCarouselDetail(bookId) {
+            const likeBtn = document.querySelector('#carouselBookDetail .like-btn');
+            const likeCount = window.libraryData.bookLikes[bookId] || 0;
+
+            if (likeBtn) {
+                likeBtn.innerHTML = `${likeCount > 0 ? '❤️' : '🤍'} ${likeCount}`;
+                likeBtn.classList.toggle('liked', likeCount > 0);
+            }
+        }
+
+        // 關閉巡迴展示欄彈窗
+        function closeCarouselModal() {
+            document.getElementById('carouselBookModal').classList.add('hidden');
         }
 
         function updateCarousel() {
@@ -3610,20 +3686,7 @@
             margin: 0 auto;
         }
 
-        #carouselPrev,
-        #carouselNext {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            line-height: 1 !important;
-        }
 
-        #carouselPrev:hover,
-        #carouselNext:hover {
-            background: #0056b3;
-            transform: translateY(-50%) scale(1.1);
-        }
 
         /* 左上角小標題固定 */
         .desktop-content {
@@ -3942,14 +4005,6 @@
         <!-- 新書封面巡迴展示欄 -->
         <div id="bookCarousel"
             style="margin: 60px auto 40px; width: 95%; max-width: 1200px; position: relative; padding: 20px 60px; background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;">
-
-            <!-- 左箭頭按鈕 -->
-            <button id="carouselPrev"
-                style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: var(--primary); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.2em; cursor: pointer; z-index: 3; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;">←</button>
-
-            <!-- 右箭頭按鈕 -->
-            <button id="carouselNext"
-                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: var(--primary); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.2em; cursor: pointer; z-index: 3; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;">→</button>
 
             <!-- 書本容器 -->
             <div id="carouselBooks" style="display: flex; gap: 20px; transition: transform 0.5s ease;">
