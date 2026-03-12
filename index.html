@@ -1033,11 +1033,16 @@
             } else {
                 document.querySelector('.mobile-content').style.display = 'block';
                 document.querySelector('.mobile-nav').style.display = 'block';
-                initMobile();
+                // 確保 initMobile 也存在
+                if (window.initMobile) {
+                    window.initMobile();
+                }
             }
             // 確保公告能顯示
             setTimeout(() => {
-                loadAnnouncement();
+                if (window.loadAnnouncement) {
+                    loadAnnouncement();
+                }
             }, 500);
         }
 
