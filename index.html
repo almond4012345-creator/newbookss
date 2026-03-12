@@ -2205,7 +2205,7 @@
                     if (announcement.title && announcement.content) {
                         // 顯示公告彈窗
                         document.getElementById('announcementTitle').textContent = announcement.title;
-                        document.getElementById('announcementContent').textContent = announcement.content;
+                        document.getElementById('announcementContent').innerHTML = announcement.content.replace(/\n/g, '<br>');
                         document.getElementById('announcementModal').style.display = 'flex';
 
                         // 填充到管理後台表單
