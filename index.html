@@ -37,6 +37,7 @@
             issues: {},
             reserveRecords: [],
             recommendRecords: [],
+            feedbackRecords: [],
             latestIssue: 1,
             allBooks: []
         };
@@ -352,52 +353,49 @@
         }
 
         // 提交回饋
-        window.submitFeedback = function () {
-            const content = document.getElementById('feedbackContent').value.trim();
+        window.submitUserFeedback = function () {
+            const content = document.getElementById('userFeedbackInput').value.trim();
 
             if (!content) {
-                alert('請填寫你的建議內容');
+                alert('寫點什麼再寄出吧～');
                 return;
             }
 
             const newFeedback = {
                 content: content,
                 time: new Date().toLocaleString(),
-                status: '已收到' // 預設狀態
+                status: '已收到'
             };
 
             window.saveFeedbackRecord(newFeedback);
-            window.closeAllModals();
-            alert('感謝你的建議！');
 
-            // 清空表單
-            document.getElementById('feedbackContent').value = '';
+            // 清空輸入框
+            document.getElementById('userFeedbackInput').value = '';
+
+            alert('✨ 寄出成功！謝謝你的聲音～');
         }
 
-        // 渲染前台回饋列表
+        // 清空表單
+        document.getElementById('feedbackContent').value = '';
+        }
+
+        // 渲染後台回饋
         function renderFeedbackRecords() {
-            const container = document.getElementById('userFeedbackList');
-            if (!container) return;
-            container.innerHTML = '';
-            const sorted = [...window.libraryData.feedbackRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
+            return;
+        }
 
-            if (sorted.length === 0) {
-                container.innerHTML = '<p>暫無建議記錄</p>';
-                return;
-            }
-
-            sorted.forEach((r, i) => {
-                let statusClass = r.status === '已收到' ? 'status-pending' : 'status-recorded';
-                // 獲取隨機顏色
-                const randomColor = window.getRandomSoftColor();
-                container.innerHTML += `
+        sorted.forEach((r, i) => {
+            let statusClass = r.status === '已收到' ? 'status-pending' : 'status-recorded';
+            // 獲取隨機顏色
+            const randomColor = window.getRandomSoftColor();
+            container.innerHTML += `
         <div class="recommend-item">
             <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
             <span class="recommend-name" style="flex:2;">${r.content}</span>
             <span class="recommend-status ${statusClass}">${r.status}</span>
         </div>
     `;
-            });
+        });
         }
 
         // 渲染後台回饋列表
@@ -4233,7 +4231,7 @@
             </div>
             <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
             <div class="nav-item" onclick="loadRanking(); setActiveNav(this)">排行榜</div>
-            <div class="nav-item" onclick="showSection('userFeedbackSection'); setActiveNav(this)">我想說：</div>
+            <div class="nav-item" onclick="showSection('userFeedbackSection'); setActiveNav(this)">我想說</div>
             <div class="keyword-search">
                 <label>關鍵詞: </label>
                 <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
@@ -4257,8 +4255,17 @@
             <div class="recommend-header">
                 <h3>我想對圖書館說</h3>
             </div>
-            <div class="recommend-list" id="userFeedbackList">
-                <!-- 動態生成 -->
+
+            <!-- 輸入框 -->
+            <textarea id="userFeedbackInput" rows="6"
+                style="width:100%; padding:15px; margin:20px 0; border:1px solid #e2e2e7; border-radius:12px; font-family:inherit; font-size:1em; resize:vertical;"
+                placeholder="嗨，我們想聽聽你的聲音！
+
+對圖書館或系統有什麼建議？希望新增或改進哪些地方？你的想法會讓圖書館變得更好，我們會認真讀每一則留言喔。"></textarea>
+
+            <!-- 提交按鈕 -->
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn-primary" onclick="submitUserFeedback()" style="padding:10px 30px;">寄出</button>
             </div>
         </div>
 
