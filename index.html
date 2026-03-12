@@ -25,9 +25,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);  // ← 改成 Firestore
 
-        // 新增：圖書館留言 Collection
-        const libraryMessagesCollection = collection(db, "libraryMessages");
-
         // 測試 Firebase 連線
         console.log("🔥 Firebase 連線測試開始...");
         console.log("專案ID:", firebaseConfig.projectId);
@@ -1033,16 +1030,11 @@
             } else {
                 document.querySelector('.mobile-content').style.display = 'block';
                 document.querySelector('.mobile-nav').style.display = 'block';
-                // 確保 initMobile 也存在
-                if (window.initMobile) {
-                    window.initMobile();
-                }
+                initMobile();
             }
             // 確保公告能顯示
             setTimeout(() => {
-                if (window.loadAnnouncement) {
-                    loadAnnouncement();
-                }
+                loadAnnouncement();
             }, 500);
         }
 
@@ -2274,139 +2266,6 @@
         // 關閉公告彈窗
         window.closeAnnouncement = function () {
             document.getElementById('announcementModal').style.display = 'none';
-        }
-
-        // ====== 新增：我想對圖書館說功能 ======
-
-        // 顯示「我想說」頁面
-        window.showLibraryMessagePage = function () {
-            showSection('libraryMessageSection');
-        }
-
-        // 提交留言
-        window.submitLibraryMessage = async function () {
-            const message = document.getElementById('libraryMessageInput').value.trim();
-
-            if (!message) {
-                alert('請輸入你想說的話～');
-                return;
-            }
-
-            // 檢查是否等於預設提示文字
-            const defaultText = "嗨，我們想聽聽你的聲音！\n\n對圖書館或系統有什麼建議？希望新增或改進哪些地方？你的想法會讓圖書館變得更好，我們會認真讀每一則留言喔。";
-            if (message === defaultText) {
-                alert('請輸入你想說的話～');
-                return;
-            }
-
-            try {
-                // 準備留言資料
-                const messageData = {
-                    content: message,
-                    time: new Date().toLocaleString(),
-                    timestamp: new Date().getTime(),
-                    status: '未讀'
-                };
-
-                // 上傳到 Firebase
-                const newMessageRef = doc(collection(db, "libraryMessages"));
-                await setDoc(newMessageRef, messageData);
-
-                // 顯示成功訊息
-                alert('寄出成功！感謝你的留言～');
-
-                // 清空輸入框
-                document.getElementById('libraryMessageInput').value = '';
-
-            } catch (error) {
-                console.error('留言失敗:', error);
-                alert('寄出失敗，請稍後再試');
-            }
-        }
-
-        // 載入所有留言（後台用）
-        window.loadAllLibraryMessages = async function () {
-            const listContainer = document.getElementById('libraryMessagesList');
-            listContainer.innerHTML = '<p style="text-align: center; color: var(--gray-dark);">載入中...</p>';
-
-            try {
-                const messagesSnapshot = await getDocs(collection(db, "libraryMessages"));
-                const messages = [];
-
-                messagesSnapshot.forEach((doc) => {
-                    messages.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-                });
-
-                // 按時間倒序排序
-                messages.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-                if (messages.length === 0) {
-                    listContainer.innerHTML = '<p style="text-align: center; color: var(--gray-dark);">暫無留言</p>';
-                    return;
-                }
-
-                // 渲染留言列表
-                let html = '';
-                messages.forEach(msg => {
-                    const statusColor = msg.status === '未讀' ? '#ff3b30' : '#34c759';
-                    html += `
-                        <div style="border-bottom: 1px solid var(--gray); padding: 15px; margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span style="color: ${statusColor}; font-size: 0.9em; font-weight: 500;">${msg.status || '未讀'}</span>
-                                <span style="color: var(--gray-dark); font-size: 0.85em;">${msg.time || '未知時間'}</span>
-                            </div>
-                            <div style="margin: 10px 0; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(msg.content)}</div>
-                            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                                <button onclick="markLibraryMessageAsRead('${msg.id}')" class="btn-primary" style="padding: 5px 15px; font-size: 0.9em;">標為已讀</button>
-                                <button onclick="deleteLibraryMessage('${msg.id}')" class="btn-danger" style="padding: 5px 15px; font-size: 0.9em;">刪除</button>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                listContainer.innerHTML = html;
-
-            } catch (error) {
-                console.error('載入留言失敗:', error);
-                listContainer.innerHTML = '<p style="text-align: center; color: var(--danger);">載入失敗，請重試</p>';
-            }
-        }
-
-        // 標記留言為已讀
-        window.markLibraryMessageAsRead = async function (messageId) {
-            try {
-                await updateDoc(doc(db, "libraryMessages", messageId), {
-                    status: '已讀'
-                });
-                loadAllLibraryMessages(); // 重新載入列表
-            } catch (error) {
-                console.error('更新失敗:', error);
-                alert('更新失敗');
-            }
-        }
-
-        // 刪除留言
-        window.deleteLibraryMessage = async function (messageId) {
-            if (!confirm('確定要刪除這則留言嗎？')) return;
-
-            try {
-                await deleteDoc(doc(db, "libraryMessages", messageId));
-                loadAllLibraryMessages(); // 重新載入列表
-                alert('留言已刪除');
-            } catch (error) {
-                console.error('刪除失敗:', error);
-                alert('刪除失敗');
-            }
-        }
-
-        // 簡單的 HTML 轉義函數（防止 XSS）
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
         }
 
     </script>
@@ -3930,20 +3789,20 @@
     <!-- 設備選擇界面 -->
     <div class="device-selector" id="deviceSelector">
         <h2>請選擇設備類型</h2>
-        <button class="device-option" onclick="window.selectDevice('desktop')">電腦端</button>
-        <button class="device-option" onclick="window.selectDevice('mobile')">手機/平板端</button>
+        <button class="device-option" onclick="selectDevice('desktop')">電腦端</button>
+        <button class="device-option" onclick="selectDevice('mobile')">手機/平板端</button>
     </div>
+
     <!-- 載入提示 -->
     <div id="loadingIndicator" style="display: none;">
         正在載入圖書館資料...
     </div>
 
-    <!-- 公告彈窗 -->
+      <!-- 公告彈窗 -->
     <div class="modal" id="announcementModal" style="display: none;">
         <div class="modal-content" style="max-width: 500px;">
             <h3 id="announcementTitle" style="margin-bottom: 20px; color: #1d1d1f; font-size: 1.3em;"></h3>
-            <div id="announcementContent"
-                style="margin-bottom: 30px; line-height: 1.6; color: #1d1d1f; white-space: pre-line;"></div>
+            <div id="announcementContent" style="margin-bottom: 30px; line-height: 1.6; color: #1d1d1f; white-space: pre-line;"></div>
             <button class="btn-primary" onclick="closeAnnouncement()"
                 style="width: 100%; padding: 10px; font-size: 1em;">知道了</button>
         </div>
@@ -4249,7 +4108,6 @@
             </div>
             <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
             <div class="nav-item" onclick="loadRanking(); setActiveNav(this)">排行榜</div>
-            <div class="nav-item" onclick="showLibraryMessagePage(); setActiveNav(this)">我想說</div>
             <div class="keyword-search">
                 <label>關鍵詞: </label>
                 <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
@@ -4356,30 +4214,6 @@
                     <input type="password" id="adminPass" required>
                 </div>
                 <button type="button" onclick="adminLogin()" class="btn-primary">登錄</button>
-            </div>
-        </div>
-
-        <!-- 新增：我想對圖書館說頁面 -->
-        <div class="poster-section content-section hidden" id="libraryMessageSection">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="font-size: 2em; margin-bottom: 10px;">我想對圖書館說</h2>
-                <p style="color: var(--gray-dark);">你的每一則留言，我們都會認真閱讀</p>
-            </div>
-
-            <div
-                style="max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow);">
-                <textarea id="libraryMessageInput"
-                    style="width: 100%; min-height: 250px; padding: 20px; border: 2px solid var(--gray); border-radius: var(--radius); font-size: 1.1em; line-height: 1.6; resize: vertical;"
-                    placeholder="嗨，我們想聽聽你的聲音！
-
-對圖書館或系統有什麼建議？希望新增或改進哪些地方？你的想法會讓圖書館變得更好，我們會認真讀每一則留言喔。"></textarea>
-
-                <div style="text-align: center; margin-top: 30px;">
-                    <button onclick="submitLibraryMessage()"
-                        style="background: #ff9500; color: white; border: none; padding: 15px 60px; border-radius: 30px; font-size: 1.2em; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
-                        寄出
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -4504,20 +4338,9 @@
                 </div>
             </div>
 
-            <!-- 7. 圖書館留言管理 -->
+            <!-- 7. 公告管理 -->
             <div class="form-group">
-                <h3>7. 圖書館留言管理</h3>
-                <button class="btn-primary" onclick="loadAllLibraryMessages()"
-                    style="margin-bottom: 20px;">載入所有留言</button>
-                <div id="libraryMessagesList"
-                    style="max-height: 400px; overflow-y: auto; border: 1px solid var(--gray); padding: 15px; border-radius: 8px;">
-                    <p style="color: var(--gray-dark); text-align: center;">點擊按鈕載入留言</p>
-                </div>
-            </div>
-
-            <!-- 8. 公告管理 -->
-            <div class="form-group">
-                <h3>8. 公告管理</h3>
+                <h3>7. 公告管理</h3>
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">公告標題:</label>
                     <input type="text" id="announcementTitleInput" placeholder="輸入公告標題"
