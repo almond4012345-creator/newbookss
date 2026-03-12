@@ -10,7 +10,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-        //
+
         // Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyAdNZnrW2xEh6AYFs5osZ0Zi-Tl5ZPbqfs",
@@ -99,35 +99,9 @@
                 // 載入系統設定 - Firestore 版本
                 const settingsDoc = await getDoc(doc(db, "settings", "system"));
                 window.libraryData.latestIssue = settingsDoc.exists() ? settingsDoc.data().latestIssue : 1;
-                // 載入書籍點讚記錄 - Firestore 版本
-                const likesCollection = collection(db, "bookLikes");
-                const likesSnapshot = await getDocs(likesCollection);
-                window.libraryData.bookLikes = {};
-                likesSnapshot.forEach((doc) => {
-                    window.libraryData.bookLikes[doc.id] = doc.data().count || 0;
-                });
 
-                // 載入書籍留言記錄 - Firestore 版本
-                const commentsCollection = collection(db, "bookComments");
-                const commentsSnapshot = await getDocs(commentsCollection);
-                window.libraryData.bookComments = {};
-                commentsSnapshot.forEach((doc) => {
-                    const commentData = doc.data();
-                    if (!window.libraryData.bookComments[commentData.bookId]) {
-                        window.libraryData.bookComments[commentData.bookId] = [];
-                    }
-                    window.libraryData.bookComments[commentData.bookId].push({
-                        id: doc.id,
-                        content: commentData.content,
-                        likeCount: commentData.likeCount || 0,
-                        isTop: commentData.isTop || false,
-                        time: commentData.time || new Date().toLocaleString()
-                    });
-                });
                 collectAllBooks();
                 init();
-                // 加載公告
-                loadAnnouncement();
                 document.getElementById('loadingIndicator').style.display = 'none';
 
             } catch (err) {
@@ -198,38 +172,6 @@
                     latestIssue: window.libraryData.latestIssue
                 });
 
-                // 保存書籍點讚數據
-                for (const bookId in window.libraryData.bookLikes) {
-                    await setDoc(doc(db, "bookLikes", bookId), {
-                        count: window.libraryData.bookLikes[bookId] || 0
-                    });
-                }
-
-                // 保存書籍留言數據
-                const allComments = [];
-                for (const bookId in window.libraryData.bookComments) {
-                    window.libraryData.bookComments[bookId].forEach(comment => {
-                        allComments.push({
-                            ...comment,
-                            bookId: bookId
-                        });
-                    });
-                }
-                // 先清空舊留言，再重新保存（簡化版）
-                const commentsCol = collection(db, "bookComments");
-                const oldCommentsSnapshot = await getDocs(commentsCol);
-                oldCommentsSnapshot.forEach(async (doc) => {
-                    await deleteDoc(doc.ref);
-                });
-                // 保存新留言
-                for (const comment of allComments) {
-                    if (comment.id) {
-                        await setDoc(doc(db, "bookComments", comment.id), comment);
-                    } else {
-                        const newRef = doc(collection(db, "bookComments"));
-                        await setDoc(newRef, { ...comment, id: newRef.id });
-                    }
-                }
                 console.log('保存成功');
                 collectAllBooks();
             } catch (err) {
@@ -267,6 +209,7 @@
             }
         }
 
+
         // 更新預約狀態 - Firestore 版本
         window.updateReserveStatus = async function (index, status) {
             try {
@@ -302,6 +245,7 @@
                 alert("更新失敗");
             }
         }
+
 
         // 儲存推薦記錄 - Firestore 版本
         window.saveRecommendRecord = async function (record) {
@@ -375,8 +319,7 @@
             // 顯示海報按鈕容器
             document.getElementById('posterButtonsContainer').style.display = 'flex';
             document.querySelector('.nav-item').classList.add('active');
-            // 初始化巡迴展示欄
-            initCarousel();
+
             // 新增：為書籍選擇下拉菜單添加事件監聽器
             document.getElementById('bookIssueSelect').addEventListener('change', loadBookData);
             document.getElementById('bookPosterSelect').addEventListener('change', loadBookData);
@@ -519,7 +462,7 @@
                 statusText = '在架（可預約）';
                 statusClass = 'status-in';
                 // 确保预约按钮使用正确的ID
-                reserveBtn = `<button class="reserve-btn" style="background: #0071e3; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.9em; cursor: pointer;" onclick="showReserveModal('${book.id}')">預約</button>`;
+                reserveBtn = `<button class="reserve-btn" onclick="showReserveModal('${book.id}')">預約</button>`;
             } else if (book.status === 'out') {
                 statusText = '不在架';
                 statusClass = 'status-out';
@@ -530,35 +473,18 @@
                 reserveBtn = '';
             }
 
-            // 获取該書點讚數
-            const likeCount = window.libraryData.bookLikes[book.id] || 0;
             card.innerHTML = `
-        <div style="position: relative;">
-            <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
-            <button class="like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 5px;">
-                🤍<span style="font-size: 0.8em; margin-left: 2px;">${likeCount}</span>
-            </button>
-        </div>
+        <img src="${book.cover || ''}" class="book-cover" onerror="this.style.display='none'">
         <h3 class="book-title">${book.title}</h3>
         <p>作者: ${book.author || '待編輯'}</p>
         <p>簡介: ${book.intro || '待編輯'}</p>
         <p>適合: ${book.suitable || '待編輯'}</p>
         <div class="book-status-bar">
             <span class="book-status ${statusClass}">${statusText}</span>
-            <div style="display:flex; align-items:center; gap: 8px;">
-                <button class="comment-btn" onclick="showCommentModal('${book.id}'); event.stopPropagation();" style="background: #ff9500; color: white; border: none; padding: 4px 8px; border-radius: 15px; font-size: 0.8em; cursor: pointer;">💬</button>
-                ${reserveBtn}
-            </div>
+            ${reserveBtn}
         </div>
         <p class="book-callno">索書號: ${book.callNo || '待編輯'}</p>
     `;
-
-            // 确保点赞按钮样式正确
-            const likeBtn = card.querySelector('.like-btn');
-            if (likeBtn && likeCount > 0) {
-                likeBtn.innerHTML = `❤️<span style="font-size: 0.8em; margin-left: 2px;">${likeCount}</span>`;
-                likeBtn.classList.add('liked');
-            }
 
             return card;
         }
@@ -686,7 +612,7 @@
             });
         }
 
-        // 顯示預約彈窗（修復手機版問題）
+        // 顯示預約彈窗（修复找不到书籍的问题）
         window.showReserveModal = function (bookId) {
             // 双重检查：先从allBooks找，找不到则直接从原数据解析
             let book = window.libraryData.allBooks.find(b => b.id === bookId);
@@ -703,11 +629,7 @@
             }
             document.getElementById('bookReserveInfo').innerText = `書名: ${book.title || '未知書名'}`;
             document.getElementById('reserveBookId').value = bookId;
-
-            // 確保彈窗顯示
-            const modal = document.getElementById('reserveModal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex'; // 強制顯示
+            document.getElementById('reserveModal').classList.remove('hidden');
         }
 
         // 提交預約
@@ -749,20 +671,12 @@
             document.getElementById('studentName').value = '';
         }
 
-        // 顯示推薦表單（修復手機版問題）
+        // 顯示推薦表單
         window.showRecommendForm = function () {
-            // 在手機端使用頁面跳轉
-            if (window.innerWidth <= 768) {
-                showMobileRecommendFormPage();
-            } else {
-                // 電腦端保持彈窗
-                const modal = document.getElementById('recommendModal');
-                modal.classList.remove('hidden');
-                modal.style.display = 'flex'; // 強制顯示
-            }
+            document.getElementById('recommendModal').classList.remove('hidden');
         }
 
-        // 提交推薦（修復手機版問題）
+        // 提交推薦
         window.submitRecommend = function () {
             const bookName = document.getElementById('recommendBookName').value.trim();
             const reason = document.getElementById('recommendReason').value.trim();
@@ -862,14 +776,12 @@
             document.getElementById('adminPanel').classList.add('hidden');
         }
 
-        // 關閉所有彈窗（修復手機版問題）
+        // 關閉所有彈窗
         window.closeAllModals = function () {
             document.querySelectorAll('.modal').forEach(modal => {
                 modal.classList.add('hidden');
-                modal.style.display = 'none'; // 強制隱藏
             });
         }
-
         // 设置导航项活跃状态
         window.setActiveNav = function (element) {
             // 移除所有导航项的活跃状态
@@ -1017,1255 +929,8 @@
             }
         }
 
-        // 手機版全局變量
-        window.mobileCurrentIssue = 1;
-
-        // 設備選擇
-        window.selectDevice = function (deviceType) {
-            document.getElementById('deviceSelector').style.display = 'none';
-            if (deviceType === 'desktop') {
-                document.querySelector('.desktop-content').style.display = 'block';
-            } else {
-                document.querySelector('.mobile-content').style.display = 'block';
-                document.querySelector('.mobile-nav').style.display = 'block';
-                initMobile();
-            }
-            // 確保公告能顯示
-            setTimeout(() => {
-                loadAnnouncement();
-            }, 500);
-        }
-
-        // 初始化手機版
-        window.initMobile = function () {
-            renderMobileIssueSelectors();
-            mobileShowLatestIssue();
-
-            // 綁定分類點擊事件
-            document.querySelectorAll('.mobile-category-item').forEach(item => {
-                item.addEventListener('click', function () {
-                    const category = this.dataset.category;
-                    mobileFilterByCategory(category);
-                    hideMobileCategoryMenu();
-                });
-            });
-        }
-
-        // 渲染手機版期數選擇器
-        window.renderMobileIssueSelectors = function () {
-            const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
-            const selector = document.getElementById('mobileIssueSelect');
-            selector.innerHTML = '';
-            issues.forEach(issue => {
-                selector.innerHTML += `<option value="${issue}">第${issue}期</option>`;
-            });
-            selector.value = window.libraryData.latestIssue;
-        }
-
-        // 手機版切換期數
-        window.mobileSwitchIssue = function (issue) {
-            const issueNum = Number(issue);
-            window.mobileCurrentIssue = issueNum;
-            mobileRenderBooks(issueNum, 1);
-        }
-
-        // 手機版顯示最新一期
-        window.mobileShowLatestIssue = function () {
-            window.mobileSwitchIssue(window.libraryData.latestIssue);
-            document.getElementById('mobileIssueSelect').value = window.libraryData.latestIssue;
-        }
-
-        // 手機版渲染書籍
-        window.mobileRenderBooks = function (issue, posterNum) {
-            const container = document.getElementById('mobileBooksContainer');
-            container.innerHTML = '';
-
-            if (!window.libraryData.issues[issue]) {
-                window.libraryData.issues[issue] = {
-                    posters: { 1: '', 2: '' },
-                    books: { 1: {}, 2: {} }
-                };
-            }
-            if (!window.libraryData.issues[issue].books[posterNum]) {
-                window.libraryData.issues[issue].books[posterNum] = {};
-            }
-
-            const books = window.libraryData.issues[issue].books[posterNum];
-
-            for (let i = 1; i <= 9; i++) {
-                const bookId = `issue-${issue}-poster-${posterNum}-book-${i}`;
-
-                let book;
-                if (books[i]) {
-                    book = { ...books[i] };
-                    book.id = bookId;
-                } else {
-                    book = {
-                        id: bookId,
-                        issue: issue.toString(),
-                        posterNum: posterNum.toString(),
-                        bookNum: i.toString(),
-                        callNo: '待編輯',
-                        title: '新書' + i,
-                        classCode: '000',
-                        author: '待編輯',
-                        intro: '待編輯',
-                        suitable: '待編輯',
-                        status: 'in',
-                        cover: ''
-                    };
-                }
-
-                books[i] = book;
-                window.libraryData.issues[issue].books[posterNum][i] = book;
-
-                const card = createMobileBookCard(book);
-                container.appendChild(card);
-            }
-            collectAllBooks();
-        }
-
-        // 創建手機版書籍卡片
-        window.createMobileBookCard = function (book) {
-            const card = document.createElement('div');
-            card.className = 'mobile-book-card';
-            card.dataset.id = book.id;
-
-            let statusText, statusClass, reserveBtn;
-            if (book.status === 'in') {
-                statusText = '可預約';
-                statusClass = 'status-in';
-                reserveBtn = `<button class="mobile-reserve-btn" style="background: #0071e3; color: white; border: none; padding: 5px 10px; border-radius: 12px; font-size: 0.75em;" onclick="showMobileReservePage('${book.id}'); event.stopPropagation();">預約</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-                reserveBtn = '';
-            } else {
-                statusText = '已預約';
-                statusClass = 'status-reserved';
-                reserveBtn = '';
-            }
-
-            // 获取該書點讚數
-            const likeCount = window.libraryData.bookLikes[book.id] || 0;
-            card.innerHTML = `
-<div style="position: relative;">
-    <img src="${book.cover || ''}" class="mobile-book-cover" onerror="this.style.display='none'">
-</div>
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-    <div class="mobile-book-title">${book.title}</div>
-</div>
-<!-- 作者和按鈕平行排列：作者在左，愛心+留言在右 -->
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-    <div class="mobile-book-author">${book.author || '待編輯'}</div>
-    <div style="display: flex; align-items: center; gap: 6px;">
-        <!-- 點讚數字在愛心左側 -->
-        <button class="mobile-like-btn ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}'); event.stopPropagation();" style="background: none; border: none; font-size: 0.8em; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 2px;">
-            <span style="font-size: 0.8em; color: #6e6e73;">${likeCount}</span>
-            ${likeCount > 0 ? '❤️' : '🤍'}
-        </button>
-        <!-- 留言按鈕在愛心右側 -->
-        <button class="mobile-comment-btn" style="background: #ff9500; color: white; border: none; padding: 2px 6px; border-radius: 6px; font-size: 0.7em;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</button>
-    </div>
-</div>
-<div class="mobile-book-status-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-    <span class="mobile-book-status ${statusClass}">${statusText}</span>
-    ${reserveBtn}
-</div>
-`;
-
-            // 确保点赞按钮初始样式正确（无需额外添加数字，按钮内已包含）
-            const likeBtn = card.querySelector('.mobile-like-btn');
-            if (likeBtn && likeCount > 0) {
-                likeBtn.innerHTML = `<span style="font-size: 0.8em; color: #6e6e73;">${likeCount}</span> ❤️`;
-                likeBtn.classList.add('liked');
-            }
-
-            // 點擊卡片顯示詳情（除了按鈕）
-            card.addEventListener('click', function (e) {
-                // 如果點擊的是按鈕，不顯示詳情
-                if (e.target.classList.contains('mobile-reserve-btn') ||
-                    e.target.classList.contains('mobile-comment-btn') ||
-                    e.target.classList.contains('mobile-like-btn')) {
-                    return;
-                }
-                showMobileBookDetail(book.id);
-            });
-
-            return card;
-        }
-        // 顯示手機版書籍詳情
-        window.showMobileBookDetail = function (bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) return;
-
-            let statusText, statusClass, reserveBtn;
-            if (book.status === 'in') {
-                statusText = '在架（可預約）';
-                statusClass = 'status-in';
-                reserveBtn = `<button class="btn-primary" onclick="showMobileReservePage('${book.id}')" style="margin-top: 15px;">預約書籍</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-                reserveBtn = '';
-            } else {
-                statusText = '已被預約';
-                statusClass = 'status-reserved';
-                reserveBtn = '';
-            }
-
-            const detailContent = document.getElementById('mobileBookDetailContent');
-            detailContent.innerHTML = `
-        <div class="mobile-book-detail-header">
-            <h3>書籍詳情</h3>
-            <button class="mobile-close-detail" onclick="hideMobileBookDetail()">✕</button>
-        </div>
-        <img src="${book.cover || ''}" class="mobile-book-detail-cover" onerror="this.style.display='none'">
-        <div class="mobile-book-detail-title">${book.title}</div>
-        <div class="mobile-book-detail-info">
-            <p><strong>作者:</strong> ${book.author || '待編輯'}</p>
-            <p><strong>簡介:</strong> ${book.intro || '待編輯'}</p>
-            <p><strong>適合:</strong> ${book.suitable || '待編輯'}</p>
-            <p><strong>索書號:</strong> ${book.callNo || '待編輯'}</p>
-            <p><strong>狀態:</strong> <span class="book-status ${statusClass}">${statusText}</span></p>
-        </div>
-        <div style="text-align: center; margin-top: 20px;">
-            ${reserveBtn}
-            <button class="btn-text" onclick="hideMobileBookDetail()" style="margin-left: 10px;">關閉</button>
-        </div>
-    `;
-
-            document.getElementById('mobileBookDetail').style.display = 'block';
-        }
-
-        // 隱藏手機版書籍詳情
-        window.hideMobileBookDetail = function () {
-            document.getElementById('mobileBookDetail').style.display = 'none';
-        }
-
-        // 設置活躍海報按鈕
-        window.setActiveMobilePoster = function (button) {
-            document.querySelectorAll('.mobile-poster-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            button.classList.add('active');
-        }
-
-        // 顯示手機版分類菜單
-        window.showMobileCategoryMenu = function () {
-            document.getElementById('mobileCategoryMenu').style.display = 'block';
-        }
-
-        // 隱藏手機版分類菜單
-        window.hideMobileCategoryMenu = function () {
-            document.getElementById('mobileCategoryMenu').style.display = 'none';
-        }
-
-        // 手機版分類篩選
-        window.mobileFilterByCategory = function (category) {
-            const books = window.libraryData.allBooks;
-            const container = document.getElementById('mobileBooksContainer');
-            container.innerHTML = '';
-
-            const filtered = category === 'all' ? books : books.filter(b => b.classCode === category);
-
-            filtered.forEach(book => {
-                const card = createMobileBookCard(book);
-                container.appendChild(card);
-            });
-        }
-
-        // 顯示手機版搜索
-        window.showMobileSearch = function () {
-            document.getElementById('mobileSearchBar').style.display = 'block';
-        }
-
-        // 隱藏手機版搜索
-        window.hideMobileSearch = function () {
-            document.getElementById('mobileSearchBar').style.display = 'none';
-        }
-
-        // 手機版搜索書籍
-        window.mobileSearchBooks = function () {
-            const keyword = document.getElementById('mobileKeywordInput').value.toLowerCase();
-            const container = document.getElementById('mobileBooksContainer');
-            container.innerHTML = '';
-
-            if (!keyword) {
-                mobileShowLatestIssue();
-                hideMobileSearch();
-                return;
-            }
-
-            collectAllBooks();
-            const matched = window.libraryData.allBooks.filter(book =>
-                book.title.toLowerCase().includes(keyword) ||
-                book.author.toLowerCase().includes(keyword) ||
-                book.callNo.toLowerCase().includes(keyword) ||
-                book.intro.toLowerCase().includes(keyword)
-            );
-
-            if (matched.length === 0) {
-                container.innerHTML = '<p>沒有找到匹配的書籍</p>';
-            } else {
-                matched.forEach(book => {
-                    const card = createMobileBookCard(book);
-                    container.appendChild(card);
-                });
-            }
-
-            hideMobileSearch();
-        }
-
-        // 顯示手機版推薦頁面
-        window.showMobileRecommendPage = function () {
-            document.querySelector('.mobile-main-content').style.display = 'none';
-            document.getElementById('mobileRecommendPage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none'; // 隱藏底部按鈕
-            renderMobileUserRecommendList();
-        }
-
-        // 隱藏手機版推薦頁面
-        window.hideMobileRecommendPage = function () {
-            document.getElementById('mobileRecommendPage').style.display = 'none';
-            document.querySelector('.mobile-main-content').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'block'; // 顯示底部按鈕
-        }
-
-        // 渲染手機版用戶推薦列表
-        window.renderMobileUserRecommendList = function () {
-            const list = document.getElementById('mobileUserRecommendList');
-            list.innerHTML = '';
-            const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-
-            if (sorted.length === 0) {
-                list.innerHTML = '<p>暫無推薦記錄</p>';
-                return;
-            }
-
-            sorted.forEach((r, i) => {
-                let statusText = r.status === '已推薦' ? '推薦中' : r.status === '已記錄' ? '已記錄' : '不合規定';
-                let statusClass = r.status === '已推薦' ? 'status-pending' : r.status === '已記錄' ? 'status-recorded' : 'status-invalid';
-                const randomColor = window.getRandomSoftColor();
-
-                list.innerHTML += `
-            <div class="recommend-item">
-                <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
-                <span class="recommend-name">${r.bookName}</span>
-                <span class="recommend-status ${statusClass}">${statusText}</span>
-            </div>
-        `;
-            });
-        }
-
-
-        // 顯示手機版預約頁面
-        window.showMobileReservePage = function (bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                alert('未找到書籍資訊');
-                return;
-            }
-
-            // 填充書籍資訊
-            document.getElementById('mobileReserveBookInfo').innerHTML = `
-        <h4 style="margin-bottom: 10px; color: #1d1d1f;">${book.title}</h4>
-        <p style="margin: 5px 0; color: #6e6e73;">作者: ${book.author || '待編輯'}</p>
-        <p style="margin: 5px 0; color: #6e6e73;">索書號: ${book.callNo || '待編輯'}</p>
-    `;
-
-            // 設置書籍ID
-            document.getElementById('mobileReserveBookId').value = bookId;
-
-            // 清空表單
-            document.getElementById('mobileClassName').value = '';
-            document.getElementById('mobileStudentName').value = '';
-
-            // 顯示預約頁面，隱藏主內容
-            document.querySelector('.mobile-main-content').style.display = 'none';
-            document.getElementById('mobileReservePage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none';
-        }
-
-        // 隱藏手機版預約頁面
-        window.hideMobileReservePage = function () {
-            document.getElementById('mobileReservePage').style.display = 'none';
-            document.querySelector('.mobile-main-content').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'block';
-        }
-
-        // 提交手機版預約
-        window.submitMobileReserve = function () {
-            const bookId = document.getElementById('mobileReserveBookId').value;
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                alert('書籍資訊不存在');
-                return;
-            }
-
-            const className = document.getElementById('mobileClassName').value.trim();
-            const studentName = document.getElementById('mobileStudentName').value.trim();
-
-            if (!className) {
-                alert('請填寫班級');
-                return;
-            }
-            if (!studentName) {
-                alert('請填寫姓名');
-                return;
-            }
-
-            const newReserve = {
-                bookId,
-                bookTitle: book.title,
-                className,
-                studentName,
-                time: new Date().toLocaleString(),
-                status: '已預約'
-            };
-
-            window.saveReserveRecord(newReserve);
-            hideMobileReservePage();
-            alert('預約成功！書籍保留2天(不含今天)，請直接前往圖書館櫃檯辦理借書');
-        }
-
-        // 顯示手機版推薦表單頁面
-        window.showMobileRecommendFormPage = function () {
-            // 清空表單
-            document.getElementById('mobileRecommendBookName').value = '';
-            document.getElementById('mobileRecommendReason').value = '';
-
-            // 顯示推薦表單頁面，隱藏其他內容
-            document.querySelector('.mobile-main-content').style.display = 'none';
-            document.getElementById('mobileRecommendPage').style.display = 'none';
-            document.getElementById('mobileRecommendFormPage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none';
-        }
-
-        // 隱藏手機版推薦表單頁面
-        window.hideMobileRecommendFormPage = function () {
-            document.getElementById('mobileRecommendFormPage').style.display = 'none';
-            document.getElementById('mobileRecommendPage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none';
-        }
-
-        // 提交手機版推薦
-        window.submitMobileRecommend = function () {
-            const bookName = document.getElementById('mobileRecommendBookName').value.trim();
-            const reason = document.getElementById('mobileRecommendReason').value.trim();
-
-            if (!bookName) {
-                alert('請填寫書名');
-                return;
-            }
-            if (!reason) {
-                alert('請填寫推薦理由，可填[無]');
-                return;
-            }
-
-            const newRecommend = {
-                bookName,
-                reason,
-                time: new Date().toLocaleString(),
-                status: '已推薦'
-            };
-
-            window.saveRecommendRecord(newRecommend);
-            hideMobileRecommendFormPage();
-            alert('推薦成功，感謝你的建議！');
-        }
-
-        // 滾動到頂部
-        window.scrollToTop = function () {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            mobileShowLatestIssue();
-        }
-        // ====== 新增：書籍點讚功能 ======
-        window.bookLike = async function (bookId) {
-            // 初始化點讚數
-            if (!window.libraryData.bookLikes[bookId]) {
-                window.libraryData.bookLikes[bookId] = 0;
-            }
-            // 點讚+1
-            window.libraryData.bookLikes[bookId] += 1;
-            // 更新UI
-            const likeBtn = document.querySelector(`[data-book-id="${bookId}"].like-btn`);
-            const mobileLikeBtn = document.querySelector(`[data-book-id="${bookId}"].mobile-like-btn`);
-            if (likeBtn) {
-                likeBtn.innerHTML = `❤️<span style="font-size: 0.8em; margin-left: 2px;">${window.libraryData.bookLikes[bookId]}</span>`;
-                likeBtn.classList.add('liked');
-            }
-            if (mobileLikeBtn) {
-                mobileLikeBtn.innerHTML = `<span style="font-size: 0.8em; color: #6e6e73;">${window.libraryData.bookLikes[bookId]}</span> ❤️`;
-                mobileLikeBtn.classList.add('liked');
-            }
-            // 保存到Firebase
-            try {
-                await setDoc(doc(db, "bookLikes", bookId), {
-                    count: window.libraryData.bookLikes[bookId]
-                });
-            } catch (err) {
-                console.error("保存點讚失敗:", err);
-            }
-        }
-
-        // ====== 新增：打開留言彈窗 ======
-        window.showCommentModal = function (bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                alert('未找到書籍資訊');
-                return;
-            }
-            // 填充書籍信息
-            document.getElementById('commentBookTitle').innerText = book.title || '未知書名';
-            document.getElementById('commentBookId').value = bookId;
-            // 加載留言列表
-            loadBookComments(bookId);
-            // 顯示彈窗
-            const modal = document.getElementById('commentModal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex';
-        }
-
-        // ====== 新增：加載書籍留言 ======
-        function loadBookComments(bookId) {
-            const commentList = document.getElementById('commentList');
-            commentList.innerHTML = '';
-            // 获取該書留言，按頂置+點讚排序
-            let comments = window.libraryData.bookComments[bookId] || [];
-            // 排序：頂置在前，然後按點讚數降序
-            comments = comments.sort((a, b) => {
-                if (a.isTop && !b.isTop) return -1;
-                if (!a.isTop && b.isTop) return 1;
-                return b.likeCount - a.likeCount;
-            });
-
-            if (comments.length === 0) {
-                commentList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無留言，來搶首評吧～</p>';
-                return;
-            }
-
-            // 渲染留言
-            comments.forEach((comment, index) => {
-                const topTag = comment.isTop ? '<span class="top-tag">頂置</span>' : '';
-                commentList.innerHTML += `
-            <div class="comment-item" data-comment-id="${comment.id}">
-                ${topTag}
-                <div class="comment-content">${comment.content}</div>
-                <div class="comment-footer">
-                    <span class="comment-time">${comment.time}</span>
-                    <button class="comment-like-btn" onclick="commentLike('${bookId}', '${comment.id}')">
-                        ❤️ ${comment.likeCount || 0}
-                    </button>
-                </div>
-            </div>
-        `;
-            });
-        }
-
-        // ====== 新增：留言點讚 ======
-        window.commentLike = async function (bookId, commentId) {
-            const comments = window.libraryData.bookComments[bookId] || [];
-            const comment = comments.find(c => c.id === commentId);
-            if (!comment) return;
-
-            // 留言點讚+1
-            comment.likeCount = (comment.likeCount || 0) + 1;
-            // 更新UI
-            const likeBtn = document.querySelector(`.comment-item[data-comment-id="${commentId}"] .comment-like-btn`);
-            if (likeBtn) {
-                likeBtn.innerHTML = `❤️ ${comment.likeCount}`;
-                likeBtn.classList.add('liked');
-            }
-            // 保存到Firebase
-            await saveData();
-            // 重新加載留言
-            loadBookComments(bookId);
-        }
-
-        // ====== 新增：提交留言 ======
-        window.submitComment = async function () {
-            const bookId = document.getElementById('commentBookId').value;
-            const content = document.getElementById('commentContent').value.trim();
-            if (!content) {
-                alert('請輸入留言內容～');
-                return;
-            }
-            // 創建新留言
-            const newComment = {
-                id: 'comment_' + Date.now(), // 隨機ID
-                content: content,
-                likeCount: 0,
-                isTop: false,
-                time: new Date().toLocaleString()
-            };
-            // 添加到數據
-            if (!window.libraryData.bookComments[bookId]) {
-                window.libraryData.bookComments[bookId] = [];
-            }
-            window.libraryData.bookComments[bookId].push(newComment);
-            // 保存到Firebase
-            await saveData();
-            // 清空輸入框
-            document.getElementById('commentContent').value = '';
-            // 重新加載留言
-            loadBookComments(bookId);
-            alert('留言成功～');
-        }
-
-        // ====== 新增：加載排行榜 ======
-        window.loadRanking = function () {
-            // 收集所有書籍的點讚數
-            const rankedBooks = window.libraryData.allBooks.map(book => {
-                return {
-                    ...book,
-                    likeCount: window.libraryData.bookLikes[book.id] || 0
-                };
-            }).filter(book => book.likeCount > 0) // 只顯示有點讚的書
-                .sort((a, b) => b.likeCount - a.likeCount) // 按讚數降序
-                .slice(0, 10); // 只取前10名
-
-            const rankingList = document.getElementById('rankingList');
-            rankingList.innerHTML = '';
-
-            if (rankedBooks.length === 0) {
-                rankingList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無點讚數據～</p>';
-                return;
-            }
-
-            // 渲染排行榜（Apple風格）
-            rankedBooks.forEach((book, index) => {
-                const randomColor = window.getRandomSoftColor();
-                rankingList.innerHTML += `
-<div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
-    <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
-    <span class="ranking-bookname">${book.title}</span>
-    <div style="display: flex; align-items: center; gap: 8px;">
-        <!-- 留言圖標：點擊打開留言彈窗 -->
-        <span style="color: #ff9500; font-size: 1em; cursor: pointer;" onclick="showCommentModal('${book.id}'); event.stopPropagation();">💬</span>
-        <span class="ranking-likes">❤️ ${book.likeCount}</span>
-    </div>
-</div>
-`;
-            });
-
-            showSection('rankingSection');
-        }
-
-        // ====== 新增：跳轉到書籍對應期數 ======
-        window.jumpToBookIssue = function (issue, posterNum) {
-            // 電腦版處理
-            window.switchIssue(issue);
-            window.renderBooks(issue, posterNum);
-
-            // 手機版處理（新增可見性切換）
-            window.mobileSwitchIssue(issue);
-            window.mobileRenderBooks(issue, posterNum);
-
-            // 檢查是否在手機版排行榜頁面，若是則返回主頁
-            const mobileRankingPage = document.getElementById('mobileRankingPage');
-            if (mobileRankingPage && mobileRankingPage.style.display !== 'none') {
-                hideMobileRankingPage();
-                // 確保手機版主內容顯示
-                document.querySelector('.mobile-main-content').style.display = 'block';
-            }
-        }
-
-        // ====== 新增：管理後台加載所有留言 ======
-        window.loadAllComments = function () {
-            const adminCommentList = document.getElementById('adminCommentList');
-            adminCommentList.innerHTML = '';
-            // 收集所有留言
-            const allComments = [];
-            for (const bookId in window.libraryData.bookComments) {
-                const book = window.libraryData.allBooks.find(b => b.id === bookId);
-                const bookTitle = book ? book.title : '未知書籍';
-                window.libraryData.bookComments[bookId].forEach(comment => {
-                    allComments.push({
-                        ...comment,
-                        bookId: bookId,
-                        bookTitle: bookTitle
-                    });
-                });
-            }
-            if (allComments.length === 0) {
-                adminCommentList.innerHTML = '<p>暫無留言記錄</p>';
-                return;
-            }
-            // 渲染管理後台留言列表
-            allComments.forEach(comment => {
-                const topChecked = comment.isTop ? 'checked' : '';
-                adminCommentList.innerHTML += `
-            <div class="record-item">
-                <div>
-                    <strong>${comment.bookTitle}</strong> | ${comment.content} 
-                    <br>點讚: ${comment.likeCount} | 時間: ${comment.time}
-                </div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <label>頂置: <input type="checkbox" ${topChecked} onchange="toggleCommentTop('${comment.bookId}', '${comment.id}', this.checked)"></label>
-                    <button class="btn-danger" onclick="deleteComment('${comment.bookId}', '${comment.id}')">刪除</button>
-                </div>
-            </div>
-        `;
-            });
-        }
-
-        // ====== 新增：切換留言頂置狀態 ======
-        window.toggleCommentTop = async function (bookId, commentId, isTop) {
-            const comments = window.libraryData.bookComments[bookId] || [];
-            const comment = comments.find(c => c.id === commentId);
-            if (comment) {
-                comment.isTop = isTop;
-                await saveData();
-                loadAllComments(); // 刷新管理後台
-                loadBookComments(bookId); // 刷新前端留言
-            }
-        }
-
-        // ====== 新增：刪除留言 ======
-        window.deleteComment = async function (bookId, commentId) {
-            if (!confirm('確定要刪除此留言嗎？')) return;
-            // 從數據中刪除
-            window.libraryData.bookComments[bookId] = window.libraryData.bookComments[bookId].filter(c => c.id !== commentId);
-            // 刪除Firebase中的留言
-            try {
-                await deleteDoc(doc(db, "bookComments", commentId));
-            } catch (err) {
-                console.error("刪除留言失敗:", err);
-            }
-            await saveData();
-            loadAllComments(); // 刷新管理後台
-            loadBookComments(bookId); // 刷新前端留言
-            alert('留言已刪除');
-        }
-
-        // ====== 手機版：打開留言彈窗 ======
-        window.showMobileCommentModal = function (bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                alert('未找到書籍資訊');
-                return;
-            }
-            document.getElementById('mobileCommentBookTitle').innerText = book.title || '未知書名';
-            document.getElementById('mobileCommentBookId').value = bookId;
-            loadMobileBookComments(bookId);
-            // 顯示手機版留言頁
-            document.querySelector('.mobile-main-content').style.display = 'none';
-            document.getElementById('mobileCommentPage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none';
-        }
-
-        // ====== 手機版：加載書籍留言 ======
-        window.loadMobileBookComments = function (bookId) {
-            const commentList = document.getElementById('mobileCommentList');
-            commentList.innerHTML = '';
-            let comments = window.libraryData.bookComments[bookId] || [];
-            comments = comments.sort((a, b) => {
-                if (a.isTop && !b.isTop) return -1;
-                if (!a.isTop && b.isTop) return 1;
-                return b.likeCount - a.likeCount;
-            });
-
-            if (comments.length === 0) {
-                commentList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無留言，來搶首評吧～</p>';
-                return;
-            }
-
-            comments.forEach((comment, index) => {
-                const topTag = comment.isTop ? '<span class="top-tag">頂置</span>' : '';
-                commentList.innerHTML += `
-            <div class="comment-item" data-comment-id="${comment.id}">
-                ${topTag}
-                <div class="comment-content">${comment.content}</div>
-                <div class="comment-footer">
-                    <span class="comment-time">${comment.time}</span>
-                    <button class="comment-like-btn" onclick="commentLike('${bookId}', '${comment.id}')">
-                        ❤️ ${comment.likeCount || 0}
-                    </button>
-                </div>
-            </div>
-        `;
-            });
-        }
-
-        // ====== 手機版：提交留言 ======
-        window.submitMobileComment = async function () {
-            const bookId = document.getElementById('mobileCommentBookId').value;
-            const content = document.getElementById('mobileCommentContent').value.trim();
-            if (!content) {
-                alert('請輸入留言內容～');
-                return;
-            }
-            const newComment = {
-                id: 'comment_' + Date.now(),
-                content: content,
-                likeCount: 0,
-                isTop: false,
-                time: new Date().toLocaleString()
-            };
-            if (!window.libraryData.bookComments[bookId]) {
-                window.libraryData.bookComments[bookId] = [];
-            }
-            window.libraryData.bookComments[bookId].push(newComment);
-            await saveData();
-            document.getElementById('mobileCommentContent').value = '';
-            loadMobileBookComments(bookId);
-            alert('留言成功！');
-        }
-
-        // ====== 手機版：隱藏排行榜頁 ======
-        window.hideMobileRankingPage = function () {
-            document.getElementById('mobileRankingPage').style.display = 'none';
-            document.querySelector('.mobile-main-content').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'block';
-        }
-
-        // ====== 手機版：隱藏留言頁 ======
-        window.hideMobileCommentPage = function () {
-            document.getElementById('mobileCommentPage').style.display = 'none';
-            document.querySelector('.mobile-main-content').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'block';
-        }
-
-        // ====== 手機版：加載排行榜 ======
-        window.loadMobileRanking = function () {
-            const rankedBooks = window.libraryData.allBooks.map(book => {
-                return {
-                    ...book,
-                    likeCount: window.libraryData.bookLikes[book.id] || 0
-                };
-            }).filter(book => book.likeCount > 0)
-                .sort((a, b) => b.likeCount - a.likeCount)
-                .slice(0, 10);
-
-            const mobileRankingList = document.getElementById('mobileRankingList');
-            mobileRankingList.innerHTML = '';
-
-            if (rankedBooks.length === 0) {
-                mobileRankingList.innerHTML = '<p style="text-align:center; color:#6e6e73; padding:20px;">暫無點讚數據～</p>';
-                return;
-            }
-
-            rankedBooks.forEach((book, index) => {
-                const randomColor = window.getRandomSoftColor();
-                mobileRankingList.innerHTML += `
-<div class="ranking-item" onclick="jumpToBookIssue('${book.issue}', '${book.posterNum}')">
-    <span class="ranking-index" style="background: ${randomColor}">${index + 1}</span>
-    <span class="ranking-bookname">${book.title}</span>
-    <div style="display: flex; align-items: center; gap: 8px;">
-        <!-- 留言圖標：點擊打開手機版留言頁 -->
-        <span style="color: #ff9500; font-size: 1em; cursor: pointer;" onclick="showMobileCommentModal('${book.id}'); event.stopPropagation();">💬</span>
-        <span class="ranking-likes">❤️ ${book.likeCount}</span>
-    </div>
-</div>
-`;
-            });
-            // 顯示手機版排行榜
-            document.querySelector('.mobile-main-content').style.display = 'none';
-            document.getElementById('mobileRankingPage').style.display = 'block';
-            document.querySelector('.mobile-recommend-btn').style.display = 'none';
-        }
-        // ====== 新書封面巡迴展示欄功能 ======
-        let carouselCurrentIndex = 0;
-        let carouselAnimationId = null;
-        let carouselSpeed = 0.5; // 每秒移動的像素數
-
-        function initCarousel() {
-            // 初始渲染
-            updateCarousel();
-
-            // 開始自動滑動動畫
-            startCarouselAnimation();
-        }
-
-        // ====== 巡迴展示欄彈窗相關函數 ======
-        function showCarouselBookDetail(bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) {
-                alert('未找到書籍資訊');
-                return;
-            }
-
-            let statusText, statusClass, reserveBtn;
-            if (book.status === 'in') {
-                statusText = '在架（可預約）';
-                statusClass = 'status-in';
-                reserveBtn = `<button id="carouselReserveBtn" data-book-id="${bookId}" class="btn-primary" style="margin-top: 10px; padding: 8px 16px; font-size: 0.9em;">預約</button>`;
-            } else if (book.status === 'out') {
-                statusText = '不在架';
-                statusClass = 'status-out';
-                reserveBtn = '';
-            } else {
-                statusText = '已被預約';
-                statusClass = 'status-reserved';
-                reserveBtn = '';
-            }
-
-            const likeCount = window.libraryData.bookLikes[bookId] || 0;
-            const commentCount = window.libraryData.bookComments[bookId]?.length || 0;
-
-            const detailHtml = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <img src="${book.cover || ''}" style="width: 120px; height: 180px; object-fit: cover; border-radius: 8px; margin: 0 auto 15px;" onerror="this.style.display='none'">
-            <h3 style="margin: 0 0 10px; font-size: 1.1em; color: #1d1d1f; line-height: 1.3;">${book.title}</h3>
-            <p style="margin: 5px 0; color: #6e6e73; font-size: 0.9em;">作者: ${book.author || '待編輯'}</p>
-        </div>
-        
-        <div style="background: #f5f5f7; padding: 12px; border-radius: 10px; margin-bottom: 15px; font-size: 0.9em;">
-            <p style="margin: 6px 0; line-height: 1.4;"><strong>簡介:</strong> ${book.intro || '待編輯'}</p>
-            <p style="margin: 6px 0;"><strong>適合:</strong> ${book.suitable || '待編輯'}</p>
-            <p style="margin: 6px 0;"><strong>索書號:</strong> ${book.callNo || '待編輯'}</p>
-            <p style="margin: 6px 0;"><strong>狀態:</strong> <span class="book-status ${statusClass}" style="font-size: 0.85em;">${statusText}</span></p>
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <div style="display: flex; gap: 8px;">
-                <button id="carouselLikeBtn" data-book-id="${bookId}" style="background: none; border: none; font-size: 1.1em; cursor: pointer; padding: 4px; display: flex; align-items: center; gap: 3px;">
-                    ${likeCount > 0 ? '❤️' : '🤍'} <span id="carouselLikeCount" style="font-size: 0.9em;">${likeCount}</span>
-                </button>
-                <button id="carouselCommentBtn" data-book-id="${bookId}" class="comment-btn" style="background: #ff9500; color: white; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.85em; display: flex; align-items: center; gap: 3px;">
-                    💬 <span style="font-size: 0.85em;">${commentCount}</span>
-                </button>
-            </div>
-            ${reserveBtn}
-        </div>
-    `;
-
-            document.getElementById('carouselBookDetail').innerHTML = detailHtml;
-
-            const modal = document.getElementById('carouselBookModal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex';
-
-            const modalContent = modal.querySelector('.modal-content');
-            modalContent.style.maxWidth = '380px';
-            modalContent.style.maxHeight = '85vh';
-            modalContent.style.overflowY = 'auto';
-
-            // 綁定關閉按鈕事件
-            const closeBtn = modal.querySelector('.close-modal');
-            if (closeBtn) {
-                closeBtn.onclick = closeCarouselModal;
-            }
-
-            // 綁定點讚按鈕事件
-            document.getElementById('carouselLikeBtn').addEventListener('click', function () {
-                bookLikeFromCarousel(bookId);
-            });
-
-            // 綁定留言按鈕事件
-            if (document.getElementById('carouselCommentBtn')) {
-                document.getElementById('carouselCommentBtn').addEventListener('click', function () {
-                    showCommentModalFromCarousel(bookId);
-                });
-            }
-
-            // 綁定預約按鈕事件
-            if (document.getElementById('carouselReserveBtn')) {
-                document.getElementById('carouselReserveBtn').addEventListener('click', function () {
-                    showReserveModalFromCarousel(bookId);
-                });
-            }
-        }
-
-        function bookLikeFromCarousel(bookId) {
-            // 先執行點讚功能
-            bookLike(bookId);
-
-            // 更新彈窗內的點讚數
-            setTimeout(() => {
-                const likeCount = window.libraryData.bookLikes[bookId] || 0;
-                const likeBtn = document.querySelector('#carouselBookDetail .like-btn');
-                if (likeBtn) {
-                    likeBtn.innerHTML = `${likeCount > 0 ? '❤️' : '🤍'} <span style="font-size: 0.9em;">${likeCount}</span>`;
-                    likeBtn.classList.toggle('liked', likeCount > 0);
-                }
-            }, 100);
-        }
-
-        function showCommentModalFromCarousel(bookId) {
-            // 先關閉巡迴展示欄彈窗
-            closeCarouselModal();
-
-            // 短暫延遲後打開留言彈窗
-            setTimeout(() => {
-                showCommentModal(bookId);
-            }, 50);
-        }
-
-        function showReserveModalFromCarousel(bookId) {
-            // 先關閉巡迴展示欄彈窗
-            closeCarouselModal();
-
-            // 短暫延遲後打開預約彈窗
-            setTimeout(() => {
-                showReserveModal(bookId);
-            }, 50);
-        }
-
-        function closeCarouselModal() {
-            const modal = document.getElementById('carouselBookModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.style.display = 'none';
-                // 停止動畫（如果正在運行）
-                if (carouselAnimationId) {
-                    cancelAnimationFrame(carouselAnimationId);
-                    carouselAnimationId = null;
-                }
-            }
-        }
-        function updateCarousel() {
-            const container = document.getElementById('carouselBooks');
-            container.innerHTML = '';
-
-            // 從所有書籍中隨機挑選一些
-            let allBooks = window.libraryData.allBooks.filter(book => book.cover && book.cover.trim() !== '');
-            if (allBooks.length === 0) {
-                container.innerHTML = '<p style="text-align:center; width:100%; color:#8e8e93; padding:50px 0;">暫無書籍封面</p>';
-                return;
-            }
-
-            // 生成12本書（6本顯示 + 6本預備，實現無限循環效果）
-            const displayBooks = [];
-            for (let i = 0; i < 12; i++) {
-                const bookIndex = (carouselCurrentIndex + i) % allBooks.length;
-                const book = allBooks[bookIndex];
-                displayBooks.push(book);
-            }
-
-            // 生成封面卡片
-            displayBooks.forEach((book, index) => {
-                const bookElement = document.createElement('div');
-                bookElement.className = 'carousel-book-item';
-                bookElement.style.cssText = 'min-width: 140px; max-width: 140px; cursor: pointer; text-align: center; transition: transform 0.3s ease; flex-shrink: 0;';
-
-                // 添加數據屬性以便跟蹤
-                bookElement.dataset.bookId = book.id;
-                bookElement.dataset.index = index;
-
-                bookElement.innerHTML = `
-            <img src="${book.cover}" style="width: 130px; height: 195px; object-fit: cover; border-radius: 10px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); margin: 0 auto; display: block;" 
-                 onerror="this.style.display='none';">
-        `;
-
-                // 點擊封面打開彈窗
-                bookElement.addEventListener('click', () => {
-                    // 先停止動畫，避免點擊時位置偏移
-                    if (carouselAnimationId) {
-                        cancelAnimationFrame(carouselAnimationId);
-                        carouselAnimationId = null;
-                    }
-
-                    showCarouselBookDetail(book.id);
-
-                    // 2秒後重新開始動畫
-                    setTimeout(() => {
-                        if (!carouselAnimationId) {
-                            startCarouselAnimation();
-                        }
-                    }, 2000);
-                });
-
-                // 滑鼠懸停效果
-                bookElement.addEventListener('mouseenter', () => {
-                    bookElement.style.transform = 'translateY(-8px) scale(1.05)';
-                });
-                bookElement.addEventListener('mouseleave', () => {
-                    bookElement.style.transform = 'translateY(0) scale(1)';
-                });
-
-                container.appendChild(bookElement);
-            });
-
-            // 重置位置
-            container.style.transform = 'translateX(0)';
-        }
-
-        function startCarouselAnimation() {
-            if (carouselAnimationId) {
-                cancelAnimationFrame(carouselAnimationId);
-            }
-
-            const container = document.getElementById('carouselBooks');
-            if (!container) return;
-
-            let lastTime = null;
-            let position = 0;
-            const bookWidth = 140; // 每本書的寬度
-            const gap = 20; // 間距
-
-            function animate(currentTime) {
-                if (!lastTime) lastTime = currentTime;
-                const deltaTime = (currentTime - lastTime) / 1000; // 轉換為秒
-                lastTime = currentTime;
-
-                // 計算移動距離
-                position -= carouselSpeed * deltaTime * 60; // 調整速度
-
-                // 如果第一本書完全移出視野，把它移到最後
-                const totalWidth = (bookWidth + gap) * 6; // 6本書的總寬度
-
-                if (position <= -totalWidth) {
-                    position += totalWidth;
-
-                    // 更新索引，準備下一組書籍
-                    const allBooks = window.libraryData.allBooks.filter(book => book.cover && book.cover.trim() !== '');
-                    if (allBooks.length > 0) {
-                        carouselCurrentIndex = (carouselCurrentIndex + 6) % allBooks.length;
-
-                        // 只更新書籍內容，不重置位置
-                        setTimeout(() => {
-                            const newContainer = document.getElementById('carouselBooks');
-                            if (newContainer) {
-                                // 先保持當前位置，更新內容
-                                const currentTransform = newContainer.style.transform;
-                                updateCarousel();
-                                // 恢復位置（稍微調整以保持流暢）
-                                newContainer.style.transform = `translateX(${position + totalWidth}px)`;
-                                // 然後繼續動畫
-                                requestAnimationFrame(() => {
-                                    newContainer.style.transition = 'none';
-                                    newContainer.style.transform = `translateX(${position}px)`;
-                                    requestAnimationFrame(() => {
-                                        newContainer.style.transition = 'transform 0.5s ease';
-                                    });
-                                });
-                            }
-                        }, 0);
-                    }
-                }
-
-                // 應用位置
-                container.style.transform = `translateX(${position}px)`;
-
-                carouselAnimationId = requestAnimationFrame(animate);
-            }
-
-            carouselAnimationId = requestAnimationFrame(animate);
-        }
-
-        function moveCarouselByClick(direction) {
-            const container = document.getElementById('carouselBooks');
-            if (!container) return;
-
-            // 暫停自動動畫
-            if (carouselAnimationId) {
-                cancelAnimationFrame(carouselAnimationId);
-                carouselAnimationId = null;
-            }
-
-            const bookWidth = 140; // 每本書的寬度
-            const gap = 20; // 間距
-            const moveDistance = (bookWidth + gap) * direction;
-
-            // 使用CSS過渡實現平滑移動
-            const currentTransform = container.style.transform;
-            const currentX = currentTransform ? parseFloat(currentTransform.match(/translateX\(([^)]+)px\)/)?.[1] || 0) : 0;
-            const newX = currentX + moveDistance;
-
-            container.style.transition = 'transform 0.5s ease';
-            container.style.transform = `translateX(${newX}px)`;
-
-            // 更新索引
-            const allBooks = window.libraryData.allBooks.filter(book => book.cover && book.cover.trim() !== '');
-            if (allBooks.length > 0) {
-                carouselCurrentIndex = (carouselCurrentIndex + (direction * 6) + allBooks.length) % allBooks.length;
-
-                // 移動完成後更新內容
-                setTimeout(() => {
-                    if (direction === 1) {
-                        // 向右移動時，把前面的書移到後面
-                        updateCarousel();
-                    } else {
-                        // 向左移動時，把後面的書移到前面
-                        updateCarousel();
-                    }
-
-                    // 2秒後重新開始自動動畫
-                    setTimeout(() => {
-                        startCarouselAnimation();
-                    }, 2000);
-                }, 500);
-            }
-        }
-
-        // 剩下的函數保持不變（showCarouselBookDetail, updateCarouselDetail 等）
         // 頁面加載完成後載入數據
         window.onload = loadData;
-        // ====== 公告功能 ======
-        // 加載公告
-        async function loadAnnouncement() {
-            try {
-                const announcementDoc = await getDoc(doc(db, "settings", "announcement"));
-                if (announcementDoc.exists()) {
-                    const announcement = announcementDoc.data();
-                    if (announcement.title && announcement.content) {
-                        // 顯示公告彈窗
-                        document.getElementById('announcementTitle').textContent = announcement.title;
-                        document.getElementById('announcementContent').textContent = announcement.content;
-                        document.getElementById('announcementModal').style.display = 'flex';
-
-                        // 填充到管理後台表單
-                        document.getElementById('announcementTitleInput').value = announcement.title;
-                        document.getElementById('announcementContentInput').value = announcement.content;
-                    }
-                }
-            } catch (err) {
-                console.error("加載公告失敗:", err);
-            }
-        }
-
-        // 保存公告
-        window.saveAnnouncement = async function () {
-            const title = document.getElementById('announcementTitleInput').value.trim();
-            const content = document.getElementById('announcementContentInput').value.trim();
-
-            if (!title || !content) {
-                alert('請輸入公告標題和內容！');
-                return;
-            }
-
-            try {
-                await setDoc(doc(db, "settings", "announcement"), {
-                    title: title,
-                    content: content,
-                    createTime: new Date().toLocaleString()
-                });
-                alert('公告保存成功！');
-                // 重新加載公告（立即生效）
-                loadAnnouncement();
-            } catch (err) {
-                console.error("保存公告失敗:", err);
-                alert('保存公告失敗，請重試');
-            }
-        }
-
-        // 刪除公告
-        window.deleteAnnouncement = async function () {
-            if (!confirm('確定要刪除公告嗎？刪除後用戶將不會再看到這個公告。')) {
-                return;
-            }
-
-            try {
-                await deleteDoc(doc(db, "settings", "announcement"));
-                // 清空表單
-                document.getElementById('announcementTitleInput').value = '';
-                document.getElementById('announcementContentInput').value = '';
-                // 隱藏公告彈窗
-                document.getElementById('announcementModal').style.display = 'none';
-                alert('公告已刪除！');
-            } catch (err) {
-                console.error("刪除公告失敗:", err);
-                alert('刪除公告失敗，請重試');
-            }
-        }
-
-        // 關閉公告彈窗
-        window.closeAnnouncement = function () {
-            document.getElementById('announcementModal').style.display = 'none';
-        }
-
     </script>
     <style>
         /* 基礎樣式 */
@@ -2654,22 +1319,19 @@
         }
 
         .book-card[data-group="1"],
-        .book-card[data-group="2"],
         .book-card[data-group="3"] {
             border-top: 3px solid var(--primary);
             /* 藍色 */
         }
 
-        .book-card[data-group="4"],
-        .book-card[data-group="5"],
-        .book-card[data-group="6"] {
+        .book-card[data-group="2"],
+        .book-card[data-group="4"] {
             border-top: 3px solid var(--secondary);
             /* 橘色 */
         }
 
-        .book-card[data-group="7"],
-        .book-card[data-group="8"],
-        .book-card[data-group="9"] {
+        .book-card[data-group="5"],
+        .book-card[data-group="6"] {
             border-top: 3px solid var(--success);
             /* 綠色 */
         }
@@ -2830,10 +1492,6 @@
             backdrop-filter: blur(2px);
         }
 
-        .modal.hidden {
-            display: none !important;
-        }
-
         .modal-content {
             background: white;
             padding: 30px;
@@ -2987,1382 +1645,240 @@
                 font-size: 1.5rem;
             }
         }
-
-        /* 手機版樣式 */
-        .device-selector {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-            gap: 30px;
-        }
-
-        .device-option {
-            padding: 20px 40px;
-            font-size: 1.2em;
-            border: 2px solid var(--primary);
-            border-radius: var(--radius);
-            background: white;
-            color: var(--primary);
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .device-option:hover {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* 手機版導航欄 */
-        .mobile-nav {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: white;
-            box-shadow: var(--shadow);
-            z-index: 1000;
-            padding: 10px 15px;
-        }
-
-        .mobile-nav-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .mobile-nav-left,
-        .mobile-nav-center,
-        .mobile-nav-right {
-            flex: 1;
-            display: flex;
-            align-items: center;
-        }
-
-        .mobile-nav-center {
-            justify-content: center;
-        }
-
-        .mobile-nav-right {
-            justify-content: flex-end;
-        }
-
-        .mobile-nav-btn {
-            background: none;
-            border: none;
-            font-size: 1.2em;
-            padding: 8px;
-            cursor: pointer;
-        }
-
-        /* 手機版分類全屏菜單 */
-        .mobile-category-menu {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1001;
-            padding: 60px 20px 20px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .mobile-category-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--gray);
-        }
-
-        .mobile-category-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-
-        .mobile-category-item {
-            padding: 15px 10px;
-            text-align: center;
-            border: 1px solid var(--gray-light);
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .mobile-category-item:hover {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* 手機版搜索欄 */
-        .mobile-search-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            background: white;
-            padding: 60px 15px 15px;
-            z-index: 1001;
-            display: none;
-            box-shadow: var(--shadow);
-        }
-
-        .mobile-search-input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--gray);
-            border-radius: var(--radius);
-        }
-
-        /* 手機版內容區域 */
-        .mobile-content {
-            display: none;
-            margin-top: 60px;
-            padding: 15px;
-        }
-
-        .mobile-issue-selector {
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .mobile-poster-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .mobile-poster-btn {
-            padding: 15px;
-            border: 2px solid var(--gray);
-            border-radius: var(--radius);
-            background: white;
-            cursor: pointer;
-            transition: var(--transition);
-            text-align: center;
-        }
-
-        .mobile-poster-btn.active {
-            border-color: var(--primary);
-            background: var(--primary);
-            color: white;
-        }
-
-        /* 手機版書籍網格 */
-        .mobile-books-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .mobile-book-card {
-            background: white;
-            border-radius: var(--radius);
-            padding: 15px;
-            box-shadow: var(--shadow);
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .mobile-book-card:active {
-            transform: scale(0.98);
-        }
-
-        .mobile-book-cover {
-            width: 100%;
-            height: 120px;
-            object-fit: cover;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
-
-        .mobile-book-title {
-            font-weight: 600;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            min-height: 40px;
-        }
-
-        .mobile-book-author {
-            color: var(--text-light);
-            font-size: 0.8em;
-            margin-bottom: 8px;
-        }
-
-        .mobile-book-status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 10px;
-        }
-
-        .mobile-book-status {
-            font-size: 0.75em;
-            padding: 3px 8px;
-            border-radius: 12px;
-        }
-
-        .mobile-reserve-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 12px;
-            font-size: 0.75em;
-        }
-
-        /* 手機版書籍詳情彈窗 */
-        .mobile-book-detail {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1002;
-            padding: 20px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .mobile-book-detail-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--gray-light);
-        }
-
-        .mobile-book-detail-header h3 {
-            margin: 0;
-            font-size: 1.3em;
-        }
-
-        .mobile-close-detail {
-            background: none;
-            border: none;
-            font-size: 1.5em;
-            cursor: pointer;
-            color: var(--gray-dark);
-            padding: 5px;
-        }
-
-        .mobile-book-detail-content {
-            background: white;
-            border-radius: var(--radius);
-            padding: 0;
-        }
-
-        .mobile-book-detail-cover {
-            width: 120px;
-            height: 180px;
-            object-fit: cover;
-            border-radius: 8px;
-            margin: 0 auto 20px;
-            display: block;
-        }
-
-        .mobile-book-detail-title {
-            text-align: center;
-            font-size: 1.3em;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: var(--text);
-        }
-
-        .mobile-book-detail-info {
-            margin: 20px 0;
-            padding: 20px;
-            background: var(--gray-light);
-            border-radius: var(--radius);
-        }
-
-        .mobile-book-detail-info p {
-            margin: 12px 0;
-            font-size: 1em;
-            line-height: 1.5;
-        }
-
-        .mobile-book-detail-info strong {
-            color: var(--text);
-        }
-
-        /* 書籍狀態樣式 */
-        .book-status {
-            font-weight: 500;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.9em;
-        }
-
-        .status-in {
-            color: var(--success);
-            background: rgba(52, 199, 89, 0.1);
-        }
-
-        .status-out {
-            color: var(--danger);
-            background: rgba(255, 59, 48, 0.1);
-        }
-
-        .status-reserved {
-            color: var(--secondary);
-            background: rgba(255, 149, 0, 0.1);
-        }
-
-        /* 手機版推薦按鈕 */
-        .mobile-recommend-btn {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 25px;
-            box-shadow: 0 4px 20px rgba(0, 113, 227, 0.3);
-            z-index: 999;
-        }
-
-        /* 手機版推薦頁面 */
-        .mobile-recommend-page {
-            display: none;
-            margin-top: 60px;
-            padding: 15px;
-        }
-
-        .mobile-recommend-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 0 10px;
-        }
-
-        .mobile-recommend-header h3 {
-            margin: 0;
-        }
-
-        .mobile-recommend-header .btn-primary {
-            padding: 8px 16px;
-            font-size: 0.9em;
-        }
-
-        /* 響應式顯示控制 */
-        @media (max-width: 768px) {
-            .desktop-content {
-                display: none !important;
-            }
-
-            .mobile-content {
-                display: block;
-            }
-
-            .mobile-nav {
-                display: block;
-            }
-        }
-
-        /* 手機版隱藏管理員入口 */
-        @media (max-width: 768px) {
-            .hidden-admin-entry {
-                display: none !important;
-            }
-        }
-
-        @media (min-width: 769px) {
-            .mobile-content {
-                display: none !important;
-            }
-
-            .desktop-content {
-                display: block;
-            }
-        }
-
-        /* 手機版預約頁面 */
-        .mobile-reserve-page {
-            display: none;
-            margin-top: 60px;
-            padding: 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1003;
-        }
-
-        .mobile-reserve-content {
-            height: calc(100% - 60px);
-            overflow-y: auto;
-        }
-
-        /* 手機版預約頁面 */
-        .mobile-reserve-page {
-            display: none;
-            margin-top: 60px;
-            padding: 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1003;
-        }
-
-        .mobile-reserve-content {
-            height: calc(100% - 60px);
-            overflow-y: auto;
-        }
-
-        /* 手機版推薦表單頁面 */
-        .mobile-recommend-form-page {
-            display: none;
-            margin-top: 60px;
-            padding: 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1004;
-        }
-
-        .mobile-recommend-form-content {
-            height: calc(100% - 60px);
-            overflow-y: auto;
-        }
-
-        /* ====== 新增：點讚+留言樣式（Apple風格）====== */
-        /* 書籍點讚按鈕 */
-        .like-btn {
-            background: none;
-            color: #ff3b30;
-            border: none;
-            border-radius: 50%;
-            padding: 5px;
-            font-size: 1.2em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .like-btn.liked {
-            color: #ff3b30;
-        }
-
-        .like-btn:hover {
-            transform: scale(1.1);
-        }
-
-        /* 手機版點讚按鈕 */
-        .mobile-like-btn {
-            background: none;
-            color: #ff3b30;
-            border: none;
-            border-radius: 50%;
-            padding: 3px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .mobile-like-btn.liked {
-            color: #ff3b30;
-        }
-
-        .mobile-like-btn:hover {
-            transform: scale(1.1);
-        }
-
-        /* 留言按鈕 */
-        .comment-btn {
-            background: #ff9500;
-            color: white;
-            border: none;
-            border-radius: 15px;
-            padding: 4px 8px;
-            font-size: 0.8em;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .comment-btn:hover {
-            background: #ff7800;
-            transform: translateY(-1px);
-        }
-
-        /* 手機版留言按鈕 */
-        .mobile-comment-btn {
-            background: #ff9500;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 3px 6px;
-            font-size: 0.7em;
-            cursor: pointer;
-        }
-
-        .mobile-comment-btn:hover {
-            background: #ff7800;
-            transform: scale(1.05);
-        }
-
-        /* 留言彈窗樣式 */
-        .comment-modal-content {
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .comment-book-title {
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #1d1d1f;
-        }
-
-        .comment-input-area {
-            margin: 20px 0;
-        }
-
-        .comment-input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #e2e2e7;
-            border-radius: 8px;
-            font-size: 1em;
-            resize: none;
-            min-height: 80px;
-            margin-bottom: 10px;
-        }
-
-        .comment-list {
-            margin: 20px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .comment-item {
-            padding: 15px;
-            border: 1px solid #e2e2e7;
-            border-radius: 12px;
-            background: #f5f5f7;
-            position: relative;
-        }
-
-        .top-tag {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #ff9500;
-            color: white;
-            font-size: 0.7em;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-        .comment-content {
-            margin-bottom: 10px;
-            line-height: 1.5;
-            color: #1d1d1f;
-        }
-
-        .comment-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.85em;
-            color: #6e6e73;
-        }
-
-        .comment-like-btn {
-            background: transparent;
-            border: none;
-            color: #ff3b30;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .comment-like-btn:hover {
-            background: #fef2f2;
-        }
-
-        /* 排行榜樣式 */
-        .ranking-section {
-            margin: 0 20px 40px;
-            padding: 30px;
-            background: white;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-        }
-
-        .ranking-header {
-            font-size: 1.5em;
-            font-weight: 600;
-            margin-bottom: 30px;
-            color: #1d1d1f;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #f5f5f7;
-        }
-
-        .ranking-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .ranking-item {
-            padding: 15px 20px;
-            border: 1px solid #e2e2e7;
-            border-radius: 12px;
-            background: #f5f5f7;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .ranking-item:hover {
-            background: #eff0f2;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .ranking-index {
-            width: 30px;
-            height: 30px;
-            text-align: center;
-            line-height: 30px;
-            margin-right: 15px;
-            color: white;
-            border-radius: 50%;
-            font-weight: 600;
-        }
-
-        .ranking-bookname {
-            flex: 1;
-            font-weight: 500;
-            color: #1d1d1f;
-        }
-
-        .ranking-likes {
-            color: #ff3b30;
-            font-size: 0.9em;
-        }
-
-        /* 手機版排行榜樣式 */
-        .mobile-ranking-page {
-            display: none;
-            margin-top: 60px;
-            padding: 15px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1005;
-        }
-
-        .mobile-ranking-header {
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #1d1d1f;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #f5f5f7;
-        }
-
-        /* 手機版留言頁面 */
-        .mobile-comment-page {
-            display: none;
-            margin-top: 60px;
-            padding: 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            z-index: 1005;
-        }
-
-        .mobile-comment-content {
-            height: calc(100% - 60px);
-            overflow-y: auto;
-            padding: 15px;
-        }
-
-        .mobile-comment-book-title {
-            font-size: 1.2em;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #1d1d1f;
-        }
-
-        .mobile-comment-input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #e2e2e7;
-            border-radius: 8px;
-            font-size: 1em;
-            resize: none;
-            min-height: 80px;
-            margin-bottom: 10px;
-        }
-
-        /* 巡迴展示欄樣式 */
-        #bookCarousel {
-            position: relative;
-            overflow: hidden;
-        }
-
-        #carouselBooks {
-            display: flex;
-            gap: 20px;
-            transition: transform 0.5s ease;
-            justify-content: center;
-            width: calc(150px * 6 + 20px * 5);
-            /* 6本書的寬度 + 5個間距 */
-            margin: 0 auto;
-        }
-
-
-
-        /* 左上角小標題固定 */
-        .desktop-content {
-            position: relative;
-            padding-top: 40px;
-        }
-
-        /* 巡迴展示欄 - 連續動畫效果 */
-        #bookCarousel {
-            position: relative;
-            overflow: hidden;
-        }
-
-        #carouselBooks {
-            display: flex;
-            gap: 20px;
-            will-change: transform;
-            /* 優化動畫性能 */
-        }
-
-        .carousel-book-item {
-            flex-shrink: 0;
-            transition: transform 0.3s ease;
-        }
-
-        /* 懸停時暫停動畫 */
-        #bookCarousel:hover #carouselBooks {
-            animation-play-state: paused;
-        }
     </style>
 </head>
 
 <body>
-    <!-- 設備選擇界面 -->
-    <div class="device-selector" id="deviceSelector">
-        <h2>請選擇設備類型</h2>
-        <button class="device-option" onclick="selectDevice('desktop')">電腦端</button>
-        <button class="device-option" onclick="selectDevice('mobile')">手機/平板端</button>
-    </div>
-
     <!-- 載入提示 -->
     <div id="loadingIndicator" style="display: none;">
         正在載入圖書館資料...
     </div>
 
-    <!-- 公告彈窗 -->
-    <div class="modal" id="announcementModal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px;">
-            <h3 id="announcementTitle" style="margin-bottom: 20px; color: #1d1d1f; font-size: 1.3em;"></h3>
-            <div id="announcementContent"
-                style="margin-bottom: 30px; line-height: 1.6; color: #1d1d1f; white-space: pre-line;"></div>
-            <button class="btn-primary" onclick="closeAnnouncement()"
-                style="width: 100%; padding: 10px; font-size: 1em;">知道了</button>
+    <!-- 頂部區域 -->
+    <div class="header-divider"
+        style="width: 50px; height: 3px; background: var(--primary); margin: 0 auto 30px; border-radius: 3px; position: relative; z-index: 2;">
+    </div>
+    <div class="header">
+        <h1>中學圖書館 | 每週新書速遞</h1>
+        <div class="issue-selector">
+            <label>選擇期數: </label>
+            <select id="issueSelect" onchange="switchIssue(this.value)">
+                <option value="1">第1期</option>
+            </select>
         </div>
     </div>
 
-    <!-- 手機版內容 -->
-    <div class="mobile-content">
-        <!-- 手機版導航欄 -->
-        <div class="mobile-nav">
-            <div class="mobile-nav-content">
-                <div class="mobile-nav-left">
-                    <button class="mobile-nav-btn" onclick="showMobileCategoryMenu()">☰</button>
-                </div>
-                <div class="mobile-nav-center">
-                    <button class="mobile-nav-btn" onclick="scrollToTop()">新書速遞</button>
-                </div>
-                <div class="mobile-nav-right">
-                    <button class="mobile-nav-btn" onclick="loadMobileRanking()">🏆</button>
-                    <button class="mobile-nav-btn" onclick="showMobileSearch()">🔍</button>
-                </div>
+    <!-- 導航欄 -->
+    <div class="nav-bar">
+        <div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
+        <div class="nav-item category-dropdown" onclick="setActiveNav(this)">
+            <span class="category-trigger">分類</span>
+            <div class="category-menu" id="categoryMenu">
+                <div class="category-item" data-category="all">全部</div>
+                <div class="category-item" data-category="000">000 總類</div>
+                <div class="category-item" data-category="100">100 哲學</div>
+                <div class="category-item" data-category="200">200 宗教</div>
+                <div class="category-item" data-category="300">300 科學</div>
+                <div class="category-item" data-category="400">400 應用科學</div>
+                <div class="category-item" data-category="500">500 社科</div>
+                <div class="category-item" data-category="600">600 歷史</div>
+                <div class="category-item" data-category="700">700 世界史</div>
+                <div class="category-item" data-category="800">800 語文</div>
+                <div class="category-item" data-category="900">900 藝術</div>
             </div>
         </div>
+        <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
+        <div class="keyword-search">
+            <label>關鍵詞: </label>
+            <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
+            <button onclick="searchBooks()">搜索</button>
+        </div>
+    </div>
 
-        <!-- 手機版分類菜單 -->
-        <div class="mobile-category-menu" id="mobileCategoryMenu">
-            <div class="mobile-category-header">
-                <h3>書籍分類</h3>
-                <button class="mobile-nav-btn" onclick="hideMobileCategoryMenu()">✕</button>
+    <!-- 推薦購書展示區 -->
+    <div class="user-recommends content-section hidden" id="userRecommendsSection">
+        <div class="recommend-header">
+            <h3>大家推薦的書籍</h3>
+            <button class="btn-primary" onclick="showRecommendForm()">推薦新書</button>
+        </div>
+        <div class="recommend-list" id="userRecommendList">
+            <!-- 動態生成 -->
+        </div>
+    </div>
+
+    <!-- 海報區 -->
+    <div class="poster-section content-section" id="posterSection">
+        <h2 id="currentIssueTitle">第1期海報</h2>
+	<p style="color: var(--gray-dark); font-size: 0.9em; margin-bottom: 20px;">
+        點擊按鈕切換書籍資訊，上面下拉選單切換期數
+   	 </p>
+        <div class="poster-buttons-container" id="posterButtonsContainer">
+            <button class="poster-btn active" data-poster="1"
+                onclick="renderBooks(window.currentIssue, 1); setActivePoster(this)">
+                <span class="poster-btn-text">海報 1</span>
+            </button>
+            <button class="poster-btn" data-poster="2"
+                onclick="renderBooks(window.currentIssue, 2); setActivePoster(this)">
+                <span class="poster-btn-text">海報 2</span>
+            </button>
+        </div>
+        <div id="booksContainer" class="books-grid">
+            <!-- 書籍卡片將動態生成 -->
+        </div>
+    </div>
+
+    <!-- 預約彈窗 -->
+    <div class="modal hidden" id="reserveModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>預約書籍</h3>
+            <div id="bookReserveInfo"></div>
+            <div class="form-group">
+                <label>班級: </label>
+                <input type="text" id="className" required>
             </div>
-            <div class="mobile-category-grid">
-                <div class="mobile-category-item" data-category="all">全部</div>
-                <div class="mobile-category-item" data-category="000">000 總類</div>
-                <div class="mobile-category-item" data-category="100">100 哲學</div>
-                <div class="mobile-category-item" data-category="200">200 宗教</div>
-                <div class="mobile-category-item" data-category="300">300 科學</div>
-                <div class="mobile-category-item" data-category="400">400 應用科學</div>
-                <div class="mobile-category-item" data-category="500">500 社科</div>
-                <div class="mobile-category-item" data-category="600">600 歷史</div>
-                <div class="mobile-category-item" data-category="700">700 世界史</div>
-                <div class="mobile-category-item" data-category="800">800 語文</div>
-                <div class="mobile-category-item" data-category="900">900 藝術</div>
+            <div class="form-group">
+                <label>姓名: </label>
+                <input type="text" id="studentName" required>
             </div>
+            <button type="button" onclick="submitReserve()" class="reserve-submit-btn btn-primary">提交預約</button>
+            <input type="hidden" id="reserveBookId">
+        </div>
+    </div>
+
+    <!-- 推薦購書彈窗 -->
+    <div class="modal hidden" id="recommendModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>推薦購買書籍</h3>
+            <div class="form-group">
+                <label>書名: </label>
+                <input type="text" id="recommendBookName" required>
+            </div>
+            <div class="form-group">
+                <label>推薦理由,可填[無]: </label>
+                <textarea id="recommendReason" required></textarea>
+            </div>
+            <button type="button" onclick="submitRecommend()" class="btn-primary">提交推薦</button>
+        </div>
+    </div>
+
+    <!-- 管理員登錄彈窗 -->
+    <div class="modal hidden" id="adminLoginModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeAllModals()">&times;</span>
+            <h3>管理員登錄</h3>
+            <div class="form-group">
+                <label>賬號: </label>
+                <input type="text" id="adminUser" required>
+            </div>
+            <div class="form-group">
+                <label>密碼: </label>
+                <input type="password" id="adminPass" required>
+            </div>
+            <button type="button" onclick="adminLogin()" class="btn-primary">登錄</button>
+        </div>
+    </div>
+
+    <!-- 管理員後台 -->
+    <div class="admin-panel hidden" id="adminPanel">
+        <h2>管理員後台</h2>
+        <button onclick="logoutAdmin()" class="btn-text">退出登錄</button>
+
+        <!-- 1. 期數管理 -->
+        <div class="form-group">
+            <h3>1. 期數管理</h3>
+            <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
         </div>
 
-        <!-- 手機版搜索欄 -->
-        <div class="mobile-search-bar" id="mobileSearchBar">
-            <input type="text" class="mobile-search-input" id="mobileKeywordInput" placeholder="書名/作者/關鍵字">
-            <div style="margin-top: 10px; display: flex; gap: 10px;">
-                <button class="btn-primary" onclick="mobileSearchBooks()">搜索</button>
-                <button class="btn-text" onclick="hideMobileSearch()">取消</button>
-            </div>
-        </div>
-
-        <!-- 手機版主內容 -->
-        <div class="mobile-main-content">
-            <!-- 期數選擇 -->
-            <div class="mobile-issue-selector">
-                <label>選擇期數: </label>
-                <select id="mobileIssueSelect" onchange="mobileSwitchIssue(this.value)">
-                    <!-- 動態生成 -->
+        <!-- 2. 海報管理 -->
+        <div class="form-group">
+            <h3>2. 海報管理</h3>
+            <p>海報功能已改為按鈕切換，無需上傳圖片</p>
+            <div>
+                <label>選擇要刪除的期數: </label>
+                <select id="deleteIssueSelect">
+                    <option value="1">第1期</option>
                 </select>
-                <button class="btn-text" onclick="mobileShowLatestIssue()">最新一期</button>
+                <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+            </div>
+        </div>
+        <!-- 3. 書籍資訊編輯 -->
+        <div class="form-group">
+            <h3>3. 書籍資訊管理</h3>
+            <div>
+                <label>選擇期數: </label>
+                <select id="bookIssueSelect">
+                    <option value="1">第1期</option>
+                </select>
+                <label>選擇海報序號: </label>
+                <select id="bookPosterSelect">
+                    <option value="1">海報1</option>
+                    <option value="2">海報2</option>
+                </select>
+                <label>選擇書籍序號: </label>
+                <select id="bookNumSelect">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                </select>
             </div>
 
-            <!-- 海報按鈕 -->
-            <div class="mobile-poster-buttons">
-                <button class="mobile-poster-btn active" data-poster="1"
-                    onclick="mobileRenderBooks(window.mobileCurrentIssue, 1); setActiveMobilePoster(this)">
-                    海報 1
-                </button>
-                <button class="mobile-poster-btn" data-poster="2"
-                    onclick="mobileRenderBooks(window.mobileCurrentIssue, 2); setActiveMobilePoster(this)">
-                    海報 2
-                </button>
+            <div class="book-editor">
+                <input type="text" id="bookCallNo" placeholder="索書號">
+                <input type="text" id="bookTitle" placeholder="書名">
+                <label>分類代碼: </label>
+                <select id="bookClassCode">
+                    <option value="000">000 總類</option>
+                    <option value="100">100 哲學</option>
+                    <option value="200">200 宗教</option>
+                    <option value="300">300 科學</option>
+                    <option value="400">400 應用科學</option>
+                    <option value="500">500 社科</option>
+                    <option value="600">600 歷史</option>
+                    <option value="700">700 世界史</option>
+                    <option value="800">800 語文</option>
+                    <option value="900">900 藝術</option>
+                </select>
+                <input type="text" id="bookAuthor" placeholder="作者">
+                <textarea id="bookIntro" placeholder="簡介"></textarea>
+                <input type="text" id="bookSuitable" placeholder="適合人群">
+                <select id="bookStatus">
+                    <option value="in">在架（可預約）</option>
+                    <option value="out">不在架</option>
+                    <option value="lost">遺失</option> <!-- 新增這行 -->
+                </select>
+                <input type="file" id="bookCoverUpload" accept="image/*">
+                <button class="btn-primary" onclick="saveBookInfo()">儲存書籍</button>
+                <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
             </div>
+        </div>
 
-            <!-- 書籍網格 -->
-            <div class="mobile-books-grid" id="mobileBooksContainer">
+        <!-- 4. 預約記錄管理 -->
+        <div class="form-group">
+            <h3>4. 預約記錄管理</h3>
+            <div id="reserveRecordsContainer">
                 <!-- 動態生成 -->
             </div>
         </div>
 
-        <!-- 推薦按鈕 -->
-        <button class="mobile-recommend-btn" onclick="showMobileRecommendPage()">推薦新書</button>
-
-        <!-- 書籍詳情彈窗 -->
-        <div class="mobile-book-detail" id="mobileBookDetail">
-            <div class="mobile-book-detail-content" id="mobileBookDetailContent">
+        <!-- 5. 推薦購書記錄管理 -->
+        <div class="form-group">
+            <h3>5. 推薦購書記錄管理</h3>
+            <div id="recommendRecordsContainer">
                 <!-- 動態生成 -->
             </div>
         </div>
+    </div>
 
-        <!-- 手機版預約頁面 -->
-        <div class="mobile-reserve-page" id="mobileReservePage">
-            <div class="mobile-nav">
-                <div class="mobile-nav-content">
-                    <div class="mobile-nav-left">
-                        <button class="mobile-nav-btn" onclick="hideMobileReservePage()">← 回上頁</button>
-                    </div>
-                    <div class="mobile-nav-center">
-                        <span>預約書籍</span>
-                    </div>
-                    <div class="mobile-nav-right">
-                        <!-- 空白 -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="mobile-reserve-content" style="padding: 20px;">
-                <div id="mobileReserveBookInfo"
-                    style="background: #f5f5f7; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
-                    <!-- 書籍資訊將動態生成 -->
-                </div>
-
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">班級:</label>
-                    <input type="text" id="mobileClassName" placeholder="請輸入班級"
-                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
-                </div>
-
-                <div style="margin-bottom: 25px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">姓名:</label>
-                    <input type="text" id="mobileStudentName" placeholder="請輸入姓名"
-                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
-                </div>
-
-                <button class="btn-primary" onclick="submitMobileReserve()"
-                    style="width: 100%; padding: 15px; font-size: 1.1em;">提交預約</button>
-
-                <input type="hidden" id="mobileReserveBookId">
-            </div>
-        </div>
-
-
-        <!-- 手機版推薦表單頁面 -->
-        <div class="mobile-recommend-form-page" id="mobileRecommendFormPage">
-            <div class="mobile-nav">
-                <div class="mobile-nav-content">
-                    <div class="mobile-nav-left">
-                        <button class="mobile-nav-btn" onclick="hideMobileRecommendFormPage()">← 回上頁</button>
-                    </div>
-                    <div class="mobile-nav-center">
-                        <span>推薦新書</span>
-                    </div>
-                    <div class="mobile-nav-right">
-                        <!-- 空白 -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="mobile-recommend-form-content" style="padding: 20px;">
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">書名:</label>
-                    <input type="text" id="mobileRecommendBookName" placeholder="請輸入書名"
-                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px;">
-                </div>
-
-                <div style="margin-bottom: 25px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">推薦理由,可填[無]:</label>
-                    <textarea id="mobileRecommendReason" placeholder="請輸入推薦理由"
-                        style="width: 100%; padding: 12px; border: 1px solid #e2e2e7; border-radius: 8px; height: 120px;"></textarea>
-                </div>
-
-                <button class="btn-primary" onclick="submitMobileRecommend()"
-                    style="width: 100%; padding: 15px; font-size: 1.1em;">提交推薦</button>
-            </div>
-        </div>
-
-
-
-        <!-- 手機版推薦頁面 -->
-        <div class="mobile-recommend-page" id="mobileRecommendPage">
-            <div class="mobile-nav">
-                <div class="mobile-nav-content">
-                    <div class="mobile-nav-left">
-                        <button class="mobile-nav-btn" onclick="hideMobileRecommendPage()">← 回上頁</button>
-                    </div>
-                    <div class="mobile-nav-center">
-                        <span>新書推薦</span>
-                    </div>
-                    <div class="mobile-nav-right">
-                        <!-- 刪除加號按鈕 -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="mobile-recommend-header">
-                <h3>大家推薦的新書</h3>
-                <button class="btn-primary" onclick="showMobileRecommendFormPage()">我要推薦</button>
-            </div>
-
-            <div class="recommend-list" id="mobileUserRecommendList">
-                <!-- 動態生成 -->
-            </div>
-        </div>
-
-        <!-- 新增：手機版排行榜頁面 -->
-        <div class="mobile-ranking-page" id="mobileRankingPage">
-            <div class="mobile-nav">
-                <div class="mobile-nav-content">
-                    <div class="mobile-nav-left">
-                        <button class="mobile-nav-btn" onclick="hideMobileRankingPage()">← 回上頁</button>
-                    </div>
-                    <div class="mobile-nav-center">
-                        <span>熱門排行榜</span>
-                    </div>
-                    <div class="mobile-nav-right">
-                        <!-- 空白 -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="mobile-ranking-header">按讚率最高熱門新書<span
-                    style="font-size:0.8em; color:#8e8e93; margin-left:8px;">（點擊書名查看詳情）</span></div>
-            <div class="ranking-list" id="mobileRankingList">
-                <!-- 排行榜動態生成 -->
-            </div>
-        </div>
-
-        <!-- 新增：手機版留言頁面 -->
-        <div class="mobile-comment-page" id="mobileCommentPage">
-            <div class="mobile-nav">
-                <div class="mobile-nav-content">
-                    <div class="mobile-nav-left">
-                        <button class="mobile-nav-btn" onclick="hideMobileCommentPage()">← 回上頁</button>
-                    </div>
-                    <div class="mobile-nav-center">
-                        <span>書籍留言</span>
-                    </div>
-                    <div class="mobile-nav-right">
-                        <!-- 空白 -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="mobile-comment-content">
-                <div class="mobile-comment-book-title" id="mobileCommentBookTitle">書籍留言</div>
-                <div class="comment-input-area">
-                    <textarea id="mobileCommentContent" class="mobile-comment-input" placeholder="輸入你的留言..."></textarea>
-                    <button class="btn-primary" onclick="submitMobileComment()">提交留言</button>
-                </div>
-                <div id="mobileCommentList" class="comment-list">
-                    <!-- 留言列表動態生成 -->
-                </div>
-                <input type="hidden" id="mobileCommentBookId">
-            </div>
-        </div>
-
-
-    </div> <!-- 結束整個 mobile-content -->
-
-
-    <!-- 電腦版內容開始 -->
-    <div class="desktop-content">
-
-
-
-        <!-- 導航欄 -->
-        <!-- 左上角小標題 -->
-        <div style="position: absolute; top: 20px; left: 20px; z-index: 10;">
-            <h1 style="font-size: 1.2rem; color: var(--text); margin: 0; font-weight: 600;">
-                中學圖書館 | 每週新書速遞
-            </h1>
-        </div>
-
-        <!-- 新書封面巡迴展示欄 -->
-        <div id="bookCarousel"
-            style="margin: 60px auto 40px; width: 95%; max-width: 1200px; position: relative; padding: 20px 60px; background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;">
-
-            <!-- 書本容器 -->
-            <div id="carouselBooks" style="display: flex; gap: 20px; transition: transform 0.5s ease;">
-                <!-- 動態生成書本封面 -->
-            </div>
-        </div>
-
-        <!-- 巡迴展示欄專用彈窗 -->
-        <div class="modal hidden" id="carouselBookModal">
-            <div class="modal-content" style="max-width: 400px; max-height: 85vh; overflow-y: auto;">
-                <span class="close-modal" onclick="closeCarouselModal()"
-                    style="position: absolute; top: 15px; right: 20px; font-size: 1.5em; z-index: 10; cursor: pointer;">&times;</span>
-                <div id="carouselBookDetail" style="padding: 20px; padding-top: 10px;">
-                    <!-- 動態生成書籍詳情 -->
-                </div>
-            </div>
-        </div>
-        <div class="nav-bar">
-            <div class="nav-item" onclick="showLatestIssue(); setActiveNav(this)">最新一期</div>
-            <div class="nav-item category-dropdown" onclick="setActiveNav(this)">
-                <span class="category-trigger">分類</span>
-                <div class="category-menu" id="categoryMenu">
-                    <div class="category-item" data-category="all">全部</div>
-                    <div class="category-item" data-category="000">000 總類</div>
-                    <div class="category-item" data-category="100">100 哲學</div>
-                    <div class="category-item" data-category="200">200 宗教</div>
-                    <div class="category-item" data-category="300">300 科學</div>
-                    <div class="category-item" data-category="400">400 應用科學</div>
-                    <div class="category-item" data-category="500">500 社科</div>
-                    <div class="category-item" data-category="600">600 歷史</div>
-                    <div class="category-item" data-category="700">700 世界史</div>
-                    <div class="category-item" data-category="800">800 語文</div>
-                    <div class="category-item" data-category="900">900 藝術</div>
-                </div>
-            </div>
-            <div class="nav-item" onclick="showSection('userRecommendsSection'); setActiveNav(this)">推薦購書</div>
-            <div class="nav-item" onclick="loadRanking(); setActiveNav(this)">排行榜</div>
-            <div class="keyword-search">
-                <label>關鍵詞: </label>
-                <input type="text" id="keywordInput" placeholder="輸入書名/作者/索書號...">
-                <button onclick="searchBooks()">搜索</button>
-            </div>
-        </div>
-
-        <!-- 推薦購書展示區 -->
-        <div class="user-recommends content-section hidden" id="userRecommendsSection">
-            <div class="recommend-header">
-                <h3>大家推薦的書籍</h3>
-                <button class="btn-primary" onclick="showRecommendForm()">我要新書</button>
-            </div>
-            <div class="recommend-list" id="userRecommendList">
-                <!-- 動態生成 -->
-            </div>
-        </div>
-
-        <!-- 新增：排行榜展示區 -->
-        <div class="ranking-section content-section hidden" id="rankingSection">
-            <div class="ranking-header">按讚率最高熱門新書<span
-                    style="font-size:0.8em; color:#8e8e93; margin-left:8px;">（點擊書名查看詳情）</span></div>
-            <div class="ranking-list" id="rankingList">
-                <!-- 排行榜動態生成 -->
-            </div>
-        </div>
-        <!-- 海報區 -->
-        <div class="poster-section content-section" id="posterSection">
-            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
-                <h2 id="currentIssueTitle" style="margin: 0;">第1期海報</h2>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label>選擇期數:</label>
-                    <select id="issueSelect" onchange="switchIssue(this.value)"
-                        style="padding: 8px 12px; border-radius: 8px;">
-                        <option value="1">第1期</option>
-                    </select>
-                </div>
-            </div>
-            <p style="color: var(--gray-dark); font-size: 0.9em; margin-bottom: 20px;">
-                點擊按鈕切換書籍資訊
-            </p>
-            <div class="poster-buttons-container" id="posterButtonsContainer">
-                <button class="poster-btn active" data-poster="1"
-                    onclick="renderBooks(window.currentIssue, 1); setActivePoster(this)">
-                    <span class="poster-btn-text">海報 1</span>
-                </button>
-                <button class="poster-btn" data-poster="2"
-                    onclick="renderBooks(window.currentIssue, 2); setActivePoster(this)">
-                    <span class="poster-btn-text">海報 2</span>
-                </button>
-            </div>
-            <div id="booksContainer" class="books-grid">
-                <!-- 書籍卡片將動態生成 -->
-            </div>
-        </div>
-
-        <!-- 預約彈窗 -->
-        <div class="modal hidden" id="reserveModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">&times;</span>
-                <h3>預約書籍</h3>
-                <div id="bookReserveInfo"></div>
-                <div class="form-group">
-                    <label>班級: </label>
-                    <input type="text" id="className" required>
-                </div>
-                <div class="form-group">
-                    <label>姓名: </label>
-                    <input type="text" id="studentName" required>
-                </div>
-                <button type="button" onclick="submitReserve()" class="reserve-submit-btn btn-primary">提交預約</button>
-                <input type="hidden" id="reserveBookId">
-            </div>
-        </div>
-
-        <!-- 推薦購書彈窗 -->
-        <div class="modal hidden" id="recommendModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">&times;</span>
-                <h3>推薦購買書籍</h3>
-                <div class="form-group">
-                    <label>書名: </label>
-                    <input type="text" id="recommendBookName" required>
-                </div>
-                <div class="form-group">
-                    <label>推薦理由,可填[無]: </label>
-                    <textarea id="recommendReason" required></textarea>
-                </div>
-                <button type="button" onclick="submitRecommend()" class="btn-primary">提交推薦</button>
-            </div>
-        </div>
-
-        <!-- 管理員登錄彈窗 -->
-        <div class="modal hidden" id="adminLoginModal">
-            <div class="modal-content">
-                <span class="close-modal" onclick="closeAllModals()">&times;</span>
-                <h3>管理員登錄</h3>
-                <div class="form-group">
-                    <label>賬號: </label>
-                    <input type="text" id="adminUser" required>
-                </div>
-                <div class="form-group">
-                    <label>密碼: </label>
-                    <input type="password" id="adminPass" required>
-                </div>
-                <button type="button" onclick="adminLogin()" class="btn-primary">登錄</button>
-            </div>
-        </div>
-
-        <!-- 新增：留言彈窗 -->
-        <div class="modal hidden" id="commentModal">
-            <div class="modal-content comment-modal-content">
-                <span class="close-modal" onclick="closeAllModals()">&times;</span>
-                <h3 class="comment-book-title" id="commentBookTitle">書籍留言</h3>
-                <div class="comment-input-area">
-                    <textarea id="commentContent" class="comment-input" placeholder="輸入你的留言..."></textarea>
-                    <button class="btn-primary" onclick="submitComment()">提交留言</button>
-                </div>
-                <div id="commentList" class="comment-list">
-                    <!-- 留言列表動態生成 -->
-                </div>
-                <input type="hidden" id="commentBookId">
-            </div>
-        </div>
-
-        <!-- 管理員後台 -->
-        <div class="admin-panel hidden" id="adminPanel">
-            <h2>管理員後台</h2>
-            <button onclick="logoutAdmin()" class="btn-text">退出登錄</button>
-
-            <!-- 1. 期數管理 -->
-            <div class="form-group">
-                <h3>1. 期數管理</h3>
-                <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
-            </div>
-
-            <!-- 2. 海報管理 -->
-            <div class="form-group">
-                <h3>2. 海報管理</h3>
-                <p>海報功能已改為按鈕切換，無需上傳圖片</p>
-                <div>
-                    <label>選擇要刪除的期數: </label>
-                    <select id="deleteIssueSelect">
-                        <option value="1">第1期</option>
-                    </select>
-                    <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
-                </div>
-            </div>
-            <!-- 3. 書籍資訊編輯 -->
-            <div class="form-group">
-                <h3>3. 書籍資訊管理</h3>
-                <div>
-                    <label>選擇期數: </label>
-                    <select id="bookIssueSelect">
-                        <option value="1">第1期</option>
-                    </select>
-                    <label>選擇海報序號: </label>
-                    <select id="bookPosterSelect">
-                        <option value="1">海報1</option>
-                        <option value="2">海報2</option>
-                    </select>
-                    <label>選擇書籍序號: </label>
-                    <select id="bookNumSelect">
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="7">7</option>
-                        <option value="8">8</option>
-                        <option value="9">9</option>
-                    </select>
-                </div>
-
-                <div class="book-editor">
-                    <input type="text" id="bookCallNo" placeholder="索書號">
-                    <input type="text" id="bookTitle" placeholder="書名">
-                    <label>分類代碼: </label>
-                    <select id="bookClassCode">
-                        <option value="000">000 總類</option>
-                        <option value="100">100 哲學</option>
-                        <option value="200">200 宗教</option>
-                        <option value="300">300 科學</option>
-                        <option value="400">400 應用科學</option>
-                        <option value="500">500 社科</option>
-                        <option value="600">600 歷史</option>
-                        <option value="700">700 世界史</option>
-                        <option value="800">800 語文</option>
-                        <option value="900">900 藝術</option>
-                    </select>
-                    <input type="text" id="bookAuthor" placeholder="作者">
-                    <textarea id="bookIntro" placeholder="簡介"></textarea>
-                    <input type="text" id="bookSuitable" placeholder="適合人群">
-                    <select id="bookStatus">
-                        <option value="in">在架（可預約）</option>
-                        <option value="out">不在架</option>
-                        <option value="lost">遺失</option> <!-- 新增這行 -->
-                    </select>
-                    <input type="file" id="bookCoverUpload" accept="image/*">
-                    <button class="btn-primary" onclick="saveBookInfo()">儲存書籍</button>
-                    <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
-                </div>
-            </div>
-
-            <!-- 4. 預約記錄管理 -->
-            <div class="form-group">
-                <h3>4. 預約記錄管理</h3>
-                <div id="reserveRecordsContainer">
-                    <!-- 動態生成 -->
-                </div>
-            </div>
-
-            <!-- 5. 推薦購書記錄管理 -->
-            <div class="form-group">
-                <h3>5. 推薦購書記錄管理</h3>
-                <div id="recommendRecordsContainer">
-                    <!-- 動態生成 -->
-                </div>
-            </div>
-
-            <!-- 6. 留言管理 -->
-            <div class="form-group">
-                <h3>6. 留言管理</h3>
-                <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
-                <div id="adminCommentList" style="margin-top:20px;">
-                    <!-- 留言列表動態生成 -->
-                </div>
-            </div>
-
-            <!-- 7. 公告管理 -->
-            <div class="form-group">
-                <h3>7. 公告管理</h3>
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">公告標題:</label>
-                    <input type="text" id="announcementTitleInput" placeholder="輸入公告標題"
-                        style="width: 100%; padding: 10px; margin: 5px 0;">
-
-                    <label style="display: block; margin-bottom: 8px; font-weight: 500; margin-top: 15px;">公告內容:</label>
-                    <textarea id="announcementContentInput" placeholder="輸入公告內容"
-                        style="width: 100%; padding: 10px; margin: 5px 0; min-height: 100px;"></textarea>
-
-                    <div style="margin-top: 20px; display: flex; gap: 10px;">
-                        <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
-                        <button class="btn-danger" onclick="deleteAnnouncement()">刪除公告</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-        <!-- 隱藏的管理員入口（僅電腦版顯示） -->
-        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();"
-            style="width: 40px; height: 40px; background: #f5f5f7; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.3; z-index: 9999; position: fixed; bottom: 10px; right: 10px;">
-            ®</div>
-    </div> <!-- 添加這行，結束 desktop-content -->
+    <!-- 隱藏的管理員入口 -->
+    <div class="hidden-admin-entry" onclick="showAdminLogin()">®</div>
 </body>
 
 </html>
