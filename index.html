@@ -344,7 +344,7 @@
             }
         }
 
-        // 顯示回饋表單
+        // 顯示回饋表單（保留給彈窗使用）
         window.showFeedbackForm = function () {
             // 清空表單
             document.getElementById('feedbackContent').value = '';
@@ -375,27 +375,11 @@
             alert('✨ 寄出成功！謝謝你的聲音～');
         }
 
-        // 清空表單
-        document.getElementById('feedbackContent').value = '';
-        }
 
-        // 渲染後台回饋
+
+        // 渲染前台回饋列表（現在留空，因為前台改用輸入框）
         function renderFeedbackRecords() {
             return;
-        }
-
-        sorted.forEach((r, i) => {
-            let statusClass = r.status === '已收到' ? 'status-pending' : 'status-recorded';
-            // 獲取隨機顏色
-            const randomColor = window.getRandomSoftColor();
-            container.innerHTML += `
-        <div class="recommend-item">
-            <span class="recommend-index" style="background: ${randomColor}">${i + 1}</span>
-            <span class="recommend-name" style="flex:2;">${r.content}</span>
-            <span class="recommend-status ${statusClass}">${r.status}</span>
-        </div>
-    `;
-        });
         }
 
         // 渲染後台回饋列表
