@@ -29,7 +29,7 @@
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
-        // ================= UI 核心工具 =================
+        // ================= UI 工具 =================
         window.showToast = function (message, type = "success") {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
@@ -46,10 +46,9 @@
             document.querySelectorAll('.modal-overlay').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.bottom-sheet').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.modal-center').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.modal').forEach(el => { el.classList.add('hidden'); el.style.display = 'none'; });
         }
 
-        // ================= 資料載入 =================
+        // ================= 資料載入與初始化 =================
         async function loadData() {
             try {
                 document.getElementById('loadingIndicator').classList.add('active');
@@ -138,7 +137,6 @@
         function initUI() {
             renderIssueSelectors();
             switchIssue(window.libraryData.latestIssue);
-            mobileSwitchIssue(window.libraryData.latestIssue);
             initCarousel();
             renderRecommendList();
             renderRankingList();
@@ -153,60 +151,38 @@
                     if (data.title && data.content) {
                         document.getElementById('announcementTitle').textContent = data.title;
                         document.getElementById('announcementContent').innerHTML = data.content.replace(/\n/g, '<br>');
-                        document.getElementById('announcementModal').classList.remove('hidden');
-                        document.getElementById('announcementModal').style.display = 'flex';
-
-                        const tInput = document.getElementById('announcementTitleInput');
-                        const cInput = document.getElementById('announcementContentInput');
-                        if (tInput) tInput.value = data.title;
-                        if (cInput) cInput.value = data.content;
+                        document.getElementById('modalOverlay').classList.add('active');
+                        document.getElementById('announcementModal').classList.add('active');
                     }
                 }
             } catch (err) { console.error("加載公告失敗:", err); }
         }
 
-        window.closeAnnouncement = function () {
-            document.getElementById('announcementModal').classList.add('hidden');
-            document.getElementById('announcementModal').style.display = 'none';
-        }
-
         // ================= 電腦版與共用邏輯 =================
         function renderIssueSelectors() {
             const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
-            const selectors = [
-                document.getElementById('issueSelect'),
-                document.getElementById('mobileIssueSelect'),
-                document.getElementById('posterIssueSelect'),
-                document.getElementById('bookIssueSelect'),
-                document.getElementById('deleteIssueSelect')
-            ];
-            selectors.forEach(sel => {
-                if (sel) {
-                    sel.innerHTML = '';
-                    issues.forEach(issue => { sel.innerHTML += `<option value="${issue}">第${issue}期</option>`; });
-                    if (sel.id !== 'deleteIssueSelect') sel.value = window.libraryData.latestIssue;
-                }
-            });
+            const selector = document.getElementById('issueSelect');
+            selector.innerHTML = '';
+            issues.forEach(issue => selector.innerHTML += `<option value="${issue}">第${issue}期</option>`);
+            selector.value = window.libraryData.latestIssue;
         }
 
         window.switchIssue = function (issue) {
             window.currentIssue = Number(issue);
-            const sel = document.getElementById('issueSelect');
-            if (sel) sel.value = window.currentIssue;
-            document.querySelectorAll('.desktop-poster-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.desktop-poster-btn[data-poster="1"]')?.classList.add('active');
+            document.getElementById('issueSelect').value = window.currentIssue;
+            document.querySelectorAll('.poster-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.poster-btn[data-poster="1"]')?.classList.add('active');
             renderBooks(window.currentIssue, 1);
             showSection('homeSection');
         }
 
         window.filterByCategory = function (category, element) {
-            document.querySelectorAll('.pill.desktop-pill').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.pill').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
 
             const container = document.getElementById('booksGrid');
             container.innerHTML = '';
-            const controls = document.getElementById('posterControls');
-            if (controls) controls.style.display = 'none';
+            document.getElementById('posterControls').style.display = 'none';
 
             const filtered = category === 'all' ? window.libraryData.allBooks : window.libraryData.allBooks.filter(b => b.classCode === category);
             filtered.forEach(book => container.appendChild(createBookCard(book)));
@@ -219,16 +195,18 @@
             const likeCount = window.libraryData.bookLikes[book.id] || 0;
             const imgSrc = book.cover || placeholderImg;
             let statusBadge = book.status === 'in' ? '<span class="status-badge status-in">可預約</span>' :
-                (book.status === 'out' ? '<span class="status-badge status-out">不在架</span>' : '<span class="status-badge status-reserved">已被預約</span>');
+                (book.status === 'out' ? '<span class="status-badge status-out">不在架</span>' : '<span class="status-badge status-reserved">已預約</span>');
 
             card.innerHTML = `
-                <div class="book-cover-wrapper" onclick="showDesktopBookDetail('${book.id}')">
+                <div class="book-cover-wrapper" onclick="openBookDetail('${book.id}')">
                     <img src="${imgSrc}" class="book-cover" onerror="this.src='${placeholderImg}'">
                     ${statusBadge}
                 </div>
                 <div class="book-info">
-                    <h3 class="book-title" onclick="showDesktopBookDetail('${book.id}')">${book.title}</h3>
-                    <div class="book-meta"><span class="author">${book.author || '待編輯'}</span></div>
+                    <h3 class="book-title" onclick="openBookDetail('${book.id}')">${book.title}</h3>
+                    <div class="book-meta">
+                        <span class="author">${book.author || '待編輯'}</span>
+                    </div>
                     <div class="book-actions">
                         <button class="action-btn ${likeCount > 0 ? 'liked' : ''}" onclick="bookLike('${book.id}', event)">
                             ${likeCount > 0 ? '❤️' : '🤍'} <span>${likeCount}</span>
@@ -242,10 +220,8 @@
 
         window.renderBooks = function (issue, posterNum) {
             const container = document.getElementById('booksGrid');
-            if (!container) return;
             container.innerHTML = '';
-            const controls = document.getElementById('posterControls');
-            if (controls) controls.style.display = 'flex';
+            document.getElementById('posterControls').style.display = 'flex';
 
             if (!window.libraryData.issues[issue] || !window.libraryData.issues[issue].books[posterNum]) return;
             const books = window.libraryData.issues[issue].books[posterNum];
@@ -256,61 +232,69 @@
         }
 
         window.setActivePoster = function (btn, posterNum) {
-            document.querySelectorAll('.desktop-poster-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.poster-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             renderBooks(window.currentIssue, posterNum);
         }
 
         window.showSection = function (sectionId) {
             document.querySelectorAll('.main-section').forEach(sec => sec.classList.remove('active'));
-            const sec = document.getElementById(sectionId);
-            if (sec) sec.classList.add('active');
+            document.getElementById(sectionId).classList.add('active');
+
+            // Mobile Nav UI update
+            document.querySelectorAll('.tab-item').forEach(tab => tab.classList.remove('active'));
+            const activeTab = document.querySelector(`.tab-item[onclick*="${sectionId}"]`);
+            if (activeTab) activeTab.classList.add('active');
         }
 
         // ================= 無縫巡迴展示欄 =================
         function initCarousel() {
             const track = document.getElementById('carouselTrack');
-            if (!track) return;
             track.innerHTML = '';
             let books = window.libraryData.allBooks.filter(b => b.cover && b.cover.trim() !== '');
             if (books.length === 0) return;
 
+            // 隨機打亂並取前20本
             books = books.sort(() => 0.5 - Math.random()).slice(0, 20);
 
+            // 建立節點
             const createItem = (book) => {
                 const div = document.createElement('div');
                 div.className = 'carousel-item';
                 div.innerHTML = `<img src="${book.cover}" onerror="this.src='${placeholderImg}'">`;
-                div.onclick = () => showDesktopBookDetail(book.id);
+                div.onclick = () => openBookDetail(book.id);
                 return div;
             };
 
+            // 加入原始 20 本
             books.forEach(b => track.appendChild(createItem(b)));
+            // 複製一份加入尾端，達成無縫動畫
             books.forEach(b => track.appendChild(createItem(b)));
         }
 
-        // ================= 書籍詳情與底部彈窗 =================
-        window.showDesktopBookDetail = function (bookId) {
+        // ================= 書籍詳情與底部彈窗 (Bottom Sheet) =================
+        window.openBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
 
+            const imgSrc = book.cover || placeholderImg;
             let statusText = book.status === 'in' ? '在架 (可預約)' : (book.status === 'out' ? '不在架' : '已被預約');
             let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
-            document.getElementById('dbsCover').src = book.cover || placeholderImg;
-            document.getElementById('dbsTitle').textContent = book.title;
-            document.getElementById('dbsAuthor').textContent = `作者：${book.author || '待編輯'}`;
-            document.getElementById('dbsCallNo').textContent = `索書號：${book.callNo || '待編輯'}`;
-            document.getElementById('dbsSuitable').textContent = `適合：${book.suitable || '待編輯'}`;
-            document.getElementById('dbsStatus').textContent = `狀態：${statusText}`;
-            document.getElementById('dbsIntro').textContent = book.intro || '暫無簡介';
-            document.getElementById('dbsReserveContainer').innerHTML = reserveBtn;
+            document.getElementById('bsCover').src = imgSrc;
+            document.getElementById('bsTitle').textContent = book.title;
+            document.getElementById('bsAuthor').textContent = `作者：${book.author || '待編輯'}`;
+            document.getElementById('bsCallNo').textContent = `索書號：${book.callNo || '待編輯'}`;
+            document.getElementById('bsSuitable').textContent = `適合：${book.suitable || '待編輯'}`;
+            document.getElementById('bsStatus').textContent = `狀態：${statusText}`;
+            document.getElementById('bsIntro').textContent = book.intro || '暫無簡介';
+            document.getElementById('bsReserveContainer').innerHTML = reserveBtn;
 
             document.getElementById('modalOverlay').classList.add('active');
-            document.getElementById('desktopBookDetailSheet').classList.add('active');
+            document.getElementById('bookDetailSheet').classList.add('active');
         }
 
-        // ================= 預約與推薦 =================
+        // ================= 預約邏輯 =================
         window.openReserveModal = function (bookId) {
             closeAllModals();
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
@@ -329,7 +313,7 @@
             setTimeout(() => {
                 document.getElementById('modalOverlay').classList.add('active');
                 document.getElementById('reserveModal').classList.add('active');
-            }, 300);
+            }, 300); // 讓 Bottom sheet 先收起來
         }
 
         window.submitReserve = function () {
@@ -364,17 +348,18 @@
                 if (window.libraryData.issues[issue]?.books[poster]?.[bookNum]) {
                     window.libraryData.issues[issue].books[poster][bookNum].status = 'reserved';
                     await saveData();
-                    renderBooks(window.currentIssue, document.querySelector('.desktop-poster-btn.active')?.dataset.poster || 1);
-                    mobileRenderBooks(window.currentIssue, document.querySelector('.mobile-poster-btn.active')?.dataset.poster || 1);
+                    renderBooks(window.currentIssue, document.querySelector('.poster-btn.active')?.dataset.poster || 1);
                 }
             } catch (err) { showToast("預約失敗", "error"); }
         }
 
+        // ================= 點讚與留言 =================
         window.bookLike = async function (bookId, event) {
             event.stopPropagation();
             if (!window.libraryData.bookLikes[bookId]) window.libraryData.bookLikes[bookId] = 0;
             window.libraryData.bookLikes[bookId] += 1;
 
+            // Optimistic UI update
             const btns = document.querySelectorAll(`button[onclick*="'${bookId}'"].action-btn`);
             btns.forEach(btn => {
                 btn.innerHTML = `❤️ <span>${window.libraryData.bookLikes[bookId]}</span>`;
@@ -448,92 +433,91 @@
             }
         }
 
+        window.toggleCommentExpand = function (el) {
+            el.previousElementSibling.classList.toggle('expanded');
+            el.textContent = el.textContent === '展開' ? '收起' : '展開';
+        }
+
+        // ================= 搜尋與其他功能 =================
         let searchTimeout;
         window.setupSearchDebounce = function () {
-            const inputs = [document.getElementById('searchInput'), document.getElementById('mobileSearchInput')];
-            inputs.forEach(input => {
-                if (!input) return;
-                input.addEventListener('input', (e) => {
-                    clearTimeout(searchTimeout);
-                    const keyword = e.target.value.trim();
-                    searchTimeout = setTimeout(() => { executeSearch(keyword.toLowerCase()); }, 500);
-                });
+            const input = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('searchClear');
+
+            input.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                const keyword = e.target.value.trim();
+                clearBtn.style.display = keyword ? 'block' : 'none';
+
+                searchTimeout = setTimeout(() => {
+                    executeSearch(keyword.toLowerCase());
+                }, 500);
             });
         }
 
+        window.clearSearch = function () {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchClear').style.display = 'none';
+            executeSearch('');
+        }
+
         function executeSearch(keyword) {
-            const desktopContainer = document.getElementById('booksGrid');
-            const mobileContainer = document.getElementById('mobileBooksGrid');
-            if (desktopContainer) desktopContainer.innerHTML = '';
-            if (mobileContainer) mobileContainer.innerHTML = '';
+            const container = document.getElementById('booksGrid');
+            container.innerHTML = '';
 
             if (!keyword) {
-                if (document.getElementById('posterControls')) document.getElementById('posterControls').style.display = 'flex';
-                if (document.getElementById('mobilePosterControls')) document.getElementById('mobilePosterControls').style.display = 'flex';
-                renderBooks(window.currentIssue, document.querySelector('.desktop-poster-btn.active')?.dataset.poster || 1);
-                mobileRenderBooks(window.currentIssue, document.querySelector('.mobile-poster-btn.active')?.dataset.poster || 1);
+                document.getElementById('posterControls').style.display = 'flex';
+                renderBooks(window.currentIssue, document.querySelector('.poster-btn.active')?.dataset.poster || 1);
                 return;
             }
 
-            if (document.getElementById('posterControls')) document.getElementById('posterControls').style.display = 'none';
-            if (document.getElementById('mobilePosterControls')) document.getElementById('mobilePosterControls').style.display = 'none';
-
+            document.getElementById('posterControls').style.display = 'none';
             const matched = window.libraryData.allBooks.filter(b =>
                 (b.title && b.title.toLowerCase().includes(keyword)) ||
-                (b.author && b.author.toLowerCase().includes(keyword)) ||
-                (b.callNo && b.callNo.toLowerCase().includes(keyword))
+                (b.author && b.author.toLowerCase().includes(keyword))
             );
 
             if (matched.length === 0) {
-                if (desktopContainer) desktopContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-light);">找不到相關書籍</div>';
-                if (mobileContainer) mobileContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-light);">找不到相關書籍</div>';
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-light);">找不到相關書籍</div>';
             } else {
-                matched.forEach(book => {
-                    if (desktopContainer) desktopContainer.appendChild(createBookCard(book));
-                    if (mobileContainer) mobileContainer.appendChild(createMobileBookCard(book));
-                });
+                matched.forEach(book => container.appendChild(createBookCard(book)));
             }
+            showSection('homeSection');
         }
 
         function renderRecommendList() {
-            const lists = [document.getElementById('recommendList'), document.getElementById('mobileRecommendList')];
-            lists.forEach(list => {
-                if (!list) return;
-                list.innerHTML = '';
-                const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-                sorted.forEach((r, i) => {
-                    const color = window.getRandomSoftColor();
-                    list.innerHTML += `
-                        <div class="list-card">
-                            <div class="avatar" style="background:${color}">${i + 1}</div>
-                            <div class="info">
-                                <div class="title">${r.bookName}</div>
-                                <div class="desc">推薦理由：${r.reason}</div>
-                            </div>
-                        </div>`;
-                });
+            const list = document.getElementById('recommendList');
+            list.innerHTML = '';
+            const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
+            sorted.forEach((r, i) => {
+                const color = window.getRandomSoftColor();
+                list.innerHTML += `
+                    <div class="list-card">
+                        <div class="avatar" style="background:${color}">${i + 1}</div>
+                        <div class="info">
+                            <div class="title">${r.bookName}</div>
+                            <div class="desc">推薦理由：${r.reason}</div>
+                        </div>
+                    </div>`;
             });
         }
 
         function renderRankingList() {
-            const lists = [document.getElementById('rankingList'), document.getElementById('mobileRankingList')];
-            lists.forEach(list => {
-                if (!list) return;
-                list.innerHTML = '';
-                const ranked = window.libraryData.allBooks.map(b => ({ ...b, likes: window.libraryData.bookLikes[b.id] || 0 }))
-                    .filter(b => b.likes > 0).sort((a, b) => b.likes - a.likes).slice(0, 10);
+            const list = document.getElementById('rankingList');
+            list.innerHTML = '';
+            const ranked = window.libraryData.allBooks.map(b => ({ ...b, likes: window.libraryData.bookLikes[b.id] || 0 }))
+                .filter(b => b.likes > 0).sort((a, b) => b.likes - a.likes).slice(0, 10);
 
-                ranked.forEach((b, i) => {
-                    const color = window.getRandomSoftColor();
-                    list.innerHTML += `
-                        <div class="list-card" onclick="showDesktopBookDetail('${b.id}')">
-                            <div class="avatar" style="background:${color}">${i + 1}</div>
-                            <div class="info">
-                                <div class="title">${b.title}</div>
-                                <div class="desc" style="color:var(--danger)">❤️ ${b.likes} 人喜歡</div>
-                            </div>
-                        </div>`;
-                });
+            ranked.forEach((b, i) => {
+                const color = window.getRandomSoftColor();
+                list.innerHTML += `
+                    <div class="list-card" onclick="openBookDetail('${b.id}')">
+                        <div class="avatar" style="background:${color}">${i + 1}</div>
+                        <div class="info">
+                            <div class="title">${b.title}</div>
+                            <div class="desc" style="color:var(--danger)">❤️ ${b.likes} 人喜歡</div>
+                        </div>
+                    </div>`;
             });
         }
 
@@ -554,165 +538,9 @@
             document.getElementById('recReason').value = '';
         }
 
-        window.saveRecommendRecord = async function (record) {
-            try {
-                const recordRef = doc(collection(db, "recommends"));
-                await setDoc(recordRef, record);
-                window.libraryData.recommendRecords.push({ ...record, id: recordRef.id });
-                renderRecommendList();
-            } catch (err) { showToast("推薦失敗", "error"); }
-        }
-
         window.getRandomSoftColor = function () {
             const colors = ['#0071e3', '#ff9500', '#34c759', '#af52de', '#ff2d55', '#5856d6'];
             return colors[Math.floor(Math.random() * colors.length)];
-        }
-
-
-        // ================= 手機版專屬邏輯 =================
-        window.mobileFilterByCategory = function (category, element) {
-            document.querySelectorAll('.pill.mobile-pill').forEach(el => el.classList.remove('active'));
-            if (element) element.classList.add('active');
-
-            const container = document.getElementById('mobileBooksGrid');
-            container.innerHTML = '';
-            const controls = document.getElementById('mobilePosterControls');
-            if (controls) controls.style.display = 'none';
-
-            const filtered = category === 'all' ? window.libraryData.allBooks : window.libraryData.allBooks.filter(b => b.classCode === category);
-            filtered.forEach(book => container.appendChild(createMobileBookCard(book)));
-            showMobileSection('mobileHomeSection');
-        }
-
-        window.createMobileBookCard = function (book) {
-            const card = document.createElement('div');
-            card.className = 'book-card';
-            const likeCount = window.libraryData.bookLikes[book.id] || 0;
-            const imgSrc = book.cover || placeholderImg;
-            let statusBadge = book.status === 'in' ? '<span class="status-badge status-in">可預約</span>' :
-                (book.status === 'out' ? '<span class="status-badge status-out">不在架</span>' : '<span class="status-badge status-reserved">已被預約</span>');
-
-            card.innerHTML = `
-                <div class="book-cover-wrapper" onclick="showMobileBookDetail('${book.id}')">
-                    <img src="${imgSrc}" class="book-cover" onerror="this.src='${placeholderImg}'">
-                    ${statusBadge}
-                </div>
-                <div class="book-info">
-                    <h3 class="book-title" onclick="showMobileBookDetail('${book.id}')">${book.title}</h3>
-                    <div class="book-meta"><span class="author">${book.author || '待編輯'}</span></div>
-                    <div class="book-actions">
-                        <button class="action-btn ${likeCount > 0 ? 'liked' : ''}" onclick="bookLike('${book.id}', event)">
-                            ${likeCount > 0 ? '❤️' : '🤍'} <span>${likeCount}</span>
-                        </button>
-                        <button class="action-btn" onclick="openCommentModal('${book.id}', event)">💬</button>
-                    </div>
-                </div>
-            `;
-            return card;
-        }
-
-        window.mobileSwitchIssue = function (issue) {
-            window.currentIssue = Number(issue);
-            const sel = document.getElementById('mobileIssueSelect');
-            if (sel) sel.value = window.currentIssue;
-            document.querySelectorAll('.mobile-poster-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.mobile-poster-btn[data-poster="1"]')?.classList.add('active');
-            mobileRenderBooks(window.currentIssue, 1);
-            showMobileSection('mobileHomeSection');
-        }
-
-        window.mobileRenderBooks = function (issue, posterNum) {
-            const container = document.getElementById('mobileBooksGrid');
-            if (!container) return;
-            container.innerHTML = '';
-            const controls = document.getElementById('mobilePosterControls');
-            if (controls) controls.style.display = 'flex';
-
-            if (!window.libraryData.issues[issue] || !window.libraryData.issues[issue].books[posterNum]) return;
-            const books = window.libraryData.issues[issue].books[posterNum];
-
-            for (let i = 1; i <= 9; i++) {
-                if (books[i]) container.appendChild(createMobileBookCard(books[i]));
-            }
-        }
-
-        window.setMobileActivePoster = function (btn, posterNum) {
-            document.querySelectorAll('.mobile-poster-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            mobileRenderBooks(window.currentIssue, posterNum);
-        }
-
-        window.showMobileSection = function (sectionId) {
-            document.querySelectorAll('.mobile-main-section').forEach(sec => sec.classList.remove('active'));
-            const sec = document.getElementById(sectionId);
-            if (sec) sec.classList.add('active');
-
-            document.querySelectorAll('.tab-item').forEach(tab => tab.classList.remove('active'));
-            const activeTab = document.querySelector(`.tab-item[onclick*="${sectionId}"]`);
-            if (activeTab) activeTab.classList.add('active');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        window.showMobileBookDetail = function (bookId) {
-            const book = window.libraryData.allBooks.find(b => b.id === bookId);
-            if (!book) return;
-
-            let statusText = book.status === 'in' ? '在架 (可預約)' : (book.status === 'out' ? '不在架' : '已被預約');
-            let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
-
-            document.getElementById('mbsCover').src = book.cover || placeholderImg;
-            document.getElementById('mbsTitle').textContent = book.title;
-            document.getElementById('mbsAuthor').textContent = `作者：${book.author || '待編輯'}`;
-            document.getElementById('mbsCallNo').textContent = `索書號：${book.callNo || '待編輯'}`;
-            document.getElementById('mbsSuitable').textContent = `適合：${book.suitable || '待編輯'}`;
-            document.getElementById('mbsStatus').textContent = `狀態：${statusText}`;
-            document.getElementById('mbsIntro').textContent = book.intro || '暫無簡介';
-            document.getElementById('mbsReserveContainer').innerHTML = reserveBtn;
-
-            document.getElementById('modalOverlay').classList.add('active');
-            document.getElementById('mobileBookDetailSheet').classList.add('active');
-        }
-
-
-        // ================= 後台管理員邏輯 =================
-        window.showAdminLogin = function () {
-            document.getElementById('adminLoginModal').classList.remove('hidden');
-            document.getElementById('adminLoginModal').style.display = 'flex';
-        }
-
-        window.adminLogin = function () {
-            const user = document.getElementById('adminUser').value;
-            const pass = document.getElementById('adminPass').value;
-            if (user === 'kakihara' && pass === 'naotoki') {
-                closeAllModals();
-                document.getElementById('adminPanel').classList.remove('hidden');
-                document.getElementById('adminPanel').style.display = 'block';
-                showToast('登錄成功', 'success');
-            } else {
-                showToast('賬號或密碼錯誤', 'error');
-            }
-        }
-        window.logoutAdmin = function () { document.getElementById('adminPanel').classList.add('hidden'); document.getElementById('adminPanel').style.display = 'none'; }
-
-        window.saveAnnouncement = async function () {
-            const title = document.getElementById('announcementTitleInput').value.trim();
-            const content = document.getElementById('announcementContentInput').value.trim();
-            if (!title || !content) { showToast('請輸入公告標題和內容！', 'error'); return; }
-            try {
-                await setDoc(doc(db, "settings", "announcement"), { title, content, createTime: new Date().toLocaleString() });
-                showToast('公告保存成功！', 'success');
-                loadAnnouncement();
-            } catch (err) { showToast('保存公告失敗', 'error'); }
-        }
-
-        window.deleteAnnouncement = async function () {
-            if (!confirm('確定要刪除公告嗎？')) return;
-            try {
-                await deleteDoc(doc(db, "settings", "announcement"));
-                document.getElementById('announcementTitleInput').value = '';
-                document.getElementById('announcementContentInput').value = '';
-                showToast('公告已刪除！', 'success');
-            } catch (err) { showToast('刪除公告失敗', 'error'); }
         }
 
         window.onload = loadData;
@@ -748,12 +576,10 @@
             font-family: "SF Pro Text", "PingFang TC", sans-serif;
             background: var(--bg);
             color: var(--text);
+            padding-bottom: 80px;
         }
 
-        .hidden {
-            display: none !important;
-        }
-
+        /* ================= 共通元件 ================= */
         input,
         textarea,
         button,
@@ -781,14 +607,6 @@
             box-shadow: 0 4px 15px rgba(0, 113, 227, 0.3);
         }
 
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 100px;
-            font-weight: 600;
-        }
-
         .input-field {
             width: 100%;
             padding: 14px 16px;
@@ -809,28 +627,7 @@
             background: #fff0f0;
         }
 
-        /* ================= RWD 切換 ================= */
-        .desktop-content {
-            display: none;
-        }
-
-        .mobile-content {
-            display: block;
-            padding-bottom: 80px;
-        }
-
-        @media (min-width: 769px) {
-            .mobile-content {
-                display: none !important;
-            }
-
-            .desktop-content {
-                display: block !important;
-                padding-bottom: 40px;
-            }
-        }
-
-        /* ================= 共通卡片與元件 ================= */
+        /* ================= 頂部導航與搜尋 (懸浮中島設計) ================= */
         .header-container {
             text-align: center;
             padding: 40px 20px 20px;
@@ -910,202 +707,24 @@
             opacity: 0.5;
         }
 
-        .poster-controls {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-
-        .desktop-poster-btn,
-        .mobile-poster-btn {
-            padding: 12px 30px;
-            border-radius: var(--radius-md);
-            background: var(--surface);
-            border: 2px solid transparent;
-            color: var(--text);
-            font-weight: 600;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .desktop-poster-btn.active,
-        .mobile-poster-btn.active {
-            border-color: var(--primary);
-            background: var(--primary-light);
-            color: var(--primary);
-        }
-
-        .book-card {
-            background: var(--surface);
-            border-radius: var(--radius-md);
-            padding: 12px;
-            box-shadow: var(--shadow-sm);
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.3s;
-        }
-
-        .book-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow);
-        }
-
-        .book-cover-wrapper {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 2/3;
-            border-radius: var(--radius-sm);
-            overflow: hidden;
-            margin-bottom: 12px;
-            cursor: pointer;
-        }
-
-        .book-cover {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .status-badge {
+        .search-clear {
             position: absolute;
-            top: 8px;
-            right: 8px;
-            padding: 4px 8px;
-            border-radius: 100px;
-            font-size: 11px;
-            font-weight: 600;
-            backdrop-filter: blur(5px);
-        }
-
-        .status-in {
-            background: rgba(52, 199, 89, 0.9);
-            color: white;
-        }
-
-        .status-out {
-            background: rgba(255, 59, 48, 0.9);
-            color: white;
-        }
-
-        .status-reserved {
-            background: rgba(255, 149, 0, 0.9);
-            color: white;
-        }
-
-        .book-title {
-            font-size: 14px;
-            font-weight: 600;
-            line-height: 1.4;
-            margin-bottom: 4px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            cursor: pointer;
-        }
-
-        .book-meta {
-            font-size: 12px;
-            color: var(--text-light);
-            margin-bottom: auto;
-        }
-
-        .book-actions {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--bg);
-        }
-
-        .action-btn {
-            background: var(--bg);
-            padding: 6px 10px;
-            border-radius: 100px;
-            font-size: 12px;
-            color: var(--text-light);
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .action-btn.liked {
-            color: var(--danger);
-            background: #fff0f0;
-        }
-
-        .list-card {
-            background: var(--surface);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            box-shadow: var(--shadow-sm);
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .list-card:hover {
-            transform: scale(1.02);
-        }
-
-        .list-card .avatar {
-            width: 40px;
-            height: 40px;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e5e5ea;
+            color: #8e8e93;
             border-radius: 50%;
-            color: white;
-            display: flex;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: none;
             justify-content: center;
             align-items: center;
-            font-weight: bold;
-            font-size: 18px;
-            flex-shrink: 0;
+            cursor: pointer;
         }
 
-        .list-card .title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 4px;
-        }
-
-        .list-card .desc {
-            font-size: 13px;
-            color: var(--text-light);
-        }
-
-        /* ================= 電腦版專屬 ================= */
-        .desktop-content .main-section {
-            display: none;
-            padding: 0 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .desktop-content .main-section.active {
-            display: block;
-            animation: fadeIn 0.4s ease;
-        }
-
-        .desktop-content .books-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 24px;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
+        /* ================= 無縫巡迴展示區 ================= */
         .carousel-wrapper {
             width: 100%;
             overflow: hidden;
@@ -1113,6 +732,7 @@
             position: relative;
         }
 
+        /* 兩側漸層遮罩 */
         .carousel-wrapper::before,
         .carousel-wrapper::after {
             content: '';
@@ -1177,23 +797,189 @@
             display: block;
         }
 
-        /* ================= 手機版專屬 ================= */
-        .mobile-content .mobile-main-section {
+        /* ================= 書籍瀑布流雙欄配置 ================= */
+        .main-section {
             display: none;
-            padding: 0 16px;
+            padding: 0 20px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
 
-        .mobile-content .mobile-main-section.active {
+        .main-section.active {
             display: block;
             animation: fadeIn 0.4s ease;
         }
 
-        .mobile-content .books-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
+        .poster-controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .poster-btn {
+            padding: 12px 30px;
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            border: 2px solid transparent;
+            color: var(--text);
+            font-weight: 600;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .poster-btn.active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .books-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
+        }
+
+        .book-card {
+            background: var(--surface);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .book-cover-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 2/3;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .book-cover {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .status-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            backdrop-filter: blur(5px);
+        }
+
+        .status-in {
+            background: rgba(52, 199, 89, 0.9);
+            color: white;
+        }
+
+        .status-out {
+            background: rgba(255, 59, 48, 0.9);
+            color: white;
+        }
+
+        .status-reserved {
+            background: rgba(255, 149, 0, 0.9);
+            color: white;
+        }
+
+        .book-title {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .book-meta {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: auto;
+        }
+
+        .book-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--bg);
+        }
+
+        .action-btn {
+            background: var(--bg);
+            padding: 6px 10px;
+            border-radius: 100px;
+            font-size: 12px;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .action-btn.liked {
+            color: var(--danger);
+            background: #fff0f0;
+        }
+
+        /* ================= 列表卡片 (推薦與排行) ================= */
+        .list-card {
+            background: var(--surface);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+        }
+
+        .list-card .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .list-card .title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .list-card .desc {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        /* ================= 底部導覽列 (Mobile Only) ================= */
         .bottom-nav {
             position: fixed;
             bottom: 0;
@@ -1202,6 +988,7 @@
             height: 70px;
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-around;
@@ -1218,7 +1005,6 @@
             font-size: 10px;
             gap: 4px;
             transition: color 0.3s;
-            cursor: pointer;
         }
 
         .tab-item.active {
@@ -1227,6 +1013,12 @@
 
         .tab-icon {
             font-size: 22px;
+        }
+
+        @media (min-width: 768px) {
+            .bottom-nav {
+                display: none;
+            }
         }
 
         /* ================= 彈窗與遮罩系統 ================= */
@@ -1249,6 +1041,7 @@
             pointer-events: auto;
         }
 
+        /* 底部彈窗 (Bottom Sheet) */
         .bottom-sheet {
             position: fixed;
             bottom: 0;
@@ -1267,25 +1060,6 @@
 
         .bottom-sheet.active {
             transform: translateY(0);
-        }
-
-        @media (min-width: 768px) {
-            .bottom-sheet {
-                width: 500px;
-                left: 50%;
-                transform: translate(-50%, 100%);
-                border-radius: var(--radius-lg);
-                bottom: 20px;
-                max-height: 80vh;
-            }
-
-            .bottom-sheet.active {
-                transform: translate(-50%, 0);
-            }
-
-            .bs-handle {
-                display: none;
-            }
         }
 
         .bs-handle {
@@ -1332,6 +1106,7 @@
             margin-bottom: 24px;
         }
 
+        /* 置中彈窗 */
         .modal-center {
             position: fixed;
             top: 50%;
@@ -1368,31 +1143,6 @@
             align-items: center;
             color: var(--text-light);
             font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* 舊版 Modal 兼容 (公告與後台) */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 10000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: var(--radius-lg);
-            width: 90%;
-            max-width: 500px;
-            position: relative;
-            box-shadow: var(--shadow);
         }
 
         /* 留言區塊 */
@@ -1418,10 +1168,15 @@
             line-height: 1.5;
             margin-bottom: 8px;
             color: var(--text);
+            /* 截斷設定 */
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
+        }
+
+        .comment-text.expanded {
+            -webkit-line-clamp: unset;
         }
 
         .comment-footer {
@@ -1438,7 +1193,6 @@
             border-radius: 100px;
             font-size: 12px;
             color: var(--danger);
-            border: none;
         }
 
         /* Toast & Loading */
@@ -1447,7 +1201,7 @@
             top: 40px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 20000;
+            z-index: 10000;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -1493,7 +1247,7 @@
             width: 100%;
             height: 100%;
             background: var(--surface);
-            z-index: 19999;
+            z-index: 9999;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -1518,30 +1272,39 @@
             margin-bottom: 16px;
         }
 
-        .admin-panel {
-            padding: 30px;
-            background: white;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow);
-            margin: 20px auto;
-            max-width: 1200px;
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
-        .hidden-admin-entry {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 40px;
-            height: 40px;
-            background: var(--bg);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.3;
-            z-index: 9999;
-            cursor: pointer;
-            font-size: 12px;
+        /* 電腦版 RWD 調整 */
+        @media (min-width: 768px) {
+            .books-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 24px;
+            }
+
+            .bottom-sheet {
+                width: 500px;
+                left: 50%;
+                transform: translate(-50%, 100%);
+                border-radius: var(--radius-lg);
+                bottom: 20px;
+                max-height: 80vh;
+            }
+
+            .bottom-sheet.active {
+                transform: translate(-50%, 0);
+            }
+
+            .bs-handle {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -1552,215 +1315,97 @@
         <div class="spinner"></div>
         <p style="color:var(--text-light); font-weight:500;">圖書館資料同步中...</p>
     </div>
+
     <div class="modal-overlay" id="modalOverlay" onclick="closeAllModals()"></div>
 
-    <div class="modal hidden" id="announcementModal" style="z-index: 10000;">
-        <div class="modal-content" style="max-width: 500px;">
-            <h3 id="announcementTitle" style="margin-bottom: 20px; color: #1d1d1f; font-size: 1.3em;"></h3>
-            <div id="announcementContent" style="margin-bottom: 30px; line-height: 1.6; color: #1d1d1f;"></div>
-            <button class="btn-primary" onclick="closeAnnouncement()"
-                style="width: 100%; padding: 10px; font-size: 1em;">知道了</button>
+    <div class="modal-center" id="announcementModal">
+        <h3 id="announcementTitle" style="font-size:20px; margin-bottom:16px;"></h3>
+        <div id="announcementContent"
+            style="font-size:15px; color:var(--text-light); line-height:1.6; margin-bottom:24px;"></div>
+        <button class="btn-primary" style="width:100%" onclick="closeAllModals()">知道了</button>
+    </div>
+
+    <div class="header-container">
+        <h1 class="main-title">中學圖書館 | 新書速遞</h1>
+
+        <div class="floating-island">
+            <button class="pill active" onclick="filterByCategory('all', this)">全部</button>
+            <button class="pill" onclick="filterByCategory('000', this)">000 總類</button>
+            <button class="pill" onclick="filterByCategory('100', this)">100 哲學</button>
+            <button class="pill" onclick="filterByCategory('200', this)">200 宗教</button>
+            <button class="pill" onclick="filterByCategory('300', this)">300 科學</button>
+            <button class="pill" onclick="filterByCategory('400', this)">400 應用</button>
+            <button class="pill" onclick="filterByCategory('500', this)">500 社科</button>
+            <button class="pill" onclick="filterByCategory('600', this)">600 歷史</button>
+            <button class="pill" onclick="filterByCategory('700', this)">700 世界史</button>
+            <button class="pill" onclick="filterByCategory('800', this)">800 語文</button>
+            <button class="pill" onclick="filterByCategory('900', this)">900 藝術</button>
+        </div>
+
+        <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" class="search-input" placeholder="搜尋書名或作者...">
+            <div id="searchClear" class="search-clear" onclick="clearSearch()">✕</div>
         </div>
     </div>
 
-    <div class="desktop-content">
-        <div class="header-container">
-            <h1 class="main-title">中學圖書館 | 新書速遞</h1>
-            <div class="floating-island">
-                <button class="pill desktop-pill active" onclick="filterByCategory('all', this)">全部</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('000', this)">000 總類</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('100', this)">100 哲學</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('200', this)">200 宗教</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('300', this)">300 科學</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('400', this)">400 應用</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('500', this)">500 社科</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('600', this)">600 歷史</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('700', this)">700 世界史</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('800', this)">800 語文</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('900', this)">900 藝術</button>
-                <button class="pill desktop-pill" onclick="showSection('recommendSection')"
-                    style="color:var(--secondary)">推薦好書</button>
-                <button class="pill desktop-pill" onclick="showSection('rankSection')"
-                    style="color:var(--danger)">排行榜</button>
-            </div>
-            <div class="search-wrapper">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="搜尋書名或作者...">
-            </div>
-        </div>
-
-        <div class="carousel-wrapper">
-            <div class="carousel-track" id="carouselTrack"></div>
-        </div>
-
-        <div class="main-section active" id="homeSection">
-            <div style="display:flex; justify-content:center; align-items:center; gap:15px; margin-bottom:20px;">
-                <label style="font-weight:600;">選擇期數:</label>
-                <select id="issueSelect" onchange="switchIssue(this.value)"
-                    style="padding:8px 16px; border-radius:100px; border:1px solid var(--border); background:var(--surface);"></select>
-            </div>
-            <div class="poster-controls" id="posterControls">
-                <button class="desktop-poster-btn active" data-poster="1" onclick="setActivePoster(this, 1)">海報
-                    1</button>
-                <button class="desktop-poster-btn" data-poster="2" onclick="setActivePoster(this, 2)">海報 2</button>
-            </div>
-            <div class="books-grid" id="booksGrid"></div>
-        </div>
-
-        <div class="main-section" id="recommendSection">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2 style="font-size:22px;">大家推薦的好書</h2>
-                <button class="btn-primary" style="padding:8px 16px; font-size:14px;"
-                    onclick="openRecommendForm()">我要推薦</button>
-            </div>
-            <div id="recommendList"></div>
-        </div>
-
-        <div class="main-section" id="rankSection">
-            <h2 style="font-size:22px; margin-bottom:8px;">熱門排行榜</h2>
-            <div id="rankingList"></div>
-        </div>
-
-        <div class="admin-panel hidden" id="adminPanel">
-            <h2 style="margin-bottom: 30px; padding-bottom: 15px; border-bottom: 1px solid var(--bg);">管理員後台 <button
-                    onclick="logoutAdmin()" class="btn-danger" style="float:right;">退出</button></h2>
-
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3>1. 期數管理</h3>
-                <label>選擇要刪除的期數: </label><select id="deleteIssueSelect"
-                    style="padding:8px; margin-right:10px;"></select>
-            </div>
-
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3>2. 書籍資訊管理</h3>
-                <div style="margin-bottom: 10px;">
-                    <select id="bookIssueSelect" style="padding:8px;"></select>
-                    <select id="posterIssueSelect" style="padding:8px;">
-                        <option value="1">海報1</option>
-                        <option value="2">海報2</option>
-                    </select>
-                    <select id="bookNumSelect" style="padding:8px;">
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                    </select>
-                </div>
-            </div>
-
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3>3. 公告管理</h3>
-                <input type="text" id="announcementTitleInput" placeholder="輸入公告標題" class="input-field">
-                <textarea id="announcementContentInput" placeholder="輸入公告內容" class="input-field"
-                    style="min-height: 100px;"></textarea>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
-                    <button class="btn-danger" onclick="deleteAnnouncement()">刪除公告</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="hidden-admin-entry" onclick="showAdminLogin(); event.stopPropagation();">®</div>
+    <div class="carousel-wrapper">
+        <div class="carousel-track" id="carouselTrack"></div>
     </div>
 
-
-    <div class="mobile-content">
-        <div class="header-container" style="padding: 20px 16px 10px;">
-            <h1 class="main-title" style="font-size:24px; margin-bottom:16px;">中學圖書館</h1>
-            <div class="search-wrapper" style="margin-bottom:16px;">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="mobileSearchInput" class="search-input" placeholder="搜尋書名或作者...">
-            </div>
-            <div class="floating-island" style="margin-bottom:10px;">
-                <button class="pill mobile-pill active" onclick="mobileFilterByCategory('all', this)">全部</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('000', this)">000 總類</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('100', this)">100 哲學</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('200', this)">200 宗教</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('300', this)">300 科學</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('800', this)">800 語文</button>
-                <button class="pill mobile-pill" onclick="mobileFilterByCategory('900', this)">900 藝術</button>
-            </div>
+    <div class="main-section active" id="homeSection">
+        <div class="poster-controls" id="posterControls">
+            <button class="poster-btn active" data-poster="1" onclick="setActivePoster(this, 1)">海報 1</button>
+            <button class="poster-btn" data-poster="2" onclick="setActivePoster(this, 2)">海報 2</button>
         </div>
+        <div class="books-grid" id="booksGrid"></div>
+    </div>
 
-        <div class="mobile-main-section active" id="mobileHomeSection">
-            <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:16px;">
-                <select id="mobileIssueSelect" onchange="mobileSwitchIssue(this.value)"
-                    style="padding:6px 16px; border-radius:100px; border:1px solid var(--border); background:var(--surface); font-size:14px;"></select>
-            </div>
-            <div class="poster-controls" id="mobilePosterControls" style="margin-bottom:16px;">
-                <button class="mobile-poster-btn active" data-poster="1" onclick="setMobileActivePoster(this, 1)">海報
-                    1</button>
-                <button class="mobile-poster-btn" data-poster="2" onclick="setMobileActivePoster(this, 2)">海報 2</button>
-            </div>
-            <div class="books-grid" id="mobileBooksGrid"></div>
+    <div class="main-section" id="recommendSection">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 style="font-size:22px;">大家推薦的好書</h2>
+            <button class="btn-primary" style="padding:8px 16px; font-size:14px;"
+                onclick="openRecommendForm()">我要推薦</button>
         </div>
+        <div id="recommendList"></div>
+    </div>
 
-        <div class="mobile-main-section" id="mobileRecommendSection">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2 style="font-size:20px;">好書推薦</h2>
-                <button class="btn-primary" style="padding:6px 12px; font-size:13px;"
-                    onclick="openRecommendForm()">我要推薦</button>
-            </div>
-            <div id="mobileRecommendList"></div>
+    <div class="main-section" id="rankSection">
+        <h2 style="font-size:22px; margin-bottom:8px;">熱門排行榜</h2>
+        <p style="color:var(--text-light); font-size:14px; margin-bottom:20px;">依照愛心數排序，點擊可看詳情</p>
+        <div id="rankingList"></div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="tab-item active" onclick="showSection('homeSection')">
+            <span class="tab-icon">📚</span><span>新書</span>
         </div>
-
-        <div class="mobile-main-section" id="mobileRankSection">
-            <h2 style="font-size:20px; margin-bottom:16px;">排行榜</h2>
-            <div id="mobileRankingList"></div>
+        <div class="tab-item" onclick="showSection('recommendSection')">
+            <span class="tab-icon">💡</span><span>推薦</span>
         </div>
-
-        <div class="bottom-nav">
-            <div class="tab-item active" onclick="showMobileSection('mobileHomeSection')">
-                <span class="tab-icon">📚</span><span>新書</span>
-            </div>
-            <div class="tab-item" onclick="showMobileSection('mobileRecommendSection')">
-                <span class="tab-icon">💡</span><span>推薦</span>
-            </div>
-            <div class="tab-item" onclick="showMobileSection('mobileRankSection')">
-                <span class="tab-icon">🏆</span><span>排行</span>
-            </div>
+        <div class="tab-item" onclick="showSection('rankSection')">
+            <span class="tab-icon">🏆</span><span>排行</span>
         </div>
     </div>
 
-
-    <div class="bottom-sheet" id="desktopBookDetailSheet">
+    <div class="bottom-sheet" id="bookDetailSheet">
         <div class="bs-handle"></div>
         <div class="bs-header">
-            <img id="dbsCover" class="bs-cover">
+            <img id="bsCover" class="bs-cover">
             <div class="bs-info">
-                <h2 id="dbsTitle"></h2>
-                <p id="dbsAuthor"></p>
-                <p id="dbsStatus" style="font-weight:600; color:var(--primary); margin-top:8px;"></p>
+                <h2 id="bsTitle"></h2>
+                <p id="bsAuthor"></p>
+                <p id="bsStatus" style="font-weight:600; color:var(--primary); margin-top:8px;"></p>
             </div>
         </div>
         <div class="bs-desc-box">
-            <p id="dbsIntro" style="margin-bottom:12px;"></p>
+            <p id="bsIntro" style="margin-bottom:12px;"></p>
             <div style="color:var(--text-light); font-size:13px; border-top:1px solid var(--border); padding-top:12px;">
-                <p id="dbsCallNo"></p>
-                <p id="dbsSuitable"></p>
+                <p id="bsCallNo"></p>
+                <p id="bsSuitable"></p>
             </div>
         </div>
-        <div id="dbsReserveContainer"></div>
-    </div>
-
-    <div class="bottom-sheet" id="mobileBookDetailSheet">
-        <div class="bs-handle"></div>
-        <div class="bs-header">
-            <img id="mbsCover" class="bs-cover">
-            <div class="bs-info">
-                <h2 id="mbsTitle"></h2>
-                <p id="mbsAuthor"></p>
-                <p id="mbsStatus" style="font-weight:600; color:var(--primary); margin-top:8px;"></p>
-            </div>
-        </div>
-        <div class="bs-desc-box">
-            <p id="mbsIntro" style="margin-bottom:12px;"></p>
-            <div style="color:var(--text-light); font-size:13px; border-top:1px solid var(--border); padding-top:12px;">
-                <p id="mbsCallNo"></p>
-                <p id="mbsSuitable"></p>
-            </div>
-        </div>
-        <div id="mbsReserveContainer"></div>
+        <div id="bsReserveContainer"></div>
     </div>
 
     <div class="modal-center" id="reserveModal">
@@ -1789,23 +1434,11 @@
             <input type="text" id="commentInput" class="input-field" placeholder="留下你的評論..."
                 style="padding-right:80px; margin-bottom:0;">
             <button
-                style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:var(--primary); color:white; border-radius:100px; padding:6px 12px; font-weight:bold; border:none;"
+                style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:var(--primary); color:white; border-radius:100px; padding:6px 12px; font-weight:bold;"
                 onclick="submitComment()">發佈</button>
             <input type="hidden" id="commentBookId">
         </div>
         <div id="commentList" style="display:flex; flex-direction:column;"></div>
-    </div>
-
-    <div class="modal hidden" id="adminLoginModal">
-        <div class="modal-content">
-            <h3 style="margin-bottom: 20px;">管理員登錄</h3>
-            <input type="text" id="adminUser" class="input-field" placeholder="賬號">
-            <input type="password" id="adminPass" class="input-field" placeholder="密碼">
-            <div style="display:flex; gap:10px;">
-                <button class="btn-primary" style="flex:1;" onclick="adminLogin()">登錄</button>
-                <button class="btn-danger" style="flex:1;" onclick="closeAllModals()">取消</button>
-            </div>
-        </div>
     </div>
 
 </body>
