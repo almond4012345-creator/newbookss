@@ -198,7 +198,6 @@
                 optionsHtml += `<option value="${issue}">第${issue}期</option>`;
             });
 
-            // 包含前台與後台的所有選單
             const selectorIds = ['issueSelect', 'mobileIssueSelect', 'bookIssueSelect', 'deleteIssueSelect'];
             selectorIds.forEach(id => {
                 const sel = document.getElementById(id);
@@ -271,13 +270,16 @@
                     <h3 class="book-title" onclick="showDesktopBookDetail('${book.id}')">${book.title}</h3>
                     <div class="book-meta"><span class="author">${book.author || '待編輯'}</span></div>
                     <div class="book-actions">
-                        <button class="action-btn like-btn-element ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)">
+                        <button class="action-btn like-btn-element" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)" class="${likeCount > 0 ? 'liked' : ''}">
                             ${likeCount > 0 ? '❤️' : '🤍'} <span>${likeCount}</span>
                         </button>
                         <button class="action-btn" onclick="openCommentModal('${book.id}', event)">💬</button>
                     </div>
                 </div>
             `;
+            if (likeCount > 0) {
+                card.querySelector('.like-btn-element').classList.add('liked');
+            }
             return card;
         }
 
@@ -341,7 +343,7 @@
                 : (book.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
 
             let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
-            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--surface); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="jumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
+            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="jumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
 
             document.getElementById('dbsCover').src = book.cover || placeholderImg;
             document.getElementById('dbsTitle').textContent = book.title;
@@ -423,7 +425,6 @@
             if (!window.libraryData.bookLikes[bookId]) window.libraryData.bookLikes[bookId] = 0;
             window.libraryData.bookLikes[bookId] += 1;
 
-            // 精準選取對應 ID 的愛心按鈕，不影響留言
             const btns = document.querySelectorAll(`.like-btn-element[data-book-id="${bookId}"]`);
             btns.forEach(btn => {
                 btn.innerHTML = `❤️ <span>${window.libraryData.bookLikes[bookId]}</span>`;
@@ -654,13 +655,16 @@
                     <h3 class="book-title" onclick="showMobileBookDetail('${book.id}')">${book.title}</h3>
                     <div class="book-meta"><span class="author">${book.author || '待編輯'}</span></div>
                     <div class="book-actions">
-                        <button class="action-btn like-btn-element ${likeCount > 0 ? 'liked' : ''}" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)">
+                        <button class="action-btn like-btn-element" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)">
                             ${likeCount > 0 ? '❤️' : '🤍'} <span>${likeCount}</span>
                         </button>
                         <button class="action-btn" onclick="openCommentModal('${book.id}', event)">💬</button>
                     </div>
                 </div>
             `;
+            if (likeCount > 0) {
+                card.querySelector('.like-btn-element').classList.add('liked');
+            }
             return card;
         }
 
@@ -717,7 +721,7 @@
                 : (book.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
 
             let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
-            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--surface); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="mobileJumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
+            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="mobileJumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
 
             document.getElementById('mbsCover').src = book.cover || placeholderImg;
             document.getElementById('mbsTitle').textContent = book.title;
@@ -880,7 +884,7 @@
             if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
-                    <div style="padding:10px; border:1px solid var(--border); margin-bottom:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div class="record-item">
                         <div>${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}</div>
                         <select onchange="updateReserveStatus('${r.id}', this.value)" style="padding:6px;">
                             <option ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
@@ -921,7 +925,7 @@
             if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
-                    <div style="padding:10px; border:1px solid var(--border); margin-bottom:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div class="record-item">
                         <div>${r.time} | ${r.bookName} | 理由: ${r.reason}</div>
                         <select onchange="updateRecommendStatus('${r.id}', this.value)" style="padding:6px;">
                             <option ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
@@ -959,7 +963,7 @@
             allComments.sort((a, b) => new Date(b.time) - new Date(a.time)).forEach(comment => {
                 const topChecked = comment.isTop ? 'checked' : '';
                 adminCommentList.innerHTML += `
-                    <div style="padding:10px; border:1px solid var(--border); margin-bottom:10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div class="record-item">
                         <div><strong>${comment.bookTitle}</strong> | ${comment.content} <br><span style="color:var(--text-light); font-size:12px;">點讚: ${comment.likeCount} | ${comment.time}</span></div>
                         <div style="display:flex; gap:10px; align-items:center;">
                             <label>置頂: <input type="checkbox" ${topChecked} onchange="toggleCommentTop('${comment.bookId}', '${comment.id}', this.checked)"></label>
@@ -1045,7 +1049,10 @@
             padding-bottom: 80px;
         }
 
-        /* ================= 共通元件 ================= */
+        .hidden {
+            display: none !important;
+        }
+
         input,
         textarea,
         button,
@@ -1081,6 +1088,11 @@
             font-weight: 600;
         }
 
+        .btn-text {
+            background: transparent;
+            color: var(--primary);
+        }
+
         .input-field {
             width: 100%;
             padding: 14px 16px;
@@ -1101,7 +1113,27 @@
             background: #fff0f0;
         }
 
-        /* ================= 頂部導航與搜尋 (懸浮中島設計) ================= */
+        /* ================= RWD 切換 ================= */
+        .desktop-content {
+            display: none;
+        }
+
+        .mobile-content {
+            display: block;
+        }
+
+        @media (min-width: 769px) {
+            .mobile-content {
+                display: none !important;
+            }
+
+            .desktop-content {
+                display: block !important;
+                padding-bottom: 40px;
+            }
+        }
+
+        /* ================= 共通卡片與元件 ================= */
         .header-container {
             text-align: center;
             padding: 40px 20px 20px;
@@ -1346,27 +1378,6 @@
             color: var(--text-light);
         }
 
-        /* ================= RWD 切換 ================= */
-        .desktop-content {
-            display: none;
-        }
-
-        .mobile-content {
-            display: block;
-            padding-bottom: 80px;
-        }
-
-        @media (min-width: 769px) {
-            .mobile-content {
-                display: none !important;
-            }
-
-            .desktop-content {
-                display: block !important;
-                padding-bottom: 40px;
-            }
-        }
-
         /* ================= 電腦版專屬 ================= */
         .desktop-content .main-section {
             display: none;
@@ -1469,6 +1480,56 @@
             display: block;
         }
 
+        /* 後台樣式還原 */
+        .admin-panel {
+            margin: 20px auto;
+            padding: 30px;
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow);
+            max-width: 1200px;
+        }
+
+        .admin-panel h2 {
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--gray-light);
+        }
+
+        .form-group {
+            margin: 30px 0;
+            padding: 25px;
+            border: 1px solid var(--gray-light);
+            border-radius: var(--radius-md);
+            background: var(--gray-light);
+        }
+
+        .form-group h3 {
+            margin-bottom: 20px;
+        }
+
+        .book-editor {
+            margin: 15px 0;
+            padding: 20px;
+            border: 1px dashed var(--border);
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .record-item {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
         /* ================= 手機版專屬 ================= */
         .mobile-content .mobile-main-section {
             display: none;
@@ -1494,7 +1555,6 @@
             height: 70px;
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-around;
@@ -1662,6 +1722,7 @@
             color: var(--text-light);
             font-weight: bold;
             cursor: pointer;
+            z-index: 10;
         }
 
         .modal {
@@ -1808,30 +1869,21 @@
             margin-bottom: 16px;
         }
 
-        .admin-panel {
-            padding: 30px;
-            background: white;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow);
-            margin: 20px auto;
-            max-width: 1200px;
-        }
-
         .hidden-admin-entry {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0.5;
+            z-index: 4;
             width: 40px;
             height: 40px;
-            background: var(--bg);
+            background: #f5f5f7;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0.3;
-            z-index: 9999;
-            cursor: pointer;
-            font-size: 12px;
         }
     </style>
 </head>
@@ -1914,30 +1966,38 @@
         </div>
 
         <div class="admin-panel hidden" id="adminPanel">
-            <h2 style="margin-bottom: 30px; padding-bottom: 15px; border-bottom: 1px solid var(--bg);">管理員後台 <button
-                    onclick="logoutAdmin()" class="btn-danger" style="float:right;">退出</button></h2>
+            <h2>管理員後台</h2>
+            <button onclick="logoutAdmin()" class="btn-text">退出登錄</button>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">1. 期數管理</h3>
+            <div class="form-group">
+                <h3>1. 期數管理</h3>
                 <button class="btn-primary" onclick="addNewIssue()">新增期數</button>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">2. 海報管理</h3>
-                <label>選擇要刪除的期數: </label><select id="deleteIssueSelect"
-                    style="padding:8px; margin-right:10px;"></select>
-                <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+            <div class="form-group">
+                <h3>2. 海報管理</h3>
+                <p>海報功能已改為按鈕切換，無需上傳圖片</p>
+                <div style="margin-top: 10px;">
+                    <label>選擇要刪除的期數: </label>
+                    <select id="deleteIssueSelect" style="padding: 8px; border-radius: 8px;">
+                        <option value="1">第1期</option>
+                    </select>
+                    <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
+                </div>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">3. 書籍資訊管理</h3>
-                <div style="margin-bottom: 10px;">
-                    <select id="bookIssueSelect" style="padding:8px; margin-right:5px;"></select>
-                    <select id="bookPosterSelect" style="padding:8px; margin-right:5px;">
+            <div class="form-group">
+                <h3>3. 書籍資訊管理</h3>
+                <div>
+                    <label>選擇期數: </label>
+                    <select id="bookIssueSelect" style="padding: 8px; border-radius: 8px;"></select>
+                    <label>選擇海報序號: </label>
+                    <select id="bookPosterSelect" style="padding: 8px; border-radius: 8px;">
                         <option value="1">海報1</option>
                         <option value="2">海報2</option>
                     </select>
-                    <select id="bookNumSelect" style="padding:8px;">
+                    <label>選擇書籍序號: </label>
+                    <select id="bookNumSelect" style="padding: 8px; border-radius: 8px;">
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -1949,73 +2009,76 @@
                         <option value="9">9</option>
                     </select>
                 </div>
-                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
-                    <input type="text" id="bookCallNo" placeholder="索書號" class="input-field" style="margin:0;">
-                    <input type="text" id="bookTitle" placeholder="書名" class="input-field" style="margin:0;">
-                    <select id="bookClassCode" class="input-field" style="margin:0;">
-                        <option value="000">000 總類</option>
-                        <option value="100">100 哲學</option>
-                        <option value="200">200 宗教</option>
-                        <option value="300">300 科學</option>
-                        <option value="400">400 應用科學</option>
-                        <option value="500">500 社科</option>
-                        <option value="600">600 歷史</option>
-                        <option value="700">700 世界史</option>
-                        <option value="800">800 語文</option>
-                        <option value="900">900 藝術</option>
-                    </select>
-                    <input type="text" id="bookAuthor" placeholder="作者" class="input-field" style="margin:0;">
-                    <input type="text" id="bookSuitable" placeholder="適合人群" class="input-field" style="margin:0;">
-                    <select id="bookStatus" class="input-field" style="margin:0;">
-                        <option value="in">在架（可預約）</option>
-                        <option value="out">不在架</option>
-                        <option value="lost">遺失</option>
-                    </select>
-                </div>
-                <textarea id="bookIntro" placeholder="簡介" class="input-field"
-                    style="min-height:80px; margin-top:10px;"></textarea>
-                <div style="margin-top:10px;">
-                    <input type="file" id="bookCoverUpload" accept="image/*" style="margin-right:10px;">
+
+                <div class="book-editor">
+                    <input type="text" id="bookCallNo" class="input-field" placeholder="索書號">
+                    <input type="text" id="bookTitle" class="input-field" placeholder="書名">
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="margin-bottom: 5px;">分類代碼: </label>
+                        <select id="bookClassCode" class="input-field" style="margin-bottom: 0;">
+                            <option value="000">000 總類</option>
+                            <option value="100">100 哲學</option>
+                            <option value="200">200 宗教</option>
+                            <option value="300">300 科學</option>
+                            <option value="400">400 應用科學</option>
+                            <option value="500">500 社科</option>
+                            <option value="600">600 歷史</option>
+                            <option value="700">700 世界史</option>
+                            <option value="800">800 語文</option>
+                            <option value="900">900 藝術</option>
+                        </select>
+                    </div>
+                    <input type="text" id="bookAuthor" class="input-field" placeholder="作者">
+                    <textarea id="bookIntro" class="input-field" placeholder="簡介"></textarea>
+                    <input type="text" id="bookSuitable" class="input-field" placeholder="適合人群">
+                    <div style="display: flex; flex-direction: column;">
+                        <select id="bookStatus" class="input-field" style="margin-bottom: 0;">
+                            <option value="in">在架（可預約）</option>
+                            <option value="out">不在架</option>
+                            <option value="lost">遺失</option>
+                        </select>
+                    </div>
+                    <input type="file" id="bookCoverUpload" accept="image/*" style="padding: 10px;">
                     <button class="btn-primary" onclick="saveBookInfo()">儲存書籍</button>
                     <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
                 </div>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">4. 預約記錄管理</h3>
-                <div id="reserveRecordsContainer"
-                    style="max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: var(--radius-sm);">
-                </div>
+            <div class="form-group">
+                <h3>4. 預約記錄管理</h3>
+                <div id="reserveRecordsContainer" style="max-height: 400px; overflow-y: auto;"></div>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">5. 推薦購書記錄管理</h3>
-                <div id="recommendRecordsContainer"
-                    style="max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: var(--radius-sm);">
-                </div>
+            <div class="form-group">
+                <h3>5. 推薦購書記錄管理</h3>
+                <div id="recommendRecordsContainer" style="max-height: 400px; overflow-y: auto;"></div>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">6. 留言管理</h3>
-                <button class="btn-primary" onclick="loadAllComments()" style="margin-bottom:15px;">加載所有留言</button>
-                <div id="adminCommentList"
-                    style="max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: var(--radius-sm);">
-                </div>
+            <div class="form-group">
+                <h3>6. 留言管理</h3>
+                <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
+                <div id="adminCommentList" style="margin-top:20px; max-height: 400px; overflow-y: auto;"></div>
             </div>
 
-            <div style="margin-bottom: 30px; padding: 20px; background: var(--bg); border-radius: var(--radius-md);">
-                <h3 style="margin-bottom:15px;">7. 公告管理</h3>
-                <input type="text" id="announcementTitleInput" placeholder="輸入公告標題" class="input-field">
-                <textarea id="announcementContentInput" placeholder="輸入公告內容" class="input-field"
-                    style="min-height: 100px;"></textarea>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
-                    <button class="btn-danger" onclick="deleteAnnouncement()">刪除公告</button>
+            <div class="form-group">
+                <h3>7. 公告管理</h3>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">公告標題:</label>
+                    <input type="text" id="announcementTitleInput" class="input-field" placeholder="輸入公告標題">
+
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500; margin-top: 15px;">公告內容:</label>
+                    <textarea id="announcementContentInput" class="input-field" placeholder="輸入公告內容"
+                        style="min-height: 100px;"></textarea>
+
+                    <div style="margin-top: 20px; display: flex; gap: 10px;">
+                        <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
+                        <button class="btn-danger" onclick="deleteAnnouncement()">刪除公告</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="hidden-admin-entry" onclick="showAdminLogin(); event.stopPropagation();">®</div>
+        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();">®</div>
     </div>
 
 
@@ -2155,13 +2218,17 @@
 
     <div class="modal hidden" id="adminLoginModal">
         <div class="modal-content">
+            <span class="modal-close" onclick="closeAllModals()">✕</span>
             <h3 style="margin-bottom: 20px;">管理員登錄</h3>
-            <input type="text" id="adminUser" class="input-field" placeholder="賬號">
-            <input type="password" id="adminPass" class="input-field" placeholder="密碼">
-            <div style="display:flex; gap:10px;">
-                <button class="btn-primary" style="flex:1;" onclick="adminLogin()">登錄</button>
-                <button class="btn-danger" style="flex:1;" onclick="closeAllModals()">取消</button>
+            <div class="form-group" style="padding: 15px; margin: 15px 0;">
+                <label>賬號: </label>
+                <input type="text" id="adminUser" class="input-field" required>
             </div>
+            <div class="form-group" style="padding: 15px; margin: 15px 0;">
+                <label>密碼: </label>
+                <input type="password" id="adminPass" class="input-field" required>
+            </div>
+            <button type="button" onclick="adminLogin()" class="btn-primary" style="width: 100%;">登錄</button>
         </div>
     </div>
 
