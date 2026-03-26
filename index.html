@@ -161,10 +161,32 @@
         // ================= 電腦版與共用邏輯 =================
         function renderIssueSelectors() {
             const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
-            const selector = document.getElementById('issueSelect');
-            selector.innerHTML = '';
-            issues.forEach(issue => selector.innerHTML += `<option value="${issue}">第${issue}期</option>`);
-            selector.value = window.libraryData.latestIssue;
+
+            // 先組裝好所有的 option HTML
+            let optionsHtml = '';
+            issues.forEach(issue => {
+                optionsHtml += `<option value="${issue}">第${issue}期</option>`;
+            });
+
+            // 列出所有可能需要載入期數的 select ID
+            const selectorIds = [
+                'issueSelect',
+                'mobileIssueSelect',
+                'bookIssueSelect',
+                'deleteIssueSelect',
+                'posterIssueSelect'
+            ];
+
+            // 加上 if (sel) 防呆檢查，確保元素存在才寫入
+            selectorIds.forEach(id => {
+                const sel = document.getElementById(id);
+                if (sel) {
+                    sel.innerHTML = optionsHtml;
+                    if (id !== 'deleteIssueSelect') {
+                        sel.value = window.libraryData.latestIssue;
+                    }
+                }
+            });
         }
 
         window.switchIssue = function (issue) {
