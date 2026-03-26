@@ -191,7 +191,8 @@
 
         window.switchIssue = function (issue) {
             window.currentIssue = Number(issue);
-            document.getElementById('issueSelect').value = window.currentIssue;
+            const sel = document.getElementById('issueSelect');
+            if (sel) sel.value = window.currentIssue;
             document.querySelectorAll('.poster-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelector('.poster-btn[data-poster="1"]')?.classList.add('active');
             renderBooks(window.currentIssue, 1);
@@ -300,7 +301,7 @@
             if (!book) return;
 
             const imgSrc = book.cover || placeholderImg;
-            let statusText = book.status === 'in' ? '在架 (可預約)' : (book.status === 'out' ? '不在架' : '已被預約');
+            let statusHtml = book.status === 'in' ? '<span style="color:var(--success)">在架 (可預約)</span>' : (book.status === 'out' ? '<span style="color:var(--text-light)">不在架</span>' : '<span style="color:var(--danger)">已被預約</span>');
             let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
             document.getElementById('bsCover').src = imgSrc;
@@ -308,7 +309,7 @@
             document.getElementById('bsAuthor').textContent = `作者：${book.author || '待編輯'}`;
             document.getElementById('bsCallNo').textContent = `索書號：${book.callNo || '待編輯'}`;
             document.getElementById('bsSuitable').textContent = `適合：${book.suitable || '待編輯'}`;
-            document.getElementById('bsStatus').textContent = `狀態：${statusText}`;
+            document.getElementById('bsStatus').innerHTML = `狀態：${statusHtml}`;
             document.getElementById('bsIntro').textContent = book.intro || '暫無簡介';
             document.getElementById('bsReserveContainer').innerHTML = reserveBtn;
 
@@ -382,7 +383,7 @@
             window.libraryData.bookLikes[bookId] += 1;
 
             // Optimistic UI update
-            const btns = document.querySelectorAll(`button[onclick*="'${bookId}'"].action-btn`);
+            const btns = document.querySelectorAll(`button[onclick^="bookLike('${bookId}'"].action-btn`);
             btns.forEach(btn => {
                 btn.innerHTML = `❤️ <span>${window.libraryData.bookLikes[bookId]}</span>`;
                 btn.classList.add('liked');
@@ -1376,6 +1377,13 @@
     </div>
 
     <div class="main-section active" id="homeSection">
+        <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-bottom:20px;">
+            <label style="font-weight:600;">選擇期數:</label>
+            <select id="issueSelect" onchange="switchIssue(this.value)"
+                style="padding:8px 16px; border-radius:100px; border:1px solid var(--border); background:var(--surface); outline:none; font-family:inherit;"></select>
+            <button onclick="switchIssue(window.libraryData.latestIssue)"
+                style="background:var(--text); color:white; padding:8px 16px; border-radius:100px; font-weight:bold; border:none; box-shadow: var(--shadow-sm); cursor:pointer;">最新一期</button>
+        </div>
         <div class="poster-controls" id="posterControls">
             <button class="poster-btn active" data-poster="1" onclick="setActivePoster(this, 1)">海報 1</button>
             <button class="poster-btn" data-poster="2" onclick="setActivePoster(this, 2)">海報 2</button>
