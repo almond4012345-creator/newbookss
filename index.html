@@ -87,6 +87,32 @@
                     });
                 });
 
+                // ================= 自動校對書籍預約狀態 =================
+                for (const issueId in window.libraryData.issues) {
+                    let issueChanged = false;
+                    for (const posterId in window.libraryData.issues[issueId].books) {
+                        for (const bookNum in window.libraryData.issues[issueId].books[posterId]) {
+                            const book = window.libraryData.issues[issueId].books[posterId][bookNum];
+                            const fullBookId = `issue-${issueId}-poster-${posterId}-book-${bookNum}`;
+
+                            // 如果書本狀態是已預約，去預約紀錄裡面找有沒有這本書
+                            if (book.status === 'reserved') {
+                                const hasReserve = window.libraryData.reserveRecords.some(r => r.bookId === fullBookId && (r.status === '已預約' || r.status === '處理中'));
+                                // 如果找不到預約紀錄，就把書本強制恢復成「在架(可預約)」
+                                if (!hasReserve) {
+                                    book.status = 'in';
+                                    issueChanged = true;
+                                }
+                            }
+                        }
+                    }
+                    // 如果有修復狀態，自動更新到 Firebase
+                    if (issueChanged) {
+                        await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]);
+                    }
+                }
+                // ========================================================
+
                 collectAllBooks();
                 initUI();
                 await loadAnnouncement();
