@@ -27,8 +27,6 @@
             latestIssue: 1, allBooks: []
         };
         window.currentIssue = 1;
-        window.currentSwipeBooks = []; // 用於記錄當前畫面上的書籍，方便左右滑動
-        window.carouselSwipeBooks = []; // 巡迴書展專用的滑動清單
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
@@ -51,13 +49,14 @@
             document.querySelectorAll('.bottom-sheet').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.modal-center').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.modal').forEach(el => { el.classList.add('hidden'); el.style.display = 'none'; });
+            hideMobileBookDetail();
         }
 
         // ================= 資料載入 =================
         async function loadData() {
             try {
                 const loader = document.getElementById('loadingIndicator');
-                if (loader) loader.classList.add('active');
+                if (loader) loader.style.display = 'flex';
 
                 const issuesSnap = await getDocs(collection(db, "issues"));
                 window.libraryData.issues = {};
@@ -89,7 +88,7 @@
                     });
                 });
 
-                // 自動校對書籍預約狀態
+                // ================= 自動校對書籍預約狀態 =================
                 for (const issueId in window.libraryData.issues) {
                     let issueChanged = false;
                     for (const posterId in window.libraryData.issues[issueId].books) {
@@ -102,18 +101,20 @@
                             }
                         }
                     }
-                    if (issueChanged) { await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]); }
+                    if (issueChanged) {
+                        await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]);
+                    }
                 }
 
                 collectAllBooks();
                 initUI();
                 await loadAnnouncement();
-                if (loader) loader.classList.remove('active');
+                if (loader) loader.style.display = 'none';
             } catch (err) {
                 console.error("載入失敗:", err);
                 showToast("資料載入失敗，請重新整理頁面", "error");
                 const loader = document.getElementById('loadingIndicator');
-                if (loader) loader.classList.remove('active');
+                if (loader) loader.style.display = 'none';
             }
         }
 
@@ -135,17 +136,11 @@
 
         async function saveData() {
             try {
-                for (const issueId in window.libraryData.issues) {
-                    await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]);
-                }
+                for (const issueId in window.libraryData.issues) { await setDoc(doc(db, "issues", issueId), window.libraryData.issues[issueId]); }
                 await setDoc(doc(db, "settings", "system"), { latestIssue: window.libraryData.latestIssue });
-                for (const bookId in window.libraryData.bookLikes) {
-                    await setDoc(doc(db, "bookLikes", bookId), { count: window.libraryData.bookLikes[bookId] || 0 });
-                }
+                for (const bookId in window.libraryData.bookLikes) { await setDoc(doc(db, "bookLikes", bookId), { count: window.libraryData.bookLikes[bookId] || 0 }); }
                 const allComments = [];
-                for (const bookId in window.libraryData.bookComments) {
-                    window.libraryData.bookComments[bookId].forEach(comment => allComments.push({ ...comment, bookId }));
-                }
+                for (const bookId in window.libraryData.bookComments) { window.libraryData.bookComments[bookId].forEach(comment => allComments.push({ ...comment, bookId })); }
                 const commentsCol = collection(db, "bookComments");
                 const oldSnap = await getDocs(commentsCol);
                 oldSnap.forEach(async (d) => { await deleteDoc(d.ref); });
@@ -183,12 +178,8 @@
                     if (data.title && data.content) {
                         document.getElementById('announcementTitle').textContent = data.title;
                         document.getElementById('announcementContent').innerHTML = data.content.replace(/\n/g, '<br>');
-
                         const modal = document.getElementById('announcementModal');
-                        if (modal) {
-                            modal.classList.remove('hidden');
-                            modal.style.display = 'flex';
-                        }
+                        if (modal) { modal.classList.remove('hidden'); modal.style.display = 'flex'; }
 
                         const tInput = document.getElementById('announcementTitleInput');
                         const cInput = document.getElementById('announcementContentInput');
@@ -201,12 +192,10 @@
 
         window.closeAnnouncement = function () {
             const modal = document.getElementById('announcementModal');
-            if (modal) {
-                modal.classList.add('hidden');
-                modal.style.display = 'none';
-            }
+            if (modal) { modal.classList.add('hidden'); modal.style.display = 'none'; }
         }
 
+        // ================= 防呆下拉選單生成 =================
         function renderIssueSelectors() {
             const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
             let optionsHtml = '';
@@ -261,7 +250,6 @@
             if (controls) controls.style.display = 'none';
 
             const filtered = category === 'all' ? window.libraryData.allBooks : window.libraryData.allBooks.filter(b => b.classCode === category);
-            window.currentSwipeBooks = filtered; // 更新滑動列表
             filtered.forEach(book => container.appendChild(createBookCard(book)));
             showSection('homeSection');
         }
@@ -290,7 +278,7 @@
                     </div>
                 </div>
             `;
-            if (likeCount > 0) { card.querySelector('.like-btn-element').classList.add('liked'); }
+            if (likeCount > 0) card.querySelector('.like-btn-element').classList.add('liked');
             return card;
         }
 
@@ -304,12 +292,8 @@
             if (!window.libraryData.issues[issue] || !window.libraryData.issues[issue].books[posterNum]) return;
             const books = window.libraryData.issues[issue].books[posterNum];
 
-            window.currentSwipeBooks = [];
             for (let i = 1; i <= 9; i++) {
-                if (books[i]) {
-                    window.currentSwipeBooks.push(books[i]);
-                    container.appendChild(createBookCard(books[i]));
-                }
+                if (books[i]) container.appendChild(createBookCard(books[i]));
             }
         }
 
@@ -335,7 +319,6 @@
             if (books.length === 0) return;
 
             books = books.sort(() => 0.5 - Math.random()).slice(0, 20);
-            window.carouselSwipeBooks = books; // 記錄供滑動使用
 
             const createItem = (book) => {
                 const div = document.createElement('div');
@@ -349,90 +332,31 @@
             books.forEach(b => track.appendChild(createItem(b)));
         }
 
-        // ================= 書籍詳情 (Apple Books 橫向滑動特效) =================
-        window.renderSwipeView = function (bookId, isMobile) {
-            let contextBooks = [];
-            // 自動判斷使用者點擊來源並給予對應的滑動清單
-            if (window.currentSwipeBooks && window.currentSwipeBooks.some(b => b.id === bookId)) {
-                contextBooks = window.currentSwipeBooks;
-            } else if (window.carouselSwipeBooks && window.carouselSwipeBooks.some(b => b.id === bookId)) {
-                contextBooks = window.carouselSwipeBooks;
-            } else {
-                const book = window.libraryData.allBooks.find(b => b.id === bookId);
-                contextBooks = book ? [book] : [];
-            }
+        // ================= 書籍詳情與預約 =================
+        window.showDesktopBookDetail = function (bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) return;
 
-            if (contextBooks.length === 0) return;
+            let statusHtml = book.status === 'in'
+                ? `<span style="color:var(--success)">在架 (可預約)</span>`
+                : (book.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
 
-            const initialIndex = contextBooks.findIndex(b => b.id === bookId);
-            const sheetId = isMobile ? 'mobileBookDetailSheet' : 'desktopBookDetailSheet';
-            const sheet = document.getElementById(sheetId);
+            let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
+            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="jumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
 
-            let html = `<div class="bs-handle"></div><div class="swipe-container" id="swipe_${sheetId}">`;
+            document.getElementById('dbsCover').src = book.cover || placeholderImg;
+            document.getElementById('dbsTitle').textContent = book.title;
+            document.getElementById('dbsAuthor').textContent = `作者：${book.author || '待編輯'}`;
+            document.getElementById('dbsCallNo').textContent = `索書號：${book.callNo || '待編輯'}`;
+            document.getElementById('dbsSuitable').textContent = `適合：${book.suitable || '待編輯'}`;
+            document.getElementById('dbsStatus').innerHTML = `狀態：${statusHtml}`;
+            document.getElementById('dbsIntro').textContent = book.intro || '暫無簡介';
+            document.getElementById('dbsReserveContainer').innerHTML = reserveBtn + jumpBtn;
 
-            contextBooks.forEach(book => {
-                let statusHtml = book.status === 'in'
-                    ? `<span style="color:var(--success)">在架 (可預約)</span>`
-                    : (book.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
-
-                let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
-                let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="${isMobile ? 'mobileJumpToIssue' : 'jumpToIssue'}('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
-
-                html += `
-                <div class="swipe-item">
-                    <div class="swipe-item-inner">
-                        <div class="bs-header">
-                            <img src="${book.cover || placeholderImg}" class="bs-cover" onerror="this.src='${placeholderImg}'">
-                            <div class="bs-info">
-                                <h2 style="font-size:20px; line-height:1.3; margin-bottom:8px;">${book.title}</h2>
-                                <p style="font-size:14px; color:var(--text-light); margin-bottom:4px;">作者：${book.author || '待編輯'}</p>
-                                <p style="font-weight:600; margin-top:8px;">狀態：${statusHtml}</p>
-                            </div>
-                        </div>
-                        <div class="bs-desc-box" style="background:var(--bg); padding:16px; border-radius:var(--radius-md); font-size:14px; line-height:1.6; color:var(--text); margin-bottom:24px;">
-                            <p style="margin-bottom:12px;">${book.intro || '暫無簡介'}</p>
-                            <div style="color:var(--text-light); font-size:13px; border-top:1px solid var(--border); padding-top:12px;">
-                                <p>索書號：${book.callNo || '待編輯'}</p>
-                                <p>適合：${book.suitable || '待編輯'}</p>
-                            </div>
-                        </div>
-                        <div class="bs-action-box">
-                            ${reserveBtn}
-                            ${jumpBtn}
-                        </div>
-                    </div>
-                </div>`;
-            });
-            html += `</div>`;
-
-            sheet.innerHTML = html;
             document.getElementById('modalOverlay').classList.add('active');
-            sheet.classList.add('active');
-
-            const container = document.getElementById(`swipe_${sheetId}`);
-
-            // 延遲定位及綁定鎖定事件
-            setTimeout(() => {
-                container.scrollLeft = container.offsetWidth * initialIndex;
-
-                const inners = container.querySelectorAll('.swipe-item-inner');
-                inners.forEach(inner => {
-                    inner.addEventListener('scroll', function () {
-                        // 鎖定滑動機制：向下超過5px就禁止橫向滾動
-                        if (this.scrollTop > 5) {
-                            container.style.overflowX = 'hidden';
-                        } else {
-                            container.style.overflowX = 'auto';
-                        }
-                    });
-                });
-            }, 50);
+            document.getElementById('desktopBookDetailSheet').classList.add('active');
         }
 
-        window.showDesktopBookDetail = function (bookId) { window.renderSwipeView(bookId, false); }
-        window.showMobileBookDetail = function (bookId) { window.renderSwipeView(bookId, true); }
-
-        // ================= 預約 =================
         window.openReserveModal = function (bookId) {
             closeAllModals();
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
@@ -611,8 +535,6 @@
                 (b.callNo && b.callNo.toLowerCase().includes(keyword))
             );
 
-            window.currentSwipeBooks = matched; // 搜尋結果滑動用
-
             if (matched.length === 0) {
                 if (desktopContainer) desktopContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-light);">找不到相關書籍</div>';
                 if (mobileContainer) mobileContainer.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-light);">找不到相關書籍</div>';
@@ -651,8 +573,6 @@
                 list.innerHTML = '';
                 const ranked = window.libraryData.allBooks.map(b => ({ ...b, likes: window.libraryData.bookLikes[b.id] || 0 }))
                     .filter(b => b.likes > 0).sort((a, b) => b.likes - a.likes).slice(0, 10);
-
-                window.currentSwipeBooks = ranked; // 排行榜結果滑動用
 
                 ranked.forEach((b, i) => {
                     const color = window.getRandomSoftColor();
@@ -713,7 +633,6 @@
             if (controls) controls.style.display = 'none';
 
             const filtered = category === 'all' ? window.libraryData.allBooks : window.libraryData.allBooks.filter(b => b.classCode === category);
-            window.currentSwipeBooks = filtered; // 更新滑動列表
             filtered.forEach(book => container.appendChild(createMobileBookCard(book)));
             showMobileSection('mobileHomeSection');
         }
@@ -735,14 +654,16 @@
                     <h3 class="book-title" onclick="showMobileBookDetail('${book.id}')">${book.title}</h3>
                     <div class="book-meta"><span class="author">${book.author || '待編輯'}</span></div>
                     <div class="book-actions">
-                        <button class="action-btn like-btn-element" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)" class="${likeCount > 0 ? 'liked' : ''}">
+                        <button class="action-btn like-btn-element" data-book-id="${book.id}" onclick="bookLike('${book.id}', event)">
                             ${likeCount > 0 ? '❤️' : '🤍'} <span>${likeCount}</span>
                         </button>
                         <button class="action-btn" onclick="openCommentModal('${book.id}', event)">💬</button>
                     </div>
                 </div>
             `;
-            if (likeCount > 0) { card.querySelector('.like-btn-element').classList.add('liked'); }
+            if (likeCount > 0) {
+                card.querySelector('.like-btn-element').classList.add('liked');
+            }
             return card;
         }
 
@@ -767,12 +688,8 @@
             if (!window.libraryData.issues[issue] || !window.libraryData.issues[issue].books[posterNum]) return;
             const books = window.libraryData.issues[issue].books[posterNum];
 
-            window.currentSwipeBooks = [];
             for (let i = 1; i <= 9; i++) {
-                if (books[i]) {
-                    window.currentSwipeBooks.push(books[i]);
-                    container.appendChild(createMobileBookCard(books[i]));
-                }
+                if (books[i]) container.appendChild(createMobileBookCard(books[i]));
             }
         }
 
@@ -794,8 +711,134 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // ================= 手機版：Apple Books 風格左右滑動彈窗 =================
+        window.showMobileBookDetail = function (bookId) {
+            const book = window.libraryData.allBooks.find(b => b.id === bookId);
+            if (!book) return;
 
-        // ================= 後台管理員邏輯 =================
+            // 抓取目前畫面上顯示的所有卡片ID（來建立滑動清單）
+            const currentCards = document.querySelectorAll('#mobileBooksGrid .book-card, .ranking-item');
+            let bookIds = [];
+            currentCards.forEach(card => {
+                if (card.dataset.id) bookIds.push(card.dataset.id);
+                else if (card.getAttribute('onclick')) {
+                    const match = card.getAttribute('onclick').match(/'([^']+)'/);
+                    if (match) bookIds.push(match[1]);
+                }
+            });
+
+            bookIds = [...new Set(bookIds)]; // 去重複
+            if (bookIds.length === 0) bookIds = [bookId]; // 防呆
+            if (!bookIds.includes(bookId)) bookIds.unshift(bookId);
+
+            const swiper = document.getElementById('mobileDetailSwiper');
+            swiper.innerHTML = '';
+
+            // 依序建立每一本書的滑動卡片
+            bookIds.forEach((id) => {
+                const b = window.libraryData.allBooks.find(item => item.id === id);
+                if (!b) return;
+
+                let statusHtml = b.status === 'in'
+                    ? `<span style="color:var(--success)">在架 (可預約)</span>`
+                    : (b.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
+
+                let reserveBtn = b.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${b.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
+
+                const slide = document.createElement('div');
+                slide.className = 'mobile-detail-slide';
+                slide.id = `mobile-slide-${b.id}`;
+
+                // 核心：向下滾動時鎖定外層的左右滑動
+                slide.onscroll = function (e) {
+                    if (e.target.scrollTop > 10) {
+                        swiper.style.overflowX = 'hidden';
+                    } else {
+                        swiper.style.overflowX = 'auto';
+                    }
+                };
+
+                slide.innerHTML = `
+                    <div style="padding: 24px 24px 0; text-align: center;">
+                        <img src="${b.cover || placeholderImg}" style="width: 140px; height: 210px; object-fit: cover; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin: 0 auto 20px; display: block;" onerror="this.src='${placeholderImg}'">
+                        <h2 style="font-size: 22px; line-height: 1.3; margin-bottom: 8px; color: var(--text);">${b.title}</h2>
+                        <p style="color: var(--text-light); font-size: 16px; margin-bottom: 4px;">作者：${b.author || '待編輯'}</p>
+                        <p style="font-weight:600; margin-top:4px;">狀態：${statusHtml}</p>
+                    </div>
+                    <div style="padding: 20px 24px; font-size: 15px; line-height: 1.6; color: var(--text);">
+                        <div style="background: var(--bg); padding: 16px; border-radius: var(--radius-md);">
+                            <p style="margin-bottom:12px;"><strong>簡介：</strong><br>${b.intro || '暫無簡介'}</p>
+                            <div style="color:var(--text-light); font-size:14px; border-top:1px solid var(--border); padding-top:12px;">
+                                <p style="margin-bottom:4px;">索書號：${b.callNo || '待編輯'}</p>
+                                <p>適合：${b.suitable || '待編輯'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="padding: 0 24px 40px;">
+                        ${reserveBtn}
+                        <button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--surface); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="mobileJumpToIssue('${b.issue}', '${b.posterNum}')">前往第 ${b.issue} 期書單</button>
+                    </div>
+                `;
+                swiper.appendChild(slide);
+            });
+
+            // 顯示外層 Wrapper
+            const wrapper = document.getElementById('mobileBookDetailWrapper');
+            wrapper.classList.add('active');
+            swiper.style.overflowX = 'auto'; // 重置
+
+            // 定位到被點擊的書本 (瞬間定位)
+            setTimeout(() => {
+                const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
+                if (targetSlide) {
+                    swiper.style.scrollBehavior = 'auto';
+                    swiper.scrollLeft = targetSlide.offsetLeft - swiper.offsetLeft - (window.innerWidth * 0.04);
+
+                    // 恢復平滑滾動並啟動縮放監聽
+                    setTimeout(() => {
+                        swiper.style.scrollBehavior = 'smooth';
+                        initSwiperObserver();
+                    }, 50);
+                }
+            }, 10);
+        }
+
+        let mobileSwiperObserver = null;
+        function initSwiperObserver() {
+            const swiper = document.getElementById('mobileDetailSwiper');
+            const slides = swiper.querySelectorAll('.mobile-detail-slide');
+
+            if (mobileSwiperObserver) mobileSwiperObserver.disconnect();
+
+            mobileSwiperObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+                        entry.target.style.transform = 'scale(1)';
+                        entry.target.style.opacity = '1';
+                        entry.target.style.pointerEvents = 'auto';
+                    } else {
+                        entry.target.style.transform = 'scale(0.9)';
+                        entry.target.style.opacity = '0.5';
+                        entry.target.style.pointerEvents = 'none';
+                    }
+                });
+            }, {
+                root: swiper,
+                threshold: [0.3, 0.6, 0.9]
+            });
+
+            slides.forEach(slide => mobileSwiperObserver.observe(slide));
+        }
+
+        window.hideMobileBookDetail = function () {
+            const wrapper = document.getElementById('mobileBookDetailWrapper');
+            if (wrapper) {
+                wrapper.classList.remove('active');
+            }
+        }
+
+
+        // ================= 後台管理員邏輯 (100% 舊版還原) =================
         window.showAdminLogin = function () {
             document.getElementById('adminLoginModal').classList.remove('hidden');
             document.getElementById('adminLoginModal').style.display = 'flex';
@@ -810,12 +853,13 @@
                 document.getElementById('adminPanel').style.display = 'block';
                 showToast('登錄成功', 'success');
                 renderReserveRecords();
-                renderRecommendAdminRecords();
+                renderRecommendRecords();
                 loadAllComments();
             } else {
                 showToast('賬號或密碼錯誤', 'error');
             }
         }
+
         window.logoutAdmin = function () {
             document.getElementById('adminPanel').classList.add('hidden');
             document.getElementById('adminPanel').style.display = 'none';
@@ -939,12 +983,12 @@
             if (!container) return;
             container.innerHTML = '';
             const sorted = [...window.libraryData.reserveRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-            if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
+            if (sorted.length === 0) { container.innerHTML = '<p>暫無預約記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
                     <div class="record-item">
                         <div>${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}</div>
-                        <select onchange="updateReserveStatus('${r.id}', this.value)" style="padding:6px;">
+                        <select onchange="updateReserveStatus('${r.id}', this.value)">
                             <option ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
                             <option ${r.status === '處理中' ? 'selected' : ''}>處理中</option>
                             <option ${r.status === '借走了' ? 'selected' : ''}>借走了</option>
@@ -975,17 +1019,17 @@
             } catch (err) { showToast("更新失敗", "error"); }
         }
 
-        window.renderRecommendAdminRecords = function () {
+        window.renderRecommendRecords = function () {
             const container = document.getElementById('recommendRecordsContainer');
             if (!container) return;
             container.innerHTML = '';
             const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-            if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
+            if (sorted.length === 0) { container.innerHTML = '<p>暫無推薦記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
                     <div class="record-item">
-                        <div>${r.time} | ${r.bookName} | 理由: ${r.reason}</div>
-                        <select onchange="updateRecommendStatus('${r.id}', this.value)" style="padding:6px;">
+                        <div>${r.time} | 書名: ${r.bookName} | 理由: ${r.reason}</div>
+                        <select onchange="updateRecommendStatus('${r.id}', this.value)">
                             <option ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
                             <option ${r.status === '已記錄' ? 'selected' : ''}>已記錄</option>
                             <option ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
@@ -1000,7 +1044,7 @@
                 if (!record) return;
                 record.status = status;
                 await updateDoc(doc(db, "recommends", record.id), { status });
-                renderRecommendAdminRecords();
+                renderRecommendRecords();
                 renderRecommendList();
             } catch (err) { showToast("更新失敗", "error"); }
         }
@@ -1022,7 +1066,7 @@
                 const topChecked = comment.isTop ? 'checked' : '';
                 adminCommentList.innerHTML += `
                     <div class="record-item">
-                        <div><strong>${comment.bookTitle}</strong> | ${comment.content} <br><span style="color:var(--text-light); font-size:12px;">點讚: ${comment.likeCount} | ${comment.time}</span></div>
+                        <div><strong>${comment.bookTitle}</strong> | ${comment.content} <br><span style="color:var(--text-light); font-size:12px;">點讚: ${comment.likeCount} | 時間: ${comment.time}</span></div>
                         <div style="display:flex; gap:10px; align-items:center;">
                             <label>置頂: <input type="checkbox" ${topChecked} onchange="toggleCommentTop('${comment.bookId}', '${comment.id}', this.checked)"></label>
                             <button class="btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteComment('${comment.bookId}', '${comment.id}')">刪除</button>
@@ -1538,28 +1582,27 @@
             display: block;
         }
 
-        /* 後台樣式還原 */
+        /* 100% 還原舊版後台樣式 */
         .admin-panel {
-            margin: 20px auto;
+            margin: 20px;
             padding: 30px;
             background: white;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow);
-            max-width: 1200px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
 
         .admin-panel h2 {
             margin-bottom: 30px;
             padding-bottom: 15px;
-            border-bottom: 1px solid var(--gray-light);
+            border-bottom: 1px solid #f5f5f7;
         }
 
         .form-group {
             margin: 30px 0;
             padding: 25px;
-            border: 1px solid var(--gray-light);
-            border-radius: var(--radius-md);
-            background: var(--gray-light);
+            border: 1px solid #f5f5f7;
+            border-radius: 12px;
+            background: #f5f5f7;
         }
 
         .form-group h3 {
@@ -1569,7 +1612,7 @@
         .book-editor {
             margin: 15px 0;
             padding: 20px;
-            border: 1px dashed var(--border);
+            border: 1px dashed #e2e2e7;
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
@@ -1579,13 +1622,10 @@
 
         .record-item {
             padding: 15px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid #f5f5f7;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: white;
-            margin-bottom: 10px;
-            border-radius: 8px;
         }
 
         /* ================= 手機版專屬 ================= */
@@ -1678,48 +1718,6 @@
 
         .bottom-sheet.active {
             transform: translateY(0);
-        }
-
-        /* 專屬 Apple Books 風格滑動視窗 */
-        .book-detail-sheet {
-            padding: 15px 0 0 0 !important;
-            /* 移除左右 padding 以滿版滑動 */
-        }
-
-        .swipe-container {
-            display: flex;
-            overflow-x: auto;
-            overflow-y: hidden;
-            scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch;
-            width: 100%;
-            height: calc(100% - 15px);
-            scrollbar-width: none;
-        }
-
-        .swipe-container::-webkit-scrollbar {
-            display: none;
-        }
-
-        .swipe-item {
-            flex: 0 0 100%;
-            width: 100%;
-            height: 100%;
-            scroll-snap-align: center;
-            scroll-snap-stop: always;
-        }
-
-        .swipe-item-inner {
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 0 24px 24px 24px;
-            padding-bottom: calc(24px + env(safe-area-inset-bottom));
-            scrollbar-width: none;
-        }
-
-        .swipe-item-inner::-webkit-scrollbar {
-            display: none;
         }
 
         @media (min-width: 768px) {
@@ -1838,6 +1836,10 @@
             align-items: center;
         }
 
+        .modal.hidden {
+            display: none !important;
+        }
+
         .modal-content {
             background: white;
             padding: 30px;
@@ -1848,6 +1850,7 @@
             box-shadow: var(--shadow);
         }
 
+        /* 留言區 */
         .comment-item {
             border-bottom: 1px solid var(--bg);
             padding: 16px 0;
@@ -1893,6 +1896,7 @@
             border: none;
         }
 
+        /* Toast & Loading */
         .toast-container {
             position: fixed;
             top: 40px;
@@ -1943,20 +1947,13 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: var(--surface);
+            background: rgba(255, 255, 255, 0.8);
             z-index: 19999;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            opacity: 0;
             pointer-events: none;
-            transition: opacity 0.3s;
-        }
-
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: auto;
         }
 
         .spinner {
@@ -1969,14 +1966,15 @@
             margin-bottom: 16px;
         }
 
+        /* 隱藏的管理員入口 */
         .hidden-admin-entry {
             position: fixed;
             bottom: 10px;
             right: 10px;
             font-size: 12px;
             cursor: pointer;
-            opacity: 0.5;
-            z-index: 4;
+            opacity: 0.3;
+            z-index: 9999;
             width: 40px;
             height: 40px;
             background: #f5f5f7;
@@ -1985,6 +1983,108 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* 手機版：Apple Books 風格滑動書卡樣式 */
+        .mobile-detail-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2500;
+            display: none;
+        }
+
+        .mobile-detail-wrapper.active {
+            display: block;
+        }
+
+        .mobile-detail-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-detail-wrapper.active .mobile-detail-bg {
+            opacity: 1;
+        }
+
+        .mobile-detail-close {
+            position: absolute;
+            top: 40px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            z-index: 2501;
+            opacity: 0;
+            transition: opacity 0.3s;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        .mobile-detail-wrapper.active .mobile-detail-close {
+            opacity: 1;
+        }
+
+        .mobile-detail-swiper {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 88vh;
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 4vw;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            align-items: flex-end;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .mobile-detail-wrapper.active .mobile-detail-swiper {
+            transform: translateY(0);
+        }
+
+        .mobile-detail-swiper::-webkit-scrollbar {
+            display: none;
+        }
+
+        .mobile-detail-slide {
+            width: 86vw;
+            height: 100%;
+            flex-shrink: 0;
+            margin: 0 3vw;
+            scroll-snap-align: center;
+            background: var(--surface);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            position: relative;
+            transform: scale(0.9);
+            opacity: 0.5;
+            transition: all 0.3s ease-out;
+            transform-origin: bottom center;
+        }
+
+        .mobile-detail-slide::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 </head>
 
@@ -1992,7 +2092,7 @@
     <div id="toastContainer" class="toast-container"></div>
     <div id="loadingIndicator" class="loading-overlay">
         <div class="spinner"></div>
-        <p style="color:var(--text-light); font-weight:500;">圖書館資料同步中...</p>
+        <p style="color:var(--primary); font-weight:500;">圖書館資料同步中...</p>
     </div>
     <div class="modal-overlay" id="modalOverlay" onclick="closeAllModals()"></div>
 
@@ -2011,14 +2111,14 @@
             <div class="floating-island">
                 <button class="pill desktop-pill active" onclick="filterByCategory('all', this)">全部</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('000', this)">000 總類</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('100', this)">100 心理</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('100', this)">100 哲學</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('200', this)">200 宗教</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('300', this)">300 科學</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('400', this)">400 醫護</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('500', this)">500 社會</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('400', this)">400 應用</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('500', this)">500 社科</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('600', this)">600 歷史</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('700', this)">700 世界</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('800', this)">800 文學</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('700', this)">700 世界史</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('800', this)">800 語文</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('900', this)">900 藝術</button>
                 <button class="pill desktop-pill" onclick="showSection('recommendSection')"
                     style="color:var(--secondary)">推薦好書</button>
@@ -2077,9 +2177,9 @@
             <div class="form-group">
                 <h3>2. 海報管理</h3>
                 <p>海報功能已改為按鈕切換，無需上傳圖片</p>
-                <div style="margin-top: 10px;">
+                <div>
                     <label>選擇要刪除的期數: </label>
-                    <select id="deleteIssueSelect" style="padding: 8px; border-radius: 8px;">
+                    <select id="deleteIssueSelect">
                         <option value="1">第1期</option>
                     </select>
                     <button class="btn-danger" onclick="deleteWholeIssue()">刪除整期</button>
@@ -2090,14 +2190,16 @@
                 <h3>3. 書籍資訊管理</h3>
                 <div>
                     <label>選擇期數: </label>
-                    <select id="bookIssueSelect" style="padding: 8px; border-radius: 8px;"></select>
+                    <select id="bookIssueSelect">
+                        <option value="1">第1期</option>
+                    </select>
                     <label>選擇海報序號: </label>
-                    <select id="bookPosterSelect" style="padding: 8px; border-radius: 8px;">
+                    <select id="bookPosterSelect">
                         <option value="1">海報1</option>
                         <option value="2">海報2</option>
                     </select>
                     <label>選擇書籍序號: </label>
-                    <select id="bookNumSelect" style="padding: 8px; border-radius: 8px;">
+                    <select id="bookNumSelect">
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -2111,34 +2213,30 @@
                 </div>
 
                 <div class="book-editor">
-                    <input type="text" id="bookCallNo" class="input-field" placeholder="索書號">
-                    <input type="text" id="bookTitle" class="input-field" placeholder="書名">
-                    <div style="display: flex; flex-direction: column;">
-                        <label style="margin-bottom: 5px;">分類代碼: </label>
-                        <select id="bookClassCode" class="input-field" style="margin-bottom: 0;">
-                            <option value="000">000 總類</option>
-                            <option value="100">100 哲學</option>
-                            <option value="200">200 宗教</option>
-                            <option value="300">300 科學</option>
-                            <option value="400">400 應用科學</option>
-                            <option value="500">500 社科</option>
-                            <option value="600">600 歷史</option>
-                            <option value="700">700 世界史</option>
-                            <option value="800">800 語文</option>
-                            <option value="900">900 藝術</option>
-                        </select>
-                    </div>
-                    <input type="text" id="bookAuthor" class="input-field" placeholder="作者">
-                    <textarea id="bookIntro" class="input-field" placeholder="簡介"></textarea>
-                    <input type="text" id="bookSuitable" class="input-field" placeholder="適合人群">
-                    <div style="display: flex; flex-direction: column;">
-                        <select id="bookStatus" class="input-field" style="margin-bottom: 0;">
-                            <option value="in">在架（可預約）</option>
-                            <option value="out">不在架</option>
-                            <option value="lost">遺失</option>
-                        </select>
-                    </div>
-                    <input type="file" id="bookCoverUpload" accept="image/*" style="padding: 10px;">
+                    <input type="text" id="bookCallNo" placeholder="索書號">
+                    <input type="text" id="bookTitle" placeholder="書名">
+                    <label>分類代碼: </label>
+                    <select id="bookClassCode">
+                        <option value="000">000 總類</option>
+                        <option value="100">100 哲學</option>
+                        <option value="200">200 宗教</option>
+                        <option value="300">300 科學</option>
+                        <option value="400">400 應用科學</option>
+                        <option value="500">500 社科</option>
+                        <option value="600">600 歷史</option>
+                        <option value="700">700 世界史</option>
+                        <option value="800">800 語文</option>
+                        <option value="900">900 藝術</option>
+                    </select>
+                    <input type="text" id="bookAuthor" placeholder="作者">
+                    <textarea id="bookIntro" placeholder="簡介"></textarea>
+                    <input type="text" id="bookSuitable" placeholder="適合人群">
+                    <select id="bookStatus">
+                        <option value="in">在架（可預約）</option>
+                        <option value="out">不在架</option>
+                        <option value="lost">遺失</option>
+                    </select>
+                    <input type="file" id="bookCoverUpload" accept="image/*">
                     <button class="btn-primary" onclick="saveBookInfo()">儲存書籍</button>
                     <button class="btn-danger" onclick="deleteBookInfo()">刪除書籍</button>
                 </div>
@@ -2146,29 +2244,33 @@
 
             <div class="form-group">
                 <h3>4. 預約記錄管理</h3>
-                <div id="reserveRecordsContainer" style="max-height: 400px; overflow-y: auto;"></div>
+                <div id="reserveRecordsContainer">
+                </div>
             </div>
 
             <div class="form-group">
                 <h3>5. 推薦購書記錄管理</h3>
-                <div id="recommendRecordsContainer" style="max-height: 400px; overflow-y: auto;"></div>
+                <div id="recommendRecordsContainer">
+                </div>
             </div>
 
             <div class="form-group">
                 <h3>6. 留言管理</h3>
                 <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
-                <div id="adminCommentList" style="margin-top:20px; max-height: 400px; overflow-y: auto;"></div>
+                <div id="adminCommentList" style="margin-top:20px;">
+                </div>
             </div>
 
             <div class="form-group">
                 <h3>7. 公告管理</h3>
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">公告標題:</label>
-                    <input type="text" id="announcementTitleInput" class="input-field" placeholder="輸入公告標題">
+                    <input type="text" id="announcementTitleInput" placeholder="輸入公告標題"
+                        style="width: 100%; padding: 10px; margin: 5px 0;">
 
                     <label style="display: block; margin-bottom: 8px; font-weight: 500; margin-top: 15px;">公告內容:</label>
-                    <textarea id="announcementContentInput" class="input-field" placeholder="輸入公告內容"
-                        style="min-height: 100px;"></textarea>
+                    <textarea id="announcementContentInput" placeholder="輸入公告內容"
+                        style="width: 100%; padding: 10px; margin: 5px 0; min-height: 100px;"></textarea>
 
                     <div style="margin-top: 20px; display: flex; gap: 10px;">
                         <button class="btn-primary" onclick="saveAnnouncement()">保存公告</button>
@@ -2178,7 +2280,7 @@
             </div>
         </div>
 
-        <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();">®</div>
+        <div class="hidden-admin-entry" onclick="showAdminLogin(); event.stopPropagation();">®</div>
     </div>
 
 
@@ -2243,9 +2345,32 @@
     </div>
 
 
-    <div class="bottom-sheet book-detail-sheet" id="desktopBookDetailSheet"></div>
+    <div class="bottom-sheet" id="desktopBookDetailSheet">
+        <div class="bs-handle"></div>
+        <div class="bs-header">
+            <img id="dbsCover" class="bs-cover">
+            <div class="bs-info">
+                <h2 id="dbsTitle"></h2>
+                <p id="dbsAuthor"></p>
+                <p id="dbsStatus" style="font-weight:600; margin-top:8px;"></p>
+            </div>
+        </div>
+        <div class="bs-desc-box">
+            <p id="dbsIntro" style="margin-bottom:12px;"></p>
+            <div style="color:var(--text-light); font-size:13px; border-top:1px solid var(--border); padding-top:12px;">
+                <p id="dbsCallNo"></p>
+                <p id="dbsSuitable"></p>
+            </div>
+        </div>
+        <div id="dbsReserveContainer"></div>
+    </div>
 
-    <div class="bottom-sheet book-detail-sheet" id="mobileBookDetailSheet"></div>
+    <div class="mobile-detail-wrapper" id="mobileBookDetailWrapper">
+        <div class="mobile-detail-bg" onclick="hideMobileBookDetail()"></div>
+        <div class="mobile-detail-close" onclick="hideMobileBookDetail()">✕</div>
+        <div class="mobile-detail-swiper" id="mobileDetailSwiper">
+        </div>
+    </div>
 
     <div class="modal-center" id="reserveModal">
         <div class="modal-close" onclick="closeAllModals()">✕</div>
