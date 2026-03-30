@@ -782,6 +782,7 @@
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
 
+            // 1. 獲取當前網格中顯示的所有書籍 IDs (確保滑動時能看到同樣順序的書)
             const currentCards = document.querySelectorAll('#mobileBooksGrid .book-card, .list-card');
             let bookIds = [];
             currentCards.forEach(card => {
@@ -800,6 +801,7 @@
             const swiper = document.getElementById('mobileDetailSwiper');
             swiper.innerHTML = '';
 
+            // 2. 根據 IDs 建立所有的 Slide 卡片
             bookIds.forEach((id) => {
                 const b = window.libraryData.allBooks.find(item => item.id === id);
                 if (!b) return;
@@ -810,10 +812,12 @@
 
                 let reserveBtn = b.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${b.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
+                // 外層 slide 容器 (100vw寬度，用於 snap 排列)
                 const slide = document.createElement('div');
                 slide.className = 'mobile-detail-slide';
                 slide.id = `mobile-slide-${b.id}`;
 
+                // 內層實際的卡片內容區
                 const card = document.createElement('div');
                 card.className = 'mobile-detail-card';
 
@@ -839,19 +843,70 @@
                     </div>
                 `;
 
+                // --- 核心交互：向下滾動、左右鎖定、下拉關閉 ---
+                let startY = 0;
+                let currentY = 0;
+
+                // 1. 滾動超過一點點，就鎖定左右滑動
+                card.addEventListener('scroll', function (e) {
+                    if (this.scrollTop > 5) {
+                        swiper.style.overflowX = 'hidden';
+                    } else {
+                        swiper.style.overflowX = 'auto';
+                    }
+                });
+
+                // 2. 觸控開始，記錄位置並移除彈性動畫以便跟手
+                card.addEventListener('touchstart', function (e) {
+                    startY = e.touches[0].clientY;
+                    currentY = startY;
+                    this.style.transition = 'none';
+                }, { passive: true });
+
+                // 3. 拖曳中：如果在頂部且往下拖，就讓卡片往下走
+                card.addEventListener('touchmove', function (e) {
+                    currentY = e.touches[0].clientY;
+                    const deltaY = currentY - startY;
+
+                    // 當在最頂部，且手指向下滑動（deltaY > 0 為往下拖曳）
+                    if (this.scrollTop <= 0 && deltaY > 0) {
+                        this.style.transform = `translateY(${deltaY}px)`;
+                        if (e.cancelable) e.preventDefault(); // 阻擋原生的下拉刷新
+                    }
+                }, { passive: false });
+
+                // 4. 觸控結束：判斷是否拉夠遠來關閉，否則彈回原位
+                card.addEventListener('touchend', function (e) {
+                    const deltaY = currentY - startY;
+                    this.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'; // 恢復滑動動畫
+
+                    if (this.scrollTop <= 0 && deltaY > 100) { // 下拉超過 100px 則關閉
+                        hideMobileBookDetail();
+                        setTimeout(() => {
+                            this.style.transform = 'translateY(0)'; // 在背景彈回原位
+                        }, 400);
+                    } else {
+                        this.style.transform = 'translateY(0)'; // 拉不夠遠，彈回原位
+                    }
+                });
+
                 slide.appendChild(card);
                 swiper.appendChild(slide);
             });
 
+            // 3. 顯示 Wrapper
             const wrapper = document.getElementById('mobileBookDetailWrapper');
             wrapper.classList.add('active');
+            swiper.style.overflowX = 'auto'; // 確保初始可左右滑
 
+            // 4. 瞬間定位到使用者點擊的那本書
             setTimeout(() => {
                 const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
                 if (targetSlide) {
                     swiper.style.scrollBehavior = 'auto';
                     swiper.scrollLeft = targetSlide.offsetLeft;
 
+                    // 延遲後恢復平滑滾動（供手動切換時使用）
                     setTimeout(() => {
                         swiper.style.scrollBehavior = 'smooth';
                     }, 50);
@@ -1956,7 +2011,7 @@
             border: none;
         }
 
-        /* Toast & Loading */
+        /* Toast & Loading 修復：使用 opacity 與 visibility 控制以確保按鈕可點擊 */
         .toast-container {
             position: fixed;
             top: 40px;
@@ -2013,7 +2068,18 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            /* 初始化隱藏，確保不擋住點擊 */
+            opacity: 0;
+            visibility: hidden;
             pointer-events: none;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            /* 載入中擋住點擊 */
         }
 
         .spinner {
@@ -2144,6 +2210,8 @@
             overflow-x: hidden;
             padding: 24px;
             padding-bottom: calc(24px + env(safe-area-inset-bottom));
+            will-change: transform;
+            /* 優化拖曳時的渲染效能 */
         }
 
         .mobile-detail-card::-webkit-scrollbar {
