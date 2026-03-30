@@ -9,7 +9,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-        // ================= 您的 Firebase 配置 =================
+
         const firebaseConfig = {
             apiKey: "AIzaSyAdNZnrW2xEh6AYFs5osZ0Zi-Tl5ZPbqfs",
             authDomain: "newbookf-a73de-5a312-47013.firebaseapp.com",
@@ -32,7 +32,7 @@
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
-        // ================= UI 核心工具 =================
+
         window.showToast = function (message, type = "success") {
             const container = document.getElementById('toastContainer');
             if (!container) return;
@@ -180,7 +180,7 @@
             if (bnSel) bnSel.addEventListener('change', loadBookData);
         }
 
-        // ================= 公告邏輯 =================
+
         async function loadAnnouncement() {
             try {
                 const docSnap = await getDoc(doc(db, "settings", "announcement"));
@@ -213,7 +213,7 @@
             }
         }
 
-        // ================= 防呆下拉選單生成 =================
+
         function renderIssueSelectors() {
             const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
             let optionsHtml = '';
@@ -233,7 +233,7 @@
             });
         }
 
-        // ================= 電腦版與共用切換邏輯 =================
+
         window.switchIssue = function (issue) {
             window.currentIssue = Number(issue);
             const sel = document.getElementById('issueSelect');
@@ -334,7 +334,7 @@
             if (sec) sec.classList.add('active');
         }
 
-        // ================= 無縫巡迴展示欄 =================
+
         function initCarousel() {
             const track = document.getElementById('carouselTrack');
             if (!track) return;
@@ -356,7 +356,7 @@
             books.forEach(b => track.appendChild(createItem(b)));
         }
 
-        // ================= 書籍詳情與預約 =================
+
         window.showDesktopBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
@@ -442,11 +442,11 @@
             } catch (err) { showToast("預約失敗", "error"); }
         }
 
-        // ================= 點讚與留言 =================
+
         window.bookLike = async function (bookId, event) {
             event.stopPropagation();
             if (window.clickedLike.has(bookId)) {
-                showToast('您已經按過讚囉！', 'success');
+                showToast('你已經按過讚囉！', 'success');
                 return;
             }
             window.clickedLike.add(bookId);
@@ -528,7 +528,7 @@
             }
         }
 
-        // ================= 搜尋與推薦 =================
+
         let searchTimeout;
         window.setupSearchDebounce = function () {
             const inputs = [document.getElementById('searchInput'), document.getElementById('mobileSearchInput')];
@@ -686,7 +686,7 @@
         }
 
 
-        // ================= 手機版專屬邏輯 =================
+
         window.mobileFilterByCategory = function (category, element) {
             document.querySelectorAll('.pill.mobile-pill').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
@@ -777,12 +777,12 @@
         }
 
 
-        // ================= 手機版：Apple Books 風格左右滑動卡片 =================
+
         window.showMobileBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
 
-            // 1. 獲取當前網格中顯示的所有書籍 IDs (確保滑動時能看到同樣順序的書)
+
             const currentCards = document.querySelectorAll('#mobileBooksGrid .book-card, .list-card');
             let bookIds = [];
             currentCards.forEach(card => {
@@ -801,7 +801,7 @@
             const swiper = document.getElementById('mobileDetailSwiper');
             swiper.innerHTML = '';
 
-            // 2. 根據 IDs 建立所有的 Slide 卡片
+
             bookIds.forEach((id) => {
                 const b = window.libraryData.allBooks.find(item => item.id === id);
                 if (!b) return;
@@ -812,12 +812,12 @@
 
                 let reserveBtn = b.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${b.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
-                // 外層 slide 容器 (100vw寬度，用於 snap 排列)
+
                 const slide = document.createElement('div');
                 slide.className = 'mobile-detail-slide';
                 slide.id = `mobile-slide-${b.id}`;
 
-                // 內層實際的卡片內容區
+
                 const card = document.createElement('div');
                 card.className = 'mobile-detail-card';
 
@@ -843,11 +843,11 @@
                     </div>
                 `;
 
-                // --- 核心交互：向下滾動、左右鎖定、下拉關閉 ---
+                // 向下、左右鎖定、下拉關閉 
                 let startY = 0;
                 let currentY = 0;
 
-                // 1. 滾動超過一點點，就鎖定左右滑動
+
                 card.addEventListener('scroll', function (e) {
                     if (this.scrollTop > 5) {
                         swiper.style.overflowX = 'hidden';
@@ -856,29 +856,29 @@
                     }
                 });
 
-                // 2. 觸控開始，記錄位置並移除彈性動畫以便跟手
+
                 card.addEventListener('touchstart', function (e) {
                     startY = e.touches[0].clientY;
                     currentY = startY;
                     this.style.transition = 'none';
                 }, { passive: true });
 
-                // 3. 拖曳中：如果在頂部且往下拖，就讓卡片往下走
+
                 card.addEventListener('touchmove', function (e) {
                     currentY = e.touches[0].clientY;
                     const deltaY = currentY - startY;
 
-                    // 當在最頂部，且手指向下滑動（deltaY > 0 為往下拖曳）
+
                     if (this.scrollTop <= 0 && deltaY > 0) {
                         this.style.transform = `translateY(${deltaY}px)`;
                         if (e.cancelable) e.preventDefault(); // 阻擋原生的下拉刷新
                     }
                 }, { passive: false });
 
-                // 4. 觸控結束：判斷是否拉夠遠來關閉，否則彈回原位
+
                 card.addEventListener('touchend', function (e) {
                     const deltaY = currentY - startY;
-                    this.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)'; // 恢復滑動動畫
+                    this.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
 
                     if (this.scrollTop <= 0 && deltaY > 100) { // 下拉超過 100px 則關閉
                         hideMobileBookDetail();
@@ -894,19 +894,19 @@
                 swiper.appendChild(slide);
             });
 
-            // 3. 顯示 Wrapper
+
             const wrapper = document.getElementById('mobileBookDetailWrapper');
             wrapper.classList.add('active');
-            swiper.style.overflowX = 'auto'; // 確保初始可左右滑
+            swiper.style.overflowX = 'auto';
 
-            // 4. 瞬間定位到使用者點擊的那本書
+
             setTimeout(() => {
                 const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
                 if (targetSlide) {
                     swiper.style.scrollBehavior = 'auto';
                     swiper.scrollLeft = targetSlide.offsetLeft;
 
-                    // 延遲後恢復平滑滾動（供手動切換時使用）
+
                     setTimeout(() => {
                         swiper.style.scrollBehavior = 'smooth';
                     }, 50);
@@ -922,7 +922,7 @@
         }
 
 
-        // ================= 後台管理員邏輯 =================
+
         window.showAdminLogin = function () {
             document.getElementById('adminLoginModal').classList.remove('hidden');
             document.getElementById('adminLoginModal').style.display = 'flex';
@@ -1298,7 +1298,7 @@
             background: #fff0f0;
         }
 
-        /* ================= RWD 切換 ================= */
+
         .desktop-content {
             display: none;
         }
@@ -1318,7 +1318,7 @@
             }
         }
 
-        /* ================= 共通卡片與元件 ================= */
+
         .header-container {
             text-align: center;
             padding: 40px 20px 20px;
@@ -1593,7 +1593,7 @@
             pointer-events: none;
         }
 
-        /* ================= 電腦版專屬 ================= */
+
         .desktop-content .main-section {
             display: none;
             padding: 0 20px;
@@ -1695,7 +1695,7 @@
             display: block;
         }
 
-        /* 100% 還原舊版後台樣式 */
+
         .admin-panel {
             margin: 20px auto;
             padding: 30px;
@@ -1742,7 +1742,7 @@
             align-items: center;
         }
 
-        /* ================= 手機版專屬 ================= */
+
         .mobile-content .mobile-main-section {
             display: none;
             padding: 0 16px;
@@ -1795,7 +1795,7 @@
             font-size: 22px;
         }
 
-        /* ================= 彈窗與遮罩系統 ================= */
+
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -1965,7 +1965,7 @@
             box-shadow: var(--shadow);
         }
 
-        /* 留言區 */
+
         .comment-item {
             border-bottom: 1px solid var(--bg);
             padding: 16px 0;
@@ -2011,7 +2011,7 @@
             border: none;
         }
 
-        /* Toast & Loading 修復：使用 opacity 與 visibility 控制以確保按鈕可點擊 */
+
         .toast-container {
             position: fixed;
             top: 40px;
@@ -2068,7 +2068,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            /* 初始化隱藏，確保不擋住點擊 */
+
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
@@ -2079,7 +2079,7 @@
             opacity: 1;
             visibility: visible;
             pointer-events: auto;
-            /* 載入中擋住點擊 */
+
         }
 
         .spinner {
@@ -2092,7 +2092,6 @@
             margin-bottom: 16px;
         }
 
-        /* 隱藏的管理員入口 */
         .hidden-admin-entry {
             position: fixed;
             bottom: 10px;
@@ -2110,7 +2109,7 @@
             justify-content: center;
         }
 
-        /* ================= 手機版：Apple Books 風格滑動書卡樣式 ================= */
+
         .mobile-detail-wrapper {
             position: fixed;
             top: 0;
@@ -2211,7 +2210,7 @@
             padding: 24px;
             padding-bottom: calc(24px + env(safe-area-inset-bottom));
             will-change: transform;
-            /* 優化拖曳時的渲染效能 */
+
         }
 
         .mobile-detail-card::-webkit-scrollbar {
@@ -2249,8 +2248,8 @@
                 <button class="pill desktop-pill" onclick="filterByCategory('400', this)">400 應用</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('500', this)">500 社科</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('600', this)">600 歷史</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('700', this)">700 世界史</button>
-                <button class="pill desktop-pill" onclick="filterByCategory('800', this)">800 語文</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('700', this)">700 世界</button>
+                <button class="pill desktop-pill" onclick="filterByCategory('800', this)">800 文學</button>
                 <button class="pill desktop-pill" onclick="filterByCategory('900', this)">900 藝術</button>
                 <button class="pill desktop-pill" onclick="showSection('recommendSection')"
                     style="color:var(--secondary)">推薦好書</button>
@@ -2508,7 +2507,7 @@
         <div class="modal-close" onclick="closeAllModals()">✕</div>
         <h3 style="font-size:20px; margin-bottom:8px;">預約書籍</h3>
         <p id="reserveBookTitle" style="color:var(--primary); font-weight:600; margin-bottom:20px;"></p>
-        <input type="text" id="reserveClass" class="input-field" placeholder="輸入班級 (例: 初三1)">
+        <input type="text" id="reserveClass" class="input-field" placeholder="輸入班級 (例: 初三A)">
         <input type="text" id="reserveName" class="input-field" placeholder="輸入姓名">
         <input type="hidden" id="reserveBookId">
         <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="submitReserve()">確認預約</button>
