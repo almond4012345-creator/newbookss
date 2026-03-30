@@ -27,6 +27,7 @@
             latestIssue: 1, allBooks: []
         };
         window.currentIssue = 1;
+        window.clickedWantToRead = new Set(); // 記錄當次重新整理中已點擊的推薦書單ID
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
@@ -569,6 +570,27 @@
             }
         }
 
+        window.wantToRead = async function(id, btn) {
+            if (window.clickedWantToRead.has(id)) {
+                showToast('您已經表示過想看囉！', 'success');
+                return;
+            }
+            window.clickedWantToRead.add(id);
+
+            const record = window.libraryData.recommendRecords.find(r => r.id === id);
+            if (!record) return;
+            
+            record.wantToReadCount = (record.wantToReadCount || 0) + 1;
+            renderRecommendList();
+            showToast('已+1！');
+
+            try {
+                await updateDoc(doc(db, "recommends", id), { wantToReadCount: record.wantToReadCount });
+            } catch (err) {
+                console.error("更新失敗", err);
+            }
+        }
+
         function renderRecommendList() {
             const lists = [document.getElementById('recommendList'), document.getElementById('mobileRecommendList')];
             lists.forEach(list => {
@@ -577,12 +599,26 @@
                 const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
                 sorted.forEach((r, i) => {
                     const color = window.getRandomSoftColor();
+                    const status = r.status || '已推薦';
+                    let statusColor = status === '已記錄' ? 'var(--success)' : (status === '不合規定' ? 'var(--danger)' : 'var(--secondary)');
+                    const wantCount = r.wantToReadCount || 0;
+                    
                     list.innerHTML += `
-                        <div class="list-card">
-                            <div class="avatar" style="background:${color}">${i + 1}</div>
-                            <div class="info">
-                                <div class="title">${r.bookName}</div>
-                                <div class="desc">推薦理由：${r.reason}</div>
+                        <div class="list-card" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <div class="avatar" style="background:${color}">${i + 1}</div>
+                                <div class="info" style="flex: 1;">
+                                    <div class="title" style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                        <span>${r.bookName}</span>
+                                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: ${statusColor}; color: white; font-weight: 500;">${status}</span>
+                                    </div>
+                                    <div class="desc">推薦理由：${r.reason}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end;">
+                                <button onclick="wantToRead('${r.id}', this)" class="want-read-btn ${window.clickedWantToRead.has(r.id) ? 'clicked' : ''}">
+                                    🙋 我也想看 <span class="count">${wantCount}</span>
+                                </button>
                             </div>
                         </div>`;
                 });
@@ -621,7 +657,7 @@
             const reason = document.getElementById('recReason').value.trim() || '無';
             if (!name) { showToast('請填寫書名', 'error'); return; }
 
-            window.saveRecommendRecord({ bookName: name, reason, time: new Date().toLocaleString(), status: '已推薦' });
+            window.saveRecommendRecord({ bookName: name, reason, time: new Date().toLocaleString(), status: '已推薦', wantToReadCount: 0 });
             closeAllModals();
             showToast('推薦成功！');
             document.getElementById('recName').value = '';
@@ -747,19 +783,17 @@
                 if (card.dataset.id) {
                     bookIds.push(card.dataset.id);
                 } else if (card.getAttribute('onclick')) {
-                    // 從 onclick="showDesktopBookDetail('...')" 提取 ID
                     const match = card.getAttribute('onclick').match(/'([^']+)'/);
                     if (match) bookIds.push(match[1]);
                 }
             });
 
-            // 去重複並確保當前點擊的書一定在清單內
             bookIds = [...new Set(bookIds)];
             if (bookIds.length === 0) bookIds = [bookId];
             if (!bookIds.includes(bookId)) bookIds.unshift(bookId);
 
             const swiper = document.getElementById('mobileDetailSwiper');
-            swiper.innerHTML = ''; // 清空舊的 slides
+            swiper.innerHTML = '';
 
             // 2. 根據 IDs 建立所有的 Slide 卡片
             bookIds.forEach((id) => {
@@ -772,12 +806,10 @@
 
                 let reserveBtn = b.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${b.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
-                // 外層 slide 容器 (100vw寬度，用於 snap 排列)
                 const slide = document.createElement('div');
                 slide.className = 'mobile-detail-slide';
                 slide.id = `mobile-slide-${b.id}`;
 
-                // 內層實際的卡片內容區
                 const card = document.createElement('div');
                 card.className = 'mobile-detail-card';
 
@@ -804,7 +836,7 @@
                 `;
 
                 // 核心交互：向下滾動卡片內部時，鎖定父層 swiper 的左右滑動
-                card.addEventListener('scroll', function (e) {
+                card.addEventListener('scroll', function(e) {
                     if (this.scrollTop > 5) {
                         swiper.style.overflowX = 'hidden';
                     } else {
@@ -819,22 +851,20 @@
             // 3. 顯示 Wrapper 和動畫
             const wrapper = document.getElementById('mobileBookDetailWrapper');
             wrapper.classList.add('active');
-            swiper.style.overflowX = 'auto'; // 確保一開始允許左右滑動
+            swiper.style.overflowX = 'auto';
 
             // 4. 定位到使用者點擊的那本書 (無縫跳轉)
             setTimeout(() => {
                 const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
                 if (targetSlide) {
-                    // 瞬間跳轉到目標卡片，不帶滑動動畫
                     swiper.style.scrollBehavior = 'auto';
                     swiper.scrollLeft = targetSlide.offsetLeft;
-
-                    // 等待跳轉完成後，再恢復 smooth 行為供使用者手動左右滑動
+                    
                     setTimeout(() => {
                         swiper.style.scrollBehavior = 'smooth';
                     }, 50);
                 }
-            }, 10); // 微小延遲確保 DOM 已渲染
+            }, 10); 
         }
 
         window.hideMobileBookDetail = function () {
@@ -989,12 +1019,12 @@
             if (!container) return;
             container.innerHTML = '';
             const sorted = [...window.libraryData.reserveRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-            if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
+            if (sorted.length === 0) { container.innerHTML = '<p>暫無預約記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
                     <div class="record-item">
                         <div>${r.time} | ${r.bookTitle} | ${r.className} ${r.studentName}</div>
-                        <select onchange="updateReserveStatus('${r.id}', this.value)" style="padding:6px;">
+                        <select onchange="updateReserveStatus('${r.id}', this.value)">
                             <option ${r.status === '已預約' ? 'selected' : ''}>已預約</option>
                             <option ${r.status === '處理中' ? 'selected' : ''}>處理中</option>
                             <option ${r.status === '借走了' ? 'selected' : ''}>借走了</option>
@@ -1030,12 +1060,12 @@
             if (!container) return;
             container.innerHTML = '';
             const sorted = [...window.libraryData.recommendRecords].sort((a, b) => new Date(b.time) - new Date(a.time));
-            if (sorted.length === 0) { container.innerHTML = '<p>暫無記錄</p>'; return; }
+            if (sorted.length === 0) { container.innerHTML = '<p>暫無推薦記錄</p>'; return; }
             sorted.forEach((r, i) => {
                 container.innerHTML += `
                     <div class="record-item">
-                        <div>${r.time} | ${r.bookName} | 理由: ${r.reason}</div>
-                        <select onchange="updateRecommendStatus('${r.id}', this.value)" style="padding:6px;">
+                        <div>${r.time} | 書名: ${r.bookName} | 理由: ${r.reason}</div>
+                        <select onchange="updateRecommendStatus('${r.id}', this.value)">
                             <option ${r.status === '已推薦' ? 'selected' : ''}>推薦中</option>
                             <option ${r.status === '已記錄' ? 'selected' : ''}>已記錄</option>
                             <option ${r.status === '不合規定' ? 'selected' : ''}>不合規定</option>
@@ -1454,7 +1484,6 @@
             align-items: center;
             gap: 16px;
             box-shadow: var(--shadow-sm);
-            cursor: pointer;
             transition: transform 0.2s;
         }
 
@@ -1484,6 +1513,37 @@
         .list-card .desc {
             font-size: 13px;
             color: var(--text-light);
+        }
+        
+        .want-read-btn {
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 13px;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .want-read-btn:hover {
+            border-color: var(--primary);
+        }
+
+        .want-read-btn .count {
+            color: var(--primary);
+        }
+
+        .want-read-btn.clicked {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+            opacity: 0.7;
+            pointer-events: none;
         }
 
         /* ================= 電腦版專屬 ================= */
@@ -1961,7 +2021,14 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            opacity: 0;
             pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .spinner {
@@ -1992,7 +2059,7 @@
             justify-content: center;
         }
 
-        /* ================= 手機版：Apple Books 風格滑動書卡 ================= */
+        /* ================= 手機版：Apple Books 風格滑動書卡樣式 ================= */
         .mobile-detail-wrapper {
             position: fixed;
             top: 0;
@@ -2014,10 +2081,8 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
             opacity: 0;
-            transition: opacity 0.4s;
+            transition: opacity 0.3s;
         }
 
         .mobile-detail-wrapper.active .mobile-detail-bg {
@@ -2025,22 +2090,23 @@
         }
 
         .mobile-detail-close {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            width: 32px;
-            height: 32px;
-            background: rgba(255, 255, 255, 0.25);
+            position: absolute;
+            top: 40px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            z-index: 2505;
-            cursor: pointer;
+            font-size: 20px;
+            z-index: 2501;
             opacity: 0;
-            transition: opacity 0.4s;
+            transition: opacity 0.3s;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
         }
 
         .mobile-detail-wrapper.active .mobile-detail-close {
@@ -2049,19 +2115,21 @@
 
         .mobile-detail-swiper {
             position: absolute;
-            top: 0;
+            bottom: 0;
             left: 0;
             width: 100%;
-            height: 100%;
+            height: 88vh;
             display: flex;
             overflow-x: auto;
             overflow-y: hidden;
             scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
-            z-index: 2501;
-            scroll-behavior: auto;
+            padding: 0 4vw;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            align-items: flex-end;
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
         .mobile-detail-wrapper.active .mobile-detail-swiper {
@@ -2073,26 +2141,23 @@
         }
 
         .mobile-detail-slide {
-            width: 100vw;
+            width: 86vw;
             height: 100%;
             flex-shrink: 0;
-            scroll-snap-align: start;
-            display: flex;
-            align-items: flex-end;
-        }
-
-        .mobile-detail-card {
-            width: 100vw;
-            height: calc(100% - 70px);
+            margin: 0 3vw;
+            scroll-snap-align: center;
             background: var(--surface);
-            border-radius: 20px 20px 0 0;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 24px;
-            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+            position: relative;
+            transform: scale(0.9);
+            opacity: 0.5;
+            transition: all 0.3s ease-out;
+            transform-origin: bottom center;
         }
 
-        .mobile-detail-card::-webkit-scrollbar {
+        .mobile-detail-slide::-webkit-scrollbar {
             display: none;
         }
     </style>
@@ -2255,20 +2320,20 @@
             <div class="form-group">
                 <h3>4. 預約記錄管理</h3>
                 <div id="reserveRecordsContainer">
-                </div>
+                    </div>
             </div>
 
             <div class="form-group">
                 <h3>5. 推薦購書記錄管理</h3>
                 <div id="recommendRecordsContainer">
-                </div>
+                    </div>
             </div>
 
             <div class="form-group">
                 <h3>6. 留言管理</h3>
                 <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
                 <div id="adminCommentList" style="margin-top:20px;">
-                </div>
+                    </div>
             </div>
 
             <div class="form-group">
@@ -2379,7 +2444,7 @@
         <div class="mobile-detail-bg" onclick="hideMobileBookDetail()"></div>
         <div class="mobile-detail-close" onclick="hideMobileBookDetail()">✕</div>
         <div class="mobile-detail-swiper" id="mobileDetailSwiper">
-        </div>
+            </div>
     </div>
 
     <div class="modal-center" id="reserveModal">
