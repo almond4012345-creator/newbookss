@@ -27,7 +27,8 @@
             latestIssue: 1, allBooks: []
         };
         window.currentIssue = 1;
-        window.clickedWantToRead = new Set(); // 記錄當次重新整理中已點擊的推薦書單ID
+        window.clickedWantToRead = new Set();
+        window.clickedLike = new Set();
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
@@ -89,7 +90,6 @@
                     });
                 });
 
-                // 自動校對書籍預約狀態
                 for (const issueId in window.libraryData.issues) {
                     let issueChanged = false;
                     for (const posterId in window.libraryData.issues[issueId].books) {
@@ -445,6 +445,12 @@
         // ================= 點讚與留言 =================
         window.bookLike = async function (bookId, event) {
             event.stopPropagation();
+            if (window.clickedLike.has(bookId)) {
+                showToast('您已經按過讚囉！', 'success');
+                return;
+            }
+            window.clickedLike.add(bookId);
+
             if (!window.libraryData.bookLikes[bookId]) window.libraryData.bookLikes[bookId] = 0;
             window.libraryData.bookLikes[bookId] += 1;
 
@@ -570,7 +576,7 @@
             }
         }
 
-        window.wantToRead = async function(id, btn) {
+        window.wantToRead = async function (id, btn) {
             if (window.clickedWantToRead.has(id)) {
                 showToast('您已經表示過想看囉！', 'success');
                 return;
@@ -579,7 +585,7 @@
 
             const record = window.libraryData.recommendRecords.find(r => r.id === id);
             if (!record) return;
-            
+
             record.wantToReadCount = (record.wantToReadCount || 0) + 1;
             renderRecommendList();
             showToast('已+1！');
@@ -602,7 +608,7 @@
                     const status = r.status || '已推薦';
                     let statusColor = status === '已記錄' ? 'var(--success)' : (status === '不合規定' ? 'var(--danger)' : 'var(--secondary)');
                     const wantCount = r.wantToReadCount || 0;
-                    
+
                     list.innerHTML += `
                         <div class="list-card" style="flex-direction: column; align-items: stretch; gap: 12px;">
                             <div style="display: flex; align-items: center; gap: 16px;">
@@ -776,7 +782,6 @@
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
 
-            // 1. 獲取當前網格中顯示的所有書籍 IDs (確保滑動時能看到同樣順序的書)
             const currentCards = document.querySelectorAll('#mobileBooksGrid .book-card, .list-card');
             let bookIds = [];
             currentCards.forEach(card => {
@@ -795,7 +800,6 @@
             const swiper = document.getElementById('mobileDetailSwiper');
             swiper.innerHTML = '';
 
-            // 2. 根據 IDs 建立所有的 Slide 卡片
             bookIds.forEach((id) => {
                 const b = window.libraryData.allBooks.find(item => item.id === id);
                 if (!b) return;
@@ -835,36 +839,24 @@
                     </div>
                 `;
 
-                // 核心交互：向下滾動卡片內部時，鎖定父層 swiper 的左右滑動
-                card.addEventListener('scroll', function(e) {
-                    if (this.scrollTop > 5) {
-                        swiper.style.overflowX = 'hidden';
-                    } else {
-                        swiper.style.overflowX = 'auto';
-                    }
-                });
-
                 slide.appendChild(card);
                 swiper.appendChild(slide);
             });
 
-            // 3. 顯示 Wrapper 和動畫
             const wrapper = document.getElementById('mobileBookDetailWrapper');
             wrapper.classList.add('active');
-            swiper.style.overflowX = 'auto';
 
-            // 4. 定位到使用者點擊的那本書 (無縫跳轉)
             setTimeout(() => {
                 const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
                 if (targetSlide) {
                     swiper.style.scrollBehavior = 'auto';
                     swiper.scrollLeft = targetSlide.offsetLeft;
-                    
+
                     setTimeout(() => {
                         swiper.style.scrollBehavior = 'smooth';
                     }, 50);
                 }
-            }, 10); 
+            }, 10);
         }
 
         window.hideMobileBookDetail = function () {
@@ -1514,7 +1506,7 @@
             font-size: 13px;
             color: var(--text-light);
         }
-        
+
         .want-read-btn {
             background: var(--bg);
             border: 1.5px solid var(--border);
@@ -1529,7 +1521,7 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
+
         .want-read-btn:hover {
             border-color: var(--primary);
         }
@@ -2021,14 +2013,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            opacity: 0;
             pointer-events: none;
-            transition: opacity 0.3s;
-        }
-
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: auto;
         }
 
         .spinner {
@@ -2081,8 +2066,10 @@
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             opacity: 0;
-            transition: opacity 0.3s;
+            transition: opacity 0.4s;
         }
 
         .mobile-detail-wrapper.active .mobile-detail-bg {
@@ -2090,23 +2077,22 @@
         }
 
         .mobile-detail-close {
-            position: absolute;
-            top: 40px;
-            right: 20px;
-            width: 36px;
-            height: 36px;
-            background: rgba(255, 255, 255, 0.2);
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.25);
             border-radius: 50%;
             color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
-            z-index: 2501;
-            opacity: 0;
-            transition: opacity 0.3s;
+            font-size: 18px;
+            z-index: 2505;
             cursor: pointer;
-            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.4s;
         }
 
         .mobile-detail-wrapper.active .mobile-detail-close {
@@ -2115,21 +2101,19 @@
 
         .mobile-detail-swiper {
             position: absolute;
-            bottom: 0;
+            top: 0;
             left: 0;
             width: 100%;
-            height: 88vh;
+            height: 100%;
             display: flex;
             overflow-x: auto;
             overflow-y: hidden;
             scroll-snap-type: x mandatory;
-            scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
-            padding: 0 4vw;
+            z-index: 2501;
+            scroll-behavior: smooth;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-            align-items: flex-end;
-            padding-bottom: env(safe-area-inset-bottom);
         }
 
         .mobile-detail-wrapper.active .mobile-detail-swiper {
@@ -2141,23 +2125,28 @@
         }
 
         .mobile-detail-slide {
-            width: 86vw;
+            width: 100vw;
             height: 100%;
             flex-shrink: 0;
-            margin: 0 3vw;
-            scroll-snap-align: center;
-            background: var(--surface);
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-            overflow-y: auto;
-            overflow-x: hidden;
-            position: relative;
-            transform: scale(0.9);
-            opacity: 0.5;
-            transition: all 0.3s ease-out;
-            transform-origin: bottom center;
+            scroll-snap-align: start;
+            display: flex;
+            align-items: flex-end;
+            opacity: 1;
+            transform: none;
         }
 
-        .mobile-detail-slide::-webkit-scrollbar {
+        .mobile-detail-card {
+            width: 100vw;
+            height: calc(100% - 70px);
+            background: var(--surface);
+            border-radius: 20px 20px 0 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 24px;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+        }
+
+        .mobile-detail-card::-webkit-scrollbar {
             display: none;
         }
     </style>
@@ -2320,20 +2309,20 @@
             <div class="form-group">
                 <h3>4. 預約記錄管理</h3>
                 <div id="reserveRecordsContainer">
-                    </div>
+                </div>
             </div>
 
             <div class="form-group">
                 <h3>5. 推薦購書記錄管理</h3>
                 <div id="recommendRecordsContainer">
-                    </div>
+                </div>
             </div>
 
             <div class="form-group">
                 <h3>6. 留言管理</h3>
                 <button class="btn-primary" onclick="loadAllComments()">加載所有留言</button>
                 <div id="adminCommentList" style="margin-top:20px;">
-                    </div>
+                </div>
             </div>
 
             <div class="form-group">
@@ -2444,7 +2433,7 @@
         <div class="mobile-detail-bg" onclick="hideMobileBookDetail()"></div>
         <div class="mobile-detail-close" onclick="hideMobileBookDetail()">✕</div>
         <div class="mobile-detail-swiper" id="mobileDetailSwiper">
-            </div>
+        </div>
     </div>
 
     <div class="modal-center" id="reserveModal">
