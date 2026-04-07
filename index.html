@@ -254,13 +254,13 @@
                     });
                     if (targetEl) {
                         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        targetEl.style.transition = 'transform 0.3s, box-shadow 0.3s';
-                        targetEl.style.transform = 'scale(1.05)';
-                        targetEl.style.boxShadow = '0 0 20px rgba(0, 113, 227, 0.5)';
+                        targetEl.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.5s';
+                        targetEl.style.transform = 'scale(1.08) translateY(-10px)';
+                        targetEl.style.boxShadow = '0 15px 30px rgba(255, 149, 0, 0.6), 0 0 40px rgba(255, 149, 0, 0.4)';
                         setTimeout(() => {
                             targetEl.style.transform = '';
                             targetEl.style.boxShadow = '';
-                        }, 1500);
+                        }, 3000);
                     }
                 }, 150);
             } else {
@@ -283,13 +283,13 @@
                     });
                     if (targetEl) {
                         targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        targetEl.style.transition = 'transform 0.3s, box-shadow 0.3s';
-                        targetEl.style.transform = 'scale(1.05)';
-                        targetEl.style.boxShadow = '0 0 20px rgba(0, 113, 227, 0.5)';
+                        targetEl.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.5s';
+                        targetEl.style.transform = 'scale(1.08) translateY(-10px)';
+                        targetEl.style.boxShadow = '0 15px 30px rgba(255, 149, 0, 0.6), 0 0 40px rgba(255, 149, 0, 0.4)';
                         setTimeout(() => {
                             targetEl.style.transform = '';
                             targetEl.style.boxShadow = '';
-                        }, 1500);
+                        }, 3000);
                     }
                 }, 150);
             } else {
