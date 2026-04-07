@@ -9,7 +9,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-
         const firebaseConfig = {
             apiKey: "AIzaSyAdNZnrW2xEh6AYFs5osZ0Zi-Tl5ZPbqfs",
             authDomain: "newbookf-a73de-5a312-47013.firebaseapp.com",
@@ -32,7 +31,6 @@
 
         const placeholderImg = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f5f5f7'/%3E%3Ctext x='50' y='75' font-family='sans-serif' font-size='14' fill='%238e8e93' text-anchor='middle' dominant-baseline='middle'%3E暫無封面%3C/text%3E%3C/svg%3E";
 
-
         window.showToast = function (message, type = "success") {
             const container = document.getElementById('toastContainer');
             if (!container) return;
@@ -54,7 +52,6 @@
             hideMobileBookDetail();
         }
 
-        // ================= 資料載入 =================
         async function loadData() {
             try {
                 const loader = document.getElementById('loadingIndicator');
@@ -116,7 +113,7 @@
                 await loadAnnouncement();
                 if (loader) loader.classList.remove('active');
             } catch (err) {
-                console.error("載入失敗:", err);
+                console.error(err);
                 showToast("資料載入失敗，請重新整理頁面", "error");
                 const loader = document.getElementById('loadingIndicator');
                 if (loader) loader.classList.remove('active');
@@ -180,7 +177,6 @@
             if (bnSel) bnSel.addEventListener('change', loadBookData);
         }
 
-
         async function loadAnnouncement() {
             try {
                 const docSnap = await getDoc(doc(db, "settings", "announcement"));
@@ -202,7 +198,7 @@
                         if (cInput) cInput.value = data.content;
                     }
                 }
-            } catch (err) { console.error("加載公告失敗:", err); }
+            } catch (err) { console.error(err); }
         }
 
         window.closeAnnouncement = function () {
@@ -212,7 +208,6 @@
                 modal.style.display = 'none';
             }
         }
-
 
         function renderIssueSelectors() {
             const issues = Object.keys(window.libraryData.issues).map(Number).sort((a, b) => a - b);
@@ -233,7 +228,6 @@
             });
         }
 
-
         window.switchIssue = function (issue) {
             window.currentIssue = Number(issue);
             const sel = document.getElementById('issueSelect');
@@ -245,20 +239,62 @@
             showSection('homeSection');
         }
 
-        window.jumpToIssue = function (issue, posterNum) {
+        window.jumpToIssue = function (issue, posterNum, bookId) {
             closeAllModals();
             switchIssue(issue);
             const btn = document.querySelector(`.desktop-poster-btn[data-poster="${posterNum}"]`);
             if (btn) setActivePoster(btn, posterNum);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (bookId) {
+                setTimeout(() => {
+                    const cards = document.querySelectorAll('#booksGrid .book-card');
+                    let targetEl = null;
+                    cards.forEach(card => {
+                        const likeBtn = card.querySelector(`.like-btn-element[data-book-id="${bookId}"]`);
+                        if (likeBtn) targetEl = card;
+                    });
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetEl.style.transition = 'transform 0.3s, box-shadow 0.3s';
+                        targetEl.style.transform = 'scale(1.05)';
+                        targetEl.style.boxShadow = '0 0 20px rgba(0, 113, 227, 0.5)';
+                        setTimeout(() => {
+                            targetEl.style.transform = '';
+                            targetEl.style.boxShadow = '';
+                        }, 1500);
+                    }
+                }, 150);
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
 
-        window.mobileJumpToIssue = function (issue, posterNum) {
+        window.mobileJumpToIssue = function (issue, posterNum, bookId) {
             closeAllModals();
             mobileSwitchIssue(issue);
             const btn = document.querySelector(`.mobile-poster-btn[data-poster="${posterNum}"]`);
             if (btn) setMobileActivePoster(btn, posterNum);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (bookId) {
+                setTimeout(() => {
+                    const cards = document.querySelectorAll('#mobileBooksGrid .book-card');
+                    let targetEl = null;
+                    cards.forEach(card => {
+                        const likeBtn = card.querySelector(`.like-btn-element[data-book-id="${bookId}"]`);
+                        if (likeBtn) targetEl = card;
+                    });
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetEl.style.transition = 'transform 0.3s, box-shadow 0.3s';
+                        targetEl.style.transform = 'scale(1.05)';
+                        targetEl.style.boxShadow = '0 0 20px rgba(0, 113, 227, 0.5)';
+                        setTimeout(() => {
+                            targetEl.style.transform = '';
+                            targetEl.style.boxShadow = '';
+                        }, 1500);
+                    }
+                }, 150);
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
 
         window.filterByCategory = function (category, element) {
@@ -334,7 +370,6 @@
             if (sec) sec.classList.add('active');
         }
 
-
         function initCarousel() {
             const track = document.getElementById('carouselTrack');
             if (!track) return;
@@ -356,7 +391,6 @@
             books.forEach(b => track.appendChild(createItem(b)));
         }
 
-
         window.showDesktopBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
@@ -366,7 +400,7 @@
                 : (book.status === 'out' ? `<span style="color:var(--text-light)">不在架</span>` : `<span style="color:var(--danger)">已被預約</span>`);
 
             let reserveBtn = book.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${book.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
-            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="jumpToIssue('${book.issue}', '${book.posterNum}')">前往第 ${book.issue} 期書單</button>`;
+            let jumpBtn = `<button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="jumpToIssue('${book.issue}', '${book.posterNum}', '${book.id}')">前往第 ${book.issue} 期書單</button>`;
 
             document.getElementById('dbsCover').src = book.cover || placeholderImg;
             document.getElementById('dbsTitle').textContent = book.title;
@@ -441,7 +475,6 @@
                 }
             } catch (err) { showToast("預約失敗", "error"); }
         }
-
 
         window.bookLike = async function (bookId, event) {
             event.stopPropagation();
@@ -528,7 +561,6 @@
             }
         }
 
-
         let searchTimeout;
         window.setupSearchDebounce = function () {
             const inputs = [document.getElementById('searchInput'), document.getElementById('mobileSearchInput')];
@@ -593,7 +625,7 @@
             try {
                 await updateDoc(doc(db, "recommends", id), { wantToReadCount: record.wantToReadCount });
             } catch (err) {
-                console.error("更新失敗", err);
+                console.error(err);
             }
         }
 
@@ -685,8 +717,6 @@
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
-
-
         window.mobileFilterByCategory = function (category, element) {
             document.querySelectorAll('.pill.mobile-pill').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
@@ -776,12 +806,9 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-
-
         window.showMobileBookDetail = function (bookId) {
             const book = window.libraryData.allBooks.find(b => b.id === bookId);
             if (!book) return;
-
 
             const currentCards = document.querySelectorAll('#mobileBooksGrid .book-card, .list-card');
             let bookIds = [];
@@ -801,7 +828,6 @@
             const swiper = document.getElementById('mobileDetailSwiper');
             swiper.innerHTML = '';
 
-
             bookIds.forEach((id) => {
                 const b = window.libraryData.allBooks.find(item => item.id === id);
                 if (!b) return;
@@ -812,11 +838,9 @@
 
                 let reserveBtn = b.status === 'in' ? `<button class="btn-primary" onclick="openReserveModal('${b.id}')" style="width:100%; margin-top:15px; border-radius:16px;">立即預約</button>` : '';
 
-
                 const slide = document.createElement('div');
                 slide.className = 'mobile-detail-slide';
                 slide.id = `mobile-slide-${b.id}`;
-
 
                 const card = document.createElement('div');
                 card.className = 'mobile-detail-card';
@@ -839,14 +863,12 @@
                     </div>
                     <div style="padding: 10px 0 40px;">
                         ${reserveBtn}
-                        <button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="mobileJumpToIssue('${b.issue}', '${b.posterNum}')">前往第 ${b.issue} 期書單</button>
+                        <button style="width:100%; margin-top:10px; border-radius:16px; padding:12px; background:var(--bg); border:1.5px solid var(--border); color:var(--text); font-weight:bold; cursor:pointer;" onclick="mobileJumpToIssue('${b.issue}', '${b.posterNum}', '${b.id}')">前往第 ${b.issue} 期書單</button>
                     </div>
                 `;
 
-                // 向下、左右鎖定、下拉關閉 
                 let startY = 0;
                 let currentY = 0;
-
 
                 card.addEventListener('scroll', function (e) {
                     if (this.scrollTop > 5) {
@@ -856,37 +878,33 @@
                     }
                 });
 
-
                 card.addEventListener('touchstart', function (e) {
                     startY = e.touches[0].clientY;
                     currentY = startY;
                     this.style.transition = 'none';
                 }, { passive: true });
 
-
                 card.addEventListener('touchmove', function (e) {
                     currentY = e.touches[0].clientY;
                     const deltaY = currentY - startY;
 
-
                     if (this.scrollTop <= 0 && deltaY > 0) {
                         this.style.transform = `translateY(${deltaY}px)`;
-                        if (e.cancelable) e.preventDefault(); // 阻擋原生的下拉刷新
+                        if (e.cancelable) e.preventDefault();
                     }
                 }, { passive: false });
-
 
                 card.addEventListener('touchend', function (e) {
                     const deltaY = currentY - startY;
                     this.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
 
-                    if (this.scrollTop <= 0 && deltaY > 100) { // 下拉超過 100px 則關閉
+                    if (this.scrollTop <= 0 && deltaY > 100) {
                         hideMobileBookDetail();
                         setTimeout(() => {
-                            this.style.transform = 'translateY(0)'; // 在背景彈回原位
+                            this.style.transform = 'translateY(0)';
                         }, 400);
                     } else {
-                        this.style.transform = 'translateY(0)'; // 拉不夠遠，彈回原位
+                        this.style.transform = 'translateY(0)';
                     }
                 });
 
@@ -894,18 +912,15 @@
                 swiper.appendChild(slide);
             });
 
-
             const wrapper = document.getElementById('mobileBookDetailWrapper');
             wrapper.classList.add('active');
             swiper.style.overflowX = 'auto';
-
 
             setTimeout(() => {
                 const targetSlide = document.getElementById(`mobile-slide-${bookId}`);
                 if (targetSlide) {
                     swiper.style.scrollBehavior = 'auto';
                     swiper.scrollLeft = targetSlide.offsetLeft;
-
 
                     setTimeout(() => {
                         swiper.style.scrollBehavior = 'smooth';
@@ -920,8 +935,6 @@
                 wrapper.classList.remove('active');
             }
         }
-
-
 
         window.showAdminLogin = function () {
             document.getElementById('adminLoginModal').classList.remove('hidden');
@@ -1298,7 +1311,6 @@
             background: #fff0f0;
         }
 
-
         .desktop-content {
             display: none;
         }
@@ -1317,7 +1329,6 @@
                 padding-bottom: 40px;
             }
         }
-
 
         .header-container {
             text-align: center;
@@ -1593,7 +1604,6 @@
             pointer-events: none;
         }
 
-
         .desktop-content .main-section {
             display: none;
             padding: 0 20px;
@@ -1695,7 +1705,6 @@
             display: block;
         }
 
-
         .admin-panel {
             margin: 20px auto;
             padding: 30px;
@@ -1741,7 +1750,6 @@
             justify-content: space-between;
             align-items: center;
         }
-
 
         .mobile-content .mobile-main-section {
             display: none;
@@ -1794,7 +1802,6 @@
         .tab-icon {
             font-size: 22px;
         }
-
 
         .modal-overlay {
             position: fixed;
@@ -1965,7 +1972,6 @@
             box-shadow: var(--shadow);
         }
 
-
         .comment-item {
             border-bottom: 1px solid var(--bg);
             padding: 16px 0;
@@ -2010,7 +2016,6 @@
             color: var(--danger);
             border: none;
         }
-
 
         .toast-container {
             position: fixed;
@@ -2068,7 +2073,6 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
@@ -2079,7 +2083,6 @@
             opacity: 1;
             visibility: visible;
             pointer-events: auto;
-
         }
 
         .spinner {
@@ -2108,7 +2111,6 @@
             align-items: center;
             justify-content: center;
         }
-
 
         .mobile-detail-wrapper {
             position: fixed;
@@ -2210,7 +2212,6 @@
             padding: 24px;
             padding-bottom: calc(24px + env(safe-area-inset-bottom));
             will-change: transform;
-
         }
 
         .mobile-detail-card::-webkit-scrollbar {
@@ -2258,7 +2259,7 @@
             </div>
             <div class="search-wrapper">
                 <span class="search-icon">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="搜尋書名或作者...">
+                <input type="text" id="searchInput" class="search-input" placeholder="搜尋書名/作者/關鍵字">
             </div>
         </div>
 
@@ -2284,15 +2285,23 @@
 
         <div class="main-section" id="recommendSection">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2 style="font-size:22px;">大家推薦的好書</h2>
-                <button class="btn-primary" style="padding:8px 16px; font-size:14px;"
-                    onclick="openRecommendForm()">我要推薦</button>
+                <div style="display:flex; align-items:baseline; gap:10px;">
+                    <h2 style="font-size:22px;">大家推薦圖書館購買的好書</h2>
+                    <span style="font-size:14px; color:var(--text-light);">想看什麼書？推薦讓圖書館買單！</span>
+                </div>
+                <button class="btn-primary" style="padding:8px 16px; font-size:14px; white-space:nowrap;"
+                    onclick="openRecommendForm()">我要推薦購書</button>
             </div>
             <div id="recommendList"></div>
         </div>
 
         <div class="main-section" id="rankSection">
-            <h2 style="font-size:22px; margin-bottom:8px;">熱門排行榜</h2>
+            <div style="margin-bottom: 20px;">
+                <div style="display:flex; align-items:baseline; gap:10px;">
+                    <h2 style="font-size:22px; margin-bottom:0;">熱門排行榜</h2>
+                    <span style="font-size:14px; color:var(--text-light);">點讚數高的書籍會上榜，快來為愛書打CALL！</span>
+                </div>
+            </div>
             <div id="rankingList"></div>
         </div>
 
@@ -2414,13 +2423,12 @@
         <div class="hidden-admin-entry desktop-only" onclick="showAdminLogin(); event.stopPropagation();">®</div>
     </div>
 
-
     <div class="mobile-content">
         <div class="header-container" style="padding: 20px 16px 10px;">
             <h1 class="main-title" style="font-size:24px; margin-bottom:16px;">中學圖書館</h1>
             <div class="search-wrapper" style="margin-bottom:16px;">
                 <span class="search-icon">🔍</span>
-                <input type="text" id="mobileSearchInput" class="search-input" placeholder="搜尋書名或作者...">
+                <input type="text" id="mobileSearchInput" class="search-input" placeholder="搜尋書名/作者/關鍵字">
             </div>
             <div class="floating-island" style="margin-bottom:10px;">
                 <button class="pill mobile-pill active" onclick="mobileFilterByCategory('all', this)">全部</button>
@@ -2449,16 +2457,23 @@
         </div>
 
         <div class="mobile-main-section" id="mobileRecommendSection">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2 style="font-size:20px;">好書推薦</h2>
-                <button class="btn-primary" style="padding:6px 12px; font-size:13px;"
-                    onclick="openRecommendForm()">我要推薦</button>
+            <div
+                style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; gap:8px;">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    <h2 style="font-size:18px; line-height:1.2; margin-bottom:0;">大家推薦圖書館購買的好書</h2>
+                    <span style="font-size:12px; color:var(--text-light);">想看什麼書？推薦讓圖書館買單！</span>
+                </div>
+                <button class="btn-primary" style="padding:6px 12px; font-size:13px; white-space:nowrap; flex-shrink:0;"
+                    onclick="openRecommendForm()">我要推薦購書</button>
             </div>
             <div id="mobileRecommendList"></div>
         </div>
 
         <div class="mobile-main-section" id="mobileRankSection">
-            <h2 style="font-size:20px; margin-bottom:16px;">排行榜</h2>
+            <div style="margin-bottom:16px; display:flex; flex-direction:column; gap:4px;">
+                <h2 style="font-size:20px; margin-bottom:0;">排行榜</h2>
+                <span style="font-size:12px; color:var(--text-light);">點讚數高的書籍會上榜，快來為愛書打CALL！</span>
+            </div>
             <div id="mobileRankingList"></div>
         </div>
 
@@ -2474,7 +2489,6 @@
             </div>
         </div>
     </div>
-
 
     <div class="bottom-sheet" id="desktopBookDetailSheet">
         <div class="bs-handle"></div>
